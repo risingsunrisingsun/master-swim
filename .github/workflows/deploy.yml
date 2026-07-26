@@ -33,7 +33,11 @@ jobs:
 
       - run: bun run build
 
+      # enablement 를 켜두면 저장소 설정에서 Pages 를 미리 만지지 않아도 된다.
+      # 이걸 빼면 첫 실행이 "Pages 가 활성화되지 않았다"로 실패한다.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
