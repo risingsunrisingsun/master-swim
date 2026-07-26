@@ -11,7 +11,7 @@ import { verdict, type SetLog } from './log'
 import { dailyDiet, GROUP_LABEL, REPRESENTATIVE, type DailyDiet } from './nutrition'
 import { formatTime, improvementPercent, racePace25, splitTargets } from './pace'
 import { SESSION_MET, weeklyMeters, type PlannedSession, type WeekDay } from './plan'
-import type { Distance, Profile, RaceEvent, RecordEntry, Sex } from './types'
+import type { AgeGroup, Distance, Profile, RaceEvent, RecordEntry, Sex } from './types'
 import { LEVEL_LABEL, STROKE_LABEL } from './types'
 
 const ENTITIES: Record<string, string> = {
@@ -264,16 +264,21 @@ export function trainingHtml(
 // 개인기록 추이
 // ---------------------------------------------------------------------------
 
-function standingHtml(entry: RecordEntry, sex: Sex): string {
-  const result = standing(entry.timeCs, entry.event, sex)
+function standingHtml(entry: RecordEntry, sex: Sex, ageGroup?: AgeGroup): string {
+  const result = standing(entry.timeCs, entry.event, sex, ageGroup)
   const next = toNextLevel(entry.timeCs, entry.event, sex)
 
+  const headline =
+    result.source === 'distribution'
+      ? `국내 마스터즈 <strong>상위 ${result.topPercent}%</strong>`
+      : `위치 <strong>${result.position} / 100</strong>`
+
   return `<div class="standing">
-      <div class="bar" role="img" aria-label="위치 ${result.position}점">
+      <div class="bar" role="img" aria-label="상위 ${result.position}%">
         <span style="width:${result.position}%"></span>
       </div>
       <p class="standing-text">
-        <strong>${LEVEL_LABEL[result.level]}</strong> · 위치 ${result.position} / 100
+        ${headline} · ${LEVEL_LABEL[result.level]}
         ${next ? ` · ${LEVEL_LABEL[next.level]}까지 ${formatTime(next.gapCs)}` : ' · 최상급'}
       </p>
       <p class="hint warn">${escapeHtml(result.basis)}</p>
@@ -309,6 +314,7 @@ export function recordsHtml(
   entries: readonly RecordEntry[],
   event: RaceEvent,
   sex: Sex,
+  ageGroup?: AgeGroup,
 ): string {
   const forEvent = entries.filter(
     (entry) => entry.event.stroke === event.stroke && entry.event.distance === event.distance,
@@ -336,6 +342,6 @@ export function recordsHtml(
 
   return `${summary}
     ${points.length >= 2 ? recordChart(points, bands) : EMPTY_CHART_HTML}
-    ${latest ? standingHtml(latest, sex) : ''}
+    ${latest ? standingHtml(latest, sex, ageGroup) : ''}
     ${recordTableHtml(forEvent)}`
 }

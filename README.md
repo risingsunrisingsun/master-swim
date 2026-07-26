@@ -28,7 +28,8 @@ GitHub Pages 로 배포한다.
 | `src/plan.ts` | 주간 플랜 배치. 목표 거리로 세션 구성을 결정 |
 | `src/log.ts` | 훈련 로그와 목표 판정. 완주 개수 하나로 목표를 검증 (ADR-0007) |
 | `src/nutrition.ts` | 식단. KDRIs 식사구성안 위에서만 계산 (ADR-0005) |
-| `src/benchmark.ts` | 등급 구간 대비 위치. **백분위가 아니다** (ADR-0006) |
+| `src/distributions.ts` | 국내 마스터즈 기록 분포. 그래프에서 읽은 히스토그램 원본 |
+| `src/benchmark.ts` | 기록 위치. 분포가 있으면 실제 백분위, 없으면 등급 구간 (ADR-0006) |
 | `src/chart.ts` | 기록 추이 SVG. 라이브러리 없음, 계열 하나, y축 뒤집힘 |
 | `src/view.ts` | HTML 생성. 순수 함수라 브라우저 없이 테스트된다 |
 | `src/types.ts` | 종목·거리·등급의 정의 |

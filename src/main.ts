@@ -180,7 +180,7 @@ function renderRecords(): void {
 
   const { profile, records } = load()
   const sex = (profile?.sex ?? inputs.sex.value) as Sex
-  recordsResult.innerHTML = recordsHtml(records, selectedEvent(), sex)
+  recordsResult.innerHTML = recordsHtml(records, selectedEvent(), sex, profile?.ageGroup)
 
   for (const button of recordsResult.querySelectorAll<HTMLButtonElement>('[data-remove]')) {
     button.addEventListener('click', () => {
