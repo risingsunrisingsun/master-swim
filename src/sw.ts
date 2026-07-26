@@ -10,7 +10,7 @@
 const sw = globalThis as unknown as ServiceWorkerGlobalScope
 
 /** 배포할 때마다 올린다. 값이 바뀌면 옛 캐시가 정리된다. */
-const CACHE = 'masters-swim-v3'
+const CACHE = 'masters-swim-v4'
 
 const SHELL = [
   './',

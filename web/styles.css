@@ -6,6 +6,10 @@
   --line: #d8e0e6;
   /* 팀 로고의 파랑. web/icon-*.png 와 manifest theme_color 가 같은 값을 쓴다. */
   --accent: #0868e8;
+  /* 차트 마크 전용. UI 강조색과 역할이 달라 따로 둔다 — 마크는 명도 밴드를,
+     UI 텍스트는 본문 대비를 만족해야 한다. 둘 다 검증기를 통과한 값이다. */
+  --series-1: #0868e8;
+  --good: #006300;
   color-scheme: light dark;
 }
 
@@ -18,6 +22,10 @@
     --line: #263440;
     /* 어두운 배경에서 #0868e8 은 대비가 모자란다. 같은 색상각을 밝게 올린 값. */
     --accent: #6aa8ff;
+    /* 마크는 어두운 표면용 명도 밴드(L 0.48~0.67)에 들어와야 한다. #6aa8ff 는
+       텍스트로는 맞지만 밴드를 벗어나므로 마크에는 한 단계 어두운 값을 쓴다. */
+    --series-1: #3987e5;
+    --good: #0ca30c;
   }
 }
 
@@ -326,3 +334,121 @@ footer {
 footer p {
   margin: 0;
 }
+
+/* --- 처음 화면 -------------------------------------------------------- */
+
+.home { display: grid; gap: 0.75rem; margin-top: 1.5rem; }
+
+.tile {
+  display: grid;
+  gap: 0.2rem;
+  padding: 1.1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  text-decoration: none;
+  color: inherit;
+}
+
+.tile strong { font-size: 1.05rem; color: var(--accent); }
+.tile span { font-size: 0.85rem; color: var(--muted); }
+
+.back {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+/* --- 하루씩 넘기기 ---------------------------------------------------- */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.pager button { padding: 0.4rem 1.1rem; font-size: 1.3rem; line-height: 1; }
+.pager-label { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.session.rest { border-style: dashed; }
+
+/* --- 식단 ------------------------------------------------------------- */
+
+.diet {
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--surface);
+}
+
+.diet h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.diet.locked { border-style: dashed; }
+.meals { display: grid; gap: 0.8rem; margin-top: 0.75rem; }
+
+.meal h4 { margin: 0 0 0.3rem; font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+.meal ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.3rem; }
+.meal li { display: grid; grid-template-columns: 1fr auto; gap: 0 0.5rem; font-size: 0.85rem; }
+.meal li b { font-variant-numeric: tabular-nums; color: var(--accent); }
+.meal li .hint { grid-column: 1 / -1; font-size: 0.75rem; }
+
+.source { margin-top: 0.75rem; padding-top: 0.6rem; border-top: 1px solid var(--line); }
+
+/* --- 차트 ------------------------------------------------------------- */
+/* 계열이 하나뿐이라 범례가 없다. 끝점 직접 라벨과 아래 표가 값을 담당한다. */
+
+.chart { margin: 1rem 0 0; }
+.chart svg { width: 100%; height: auto; display: block; }
+
+.c-line {
+  fill: none;
+  stroke: var(--series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* 겹치는 마크는 테두리가 아니라 표면색 링으로 띄운다 */
+.c-dot { fill: var(--series-1); stroke: var(--surface); stroke-width: 2; }
+.c-best { fill: none; stroke: var(--series-1); stroke-width: 2; }
+.c-hit { fill: transparent; }
+
+.c-grid, .c-axis { stroke: var(--line); stroke-width: 1; }
+.c-tick, .c-band { fill: var(--muted); font-size: 9px; font-variant-numeric: tabular-nums; }
+.c-tick-end { text-anchor: end; }
+.c-value { fill: var(--text); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* --- 등급 위치 -------------------------------------------------------- */
+
+.standing { margin-top: 1rem; }
+.standing .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.standing .bar span { display: block; height: 100%; background: var(--series-1); }
+.standing-text { margin: 0.4rem 0 0; font-size: 0.9rem; }
+.warn { color: var(--muted); font-style: italic; }
+
+/* --- 기록 표 ---------------------------------------------------------- */
+
+.records .better { color: var(--good); font-weight: 600; }
+
+.link {
+  padding: 0.2rem 0.4rem;
+  min-height: auto;
+  background: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  text-decoration: underline;
+}
+
+details summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); padding: 0.4rem 0; }

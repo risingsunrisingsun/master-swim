@@ -4,10 +4,13 @@
  * DOM 을 만지지 않는 순수 함수만 둔다 — 브라우저 없이 테스트할 수 있어야 하고,
  * `main.ts` 는 이 결과를 붙이는 배선만 담당한다.
  */
-import type { Grading } from './grading'
+import { standing, toNextLevel } from './benchmark'
+import { EMPTY_CHART_HTML, recordChart, type ChartBand, type ChartPoint } from './chart'
+import { levelBoundaries, type Grading } from './grading'
+import { dailyDiet, GROUP_LABEL, REPRESENTATIVE, type DailyDiet } from './nutrition'
 import { formatTime, improvementPercent, racePace25, splitTargets } from './pace'
-import { weeklyMeters, type PlannedSession } from './plan'
-import type { Distance, Profile } from './types'
+import { SESSION_MET, weeklyMeters, type PlannedSession, type WeekDay } from './plan'
+import type { Distance, Profile, RaceEvent, RecordEntry, Sex } from './types'
 import { LEVEL_LABEL, STROKE_LABEL } from './types'
 
 const ENTITIES: Record<string, string> = {
@@ -18,7 +21,6 @@ const ENTITIES: Record<string, string> = {
   "'": '&#39;',
 }
 
-/** 카탈로그 문구는 우리가 쓴 것이지만, 이스케이프는 습관으로 둔다. */
 export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => ENTITIES[char]!)
 }
@@ -30,10 +32,30 @@ const ROLE_LABEL = {
   after: '마무리',
 } as const
 
-const meters = (value: number): string => `${value.toLocaleString('ko-KR')}m`
+const meters = (value: number): string => `${Math.round(value).toLocaleString('ko-KR')}m`
+const kcal = (value: number): string => `${Math.round(value).toLocaleString('ko-KR')}kcal`
 
-export function sessionHtml(session: PlannedSession, index: number): string {
-  const rows = session.items
+// ---------------------------------------------------------------------------
+// 홈
+// ---------------------------------------------------------------------------
+
+export const HOME_HTML = `<nav class="home">
+    <a class="tile" href="#/training">
+      <strong>목표 기록 훈련법</strong>
+      <span>목표기록에서 주간 플랜과 식단을 만듭니다</span>
+    </a>
+    <a class="tile" href="#/records">
+      <strong>개인기록 추이</strong>
+      <span>영법별 기록을 남기고 변화를 봅니다</span>
+    </a>
+  </nav>`
+
+// ---------------------------------------------------------------------------
+// 훈련 — 하루씩
+// ---------------------------------------------------------------------------
+
+function sessionItemsHtml(session: PlannedSession): string {
+  return session.items
     .map(
       (item) => `<li>
           <span class="role">${ROLE_LABEL[item.role]}</span>
@@ -45,11 +67,78 @@ export function sessionHtml(session: PlannedSession, index: number): string {
         </li>`,
     )
     .join('')
+}
 
-  return `<article class="session">
-      <h3>${index + 1}일차 · ${escapeHtml(session.title)} <span class="meters">${meters(session.meters)}</span></h3>
-      <ul>${rows}</ul>
-    </article>`
+function dietHtml(diet: DailyDiet): string {
+  const rows = diet.meals
+    .map((meal) => {
+      const items = meal.items
+        .map(
+          (item) =>
+            `<li><span>${GROUP_LABEL[item.group]}</span><b>${item.count}회</b>
+             <span class="hint">${escapeHtml(REPRESENTATIVE[item.group].slice(0, 3).join(' · '))}</span></li>`,
+        )
+        .join('')
+      return `<div class="meal">
+          <h4>${meal.name}</h4>
+          <ul>${items}</ul>
+          ${meal.hint ? `<p class="hint">${escapeHtml(meal.hint)}</p>` : ''}
+        </div>`
+    })
+    .join('')
+
+  return `<section class="diet">
+      <h3>${diet.training ? '훈련일' : '휴식일'} 식단 <span class="meters">${kcal(diet.energy.total)}</span></h3>
+      <p class="hint">
+        기초대사량 ${kcal(diet.energy.bmr)} · 일상활동 포함 ${kcal(diet.energy.baseline)}
+        ${diet.training ? ` · 수영 ${kcal(diet.energy.swim)}` : ''} · 단백질 목표 ${Math.round(diet.proteinTargetG)}g
+      </p>
+      <div class="meals">${rows}</div>
+      <p class="hint source">
+        한국인 영양소 섭취기준(KDRIs) 식사구성안의 식품군 1회 분량과 대표식품,
+        기초대사량은 Mifflin-St Jeor 식을 씁니다. 질환이 있으면 전문가와 상의하세요.
+      </p>
+    </section>`
+}
+
+export const NEEDS_BODY_HTML = `<section class="diet locked">
+    <h3>식단</h3>
+    <p class="hint">
+      키와 체중을 넣으면 식단이 계산됩니다. 이 두 값은 <strong>이 기기에만 저장되고
+      서버로 전송되지 않습니다</strong> — 코치도 팀원도 볼 수 없습니다.
+    </p>
+  </section>`
+
+export function dayHtml(profile: Profile, day: WeekDay, dayCount: number): string {
+  const session = day.session
+
+  const training = session
+    ? `<article class="session">
+        <h3>${day.label}요일 · ${escapeHtml(session.title)} <span class="meters">${meters(session.meters)}</span></h3>
+        <ul>${sessionItemsHtml(session)}</ul>
+      </article>`
+    : `<article class="session rest">
+        <h3>${day.label}요일 · 휴식</h3>
+        <p class="hint">물에 들어가지 않는 날입니다. 회복이 다음 세션의 질을 정합니다.</p>
+      </article>`
+
+  const diet = profile.body
+    ? dietHtml(
+        dailyDiet(profile.body, profile.ageGroup, profile.sex, {
+          training: session !== null,
+          meters: session?.meters ?? 0,
+          met: session ? SESSION_MET[session.focus] : 0,
+        }),
+      )
+    : NEEDS_BODY_HTML
+
+  return `<div class="pager">
+      <button type="button" id="day-prev" aria-label="이전 날">‹</button>
+      <span class="pager-label">${day.index + 1} / ${dayCount}</span>
+      <button type="button" id="day-next" aria-label="다음 날">›</button>
+    </div>
+    ${training}
+    ${diet}`
 }
 
 export function gradingHtml(grading: Grading): string {
@@ -77,13 +166,15 @@ export function splitsHtml(targetCs: number, distance: Distance): string {
 }
 
 export const NEEDS_INPUT_HTML =
-  '<p class="hint">현재기록과 목표기록을 <code>1:23.45</code> 형식으로 넣어주세요.</p>'
+  '<p class="hint">현재기록과 목표기록을 숫자로 넣어주세요.</p>'
 
-/** 결과 영역 전체. */
-export function resultHtml(
+/** 훈련 화면 전체. `day` 는 지금 펼쳐 볼 요일이다. */
+export function trainingHtml(
   profile: Profile,
   grading: Grading,
   plan: readonly PlannedSession[],
+  days: readonly WeekDay[],
+  dayIndex: number,
 ): string {
   const { event, targetCs, currentCs } = profile.goal
   const pace = racePace25(targetCs, event.distance)
@@ -104,8 +195,88 @@ export function resultHtml(
 
     ${gradingHtml(grading)}
 
-    <h2>이번 주 플랜 <span class="hint">계획 ${meters(planned)} / 입력 ${meters(declared)}</span></h2>
-    ${plan.map(sessionHtml).join('')}
+    <h2>이번 주 <span class="hint">계획 ${meters(planned)} / 입력 ${meters(declared)}</span></h2>
+    ${dayHtml(profile, days[dayIndex]!, days.length)}
 
     ${splitsHtml(targetCs, event.distance)}`
+}
+
+// ---------------------------------------------------------------------------
+// 개인기록 추이
+// ---------------------------------------------------------------------------
+
+function standingHtml(entry: RecordEntry, sex: Sex): string {
+  const result = standing(entry.timeCs, entry.event, sex)
+  const next = toNextLevel(entry.timeCs, entry.event, sex)
+
+  return `<div class="standing">
+      <div class="bar" role="img" aria-label="위치 ${result.position}점">
+        <span style="width:${result.position}%"></span>
+      </div>
+      <p class="standing-text">
+        <strong>${LEVEL_LABEL[result.level]}</strong> · 위치 ${result.position} / 100
+        ${next ? ` · ${LEVEL_LABEL[next.level]}까지 ${formatTime(next.gapCs)}` : ' · 최상급'}
+      </p>
+      <p class="hint warn">${escapeHtml(result.basis)}</p>
+    </div>`
+}
+
+function recordTableHtml(entries: readonly RecordEntry[]): string {
+  if (entries.length === 0) return ''
+
+  const rows = entries
+    .map((entry, index) => {
+      const previous = entries[index - 1]
+      const delta = previous ? entry.timeCs - previous.timeCs : null
+      const deltaText =
+        delta === null ? '' : delta === 0 ? '±0' : `${delta < 0 ? '−' : '+'}${formatTime(Math.abs(delta))}`
+
+      return `<tr>
+          <td>${entry.date}</td>
+          <td>${formatTime(entry.timeCs)}</td>
+          <td class="${delta !== null && delta < 0 ? 'better' : ''}">${deltaText}</td>
+          <td><button type="button" class="link" data-remove="${index}">삭제</button></td>
+        </tr>`
+    })
+    .join('')
+
+  return `<table class="records">
+      <thead><tr><th>날짜</th><th>기록</th><th>변화</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`
+}
+
+export function recordsHtml(
+  entries: readonly RecordEntry[],
+  event: RaceEvent,
+  sex: Sex,
+): string {
+  const forEvent = entries.filter(
+    (entry) => entry.event.stroke === event.stroke && entry.event.distance === event.distance,
+  )
+
+  const points: ChartPoint[] = forEvent.map((entry) => ({ date: entry.date, timeCs: entry.timeCs }))
+
+  const bands: ChartBand[] = levelBoundaries(event, sex)
+    .filter((boundary) => boundary.ceilingCs !== null)
+    .map((boundary) => ({ ceilingCs: boundary.ceilingCs!, label: LEVEL_LABEL[boundary.level] }))
+
+  const latest = forEvent.at(-1)
+  const best = forEvent.reduce<RecordEntry | null>(
+    (a, b) => (a === null || b.timeCs < a.timeCs ? b : a),
+    null,
+  )
+
+  const summary = best
+    ? `<div class="pace">
+        <span class="pace-label">${STROKE_LABEL[event.stroke]} ${event.distance}m 최고기록</span>
+        <strong class="pace-value">${formatTime(best.timeCs)}</strong>
+        <span class="hint">${best.date} · 기록 ${forEvent.length}건</span>
+      </div>`
+    : '<p class="hint">이 종목의 기록이 아직 없습니다. 아래에서 추가하세요.</p>'
+
+  return `${summary}
+    ${points.length >= 2 ? recordChart(points, bands) : EMPTY_CHART_HTML}
+    ${latest ? standingHtml(latest, sex) : ''}
+    ${recordTableHtml(forEvent)}`
 }

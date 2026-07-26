@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { grade } from './grading'
 import { parseTime } from './pace'
-import { weeklyMeters, weeklyPlan } from './plan'
+import { weekDays, weeklyMeters, weeklyPlan } from './plan'
 import type { Distance, Profile, Stroke } from './types'
 
 const at = (time: string): number => parseTime(time)!
@@ -128,6 +128,38 @@ describe('안전 규칙이 배치까지 이어진다', () => {
       session.items.map((item) => item.method.id),
     )
     expect(ids).toContain('lactate-tolerance')
+  })
+})
+
+describe('weekDays · 한 주 7일에 흩기', () => {
+  test('항상 7일을 돌려준다', () => {
+    expect(weekDays(planFor({ sessions: 3 }))).toHaveLength(7)
+  })
+
+  test('세션 수만큼만 훈련일이 된다', () => {
+    const days = weekDays(planFor({ sessions: 3 }))
+    expect(days.filter((day) => day.session !== null)).toHaveLength(3)
+  })
+
+  test('주 3회는 몰리지 않는다 — 훈련일 사이에 하루 이상 쉰다', () => {
+    const trainingDays = weekDays(planFor({ sessions: 3 }))
+      .filter((day) => day.session !== null)
+      .map((day) => day.index)
+
+    for (let i = 1; i < trainingDays.length; i++) {
+      expect(trainingDays[i]! - trainingDays[i - 1]!).toBeGreaterThan(1)
+    }
+  })
+
+  test('주 7회면 쉬는 날이 없다', () => {
+    const days = weekDays(planFor({ sessions: 7, meters: 3000 }))
+    expect(days.every((day) => day.session !== null)).toBe(true)
+  })
+
+  test('요일 라벨이 월요일부터 붙는다', () => {
+    expect(weekDays(planFor()).map((day) => day.label)).toEqual([
+      '월', '화', '수', '목', '금', '토', '일',
+    ])
   })
 })
 

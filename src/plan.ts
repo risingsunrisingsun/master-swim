@@ -187,3 +187,44 @@ export function weeklyPlan(profile: Profile, grading: Grading): PlannedSession[]
 export function weeklyMeters(plan: readonly PlannedSession[]): number {
   return plan.reduce((total, session) => total + session.meters, 0)
 }
+
+/** 세션 성격별 수영 MET. 식단의 소모 열량 계산에 쓴다. */
+export const SESSION_MET: Record<SessionFocus, number> = {
+  racePace: 8.3,
+  speed: 8.3,
+  wall: 7.0,
+  technique: 6.0,
+  endurance: 7.0,
+}
+
+export const WEEKDAY_LABEL = ['월', '화', '수', '목', '금', '토', '일'] as const
+
+export interface WeekDay {
+  /** 0 = 월요일 */
+  index: number
+  label: string
+  /** 훈련이 없는 날은 null — 식단은 휴식일 기준으로 나간다. */
+  session: PlannedSession | null
+}
+
+/**
+ * 세션을 한 주 7일에 고르게 흩는다.
+ *
+ * 주 3회를 월·화·수로 몰면 회복이 안 되고 나머지 나흘이 비므로,
+ * `round(i × 7 / n)` 으로 간격을 벌린다 — 3회면 월·수·금이 된다.
+ */
+export function weekDays(plan: readonly PlannedSession[]): WeekDay[] {
+  const slots = new Map<number, PlannedSession>()
+
+  plan.forEach((session, i) => {
+    let day = Math.round((i * 7) / plan.length)
+    while (slots.has(day) && day < 7) day++
+    if (day < 7) slots.set(day, session)
+  })
+
+  return WEEKDAY_LABEL.map((label, index) => ({
+    index,
+    label,
+    session: slots.get(index) ?? null,
+  }))
+}

@@ -26,10 +26,13 @@ GitHub Pages 로 배포한다.
 | `src/grading.ts` | 등급 배정. 기록 축(강도) × 훈련량 축(분량) |
 | `src/methods.ts` | 훈련방법 카탈로그 20개 + 등급별 파라미터 |
 | `src/plan.ts` | 주간 플랜 배치. 목표 거리로 세션 구성을 결정 |
+| `src/nutrition.ts` | 식단. KDRIs 식사구성안 위에서만 계산 (ADR-0005) |
+| `src/benchmark.ts` | 등급 구간 대비 위치. **백분위가 아니다** (ADR-0006) |
+| `src/chart.ts` | 기록 추이 SVG. 라이브러리 없음, 계열 하나, y축 뒤집힘 |
 | `src/view.ts` | HTML 생성. 순수 함수라 브라우저 없이 테스트된다 |
 | `src/types.ts` | 종목·거리·등급의 정의 |
-| `src/storage.ts` | localStorage 래퍼 + JSON 내보내기/가져오기 |
-| `src/main.ts` | DOM 배선과 서비스워커 등록 |
+| `src/storage.ts` | localStorage 래퍼 + 스키마 마이그레이션 + JSON 내보내기 |
+| `src/main.ts` | DOM 배선, 해시 라우팅, 서비스워커 등록 |
 | `src/sw.ts` | 앱 셸 캐시 (오프라인 동작) |
 | `web/` | 정적 자산. `dist/` 로 그대로 복사된다 |
 | `build.ts` | `web/` 복사 + `src/` 번들 |

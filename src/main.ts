@@ -1,20 +1,26 @@
 /**
- * 화면 배선.
+ * 화면 배선과 라우팅.
  *
- * 계산은 순수 함수(ADR-0001), HTML 생성은 `view.ts` 에 있다. 여기서는 입력을 읽어
- * 프로필로 만들고, 결과를 붙이고, 저장하고, 서비스워커를 등록하는 일만 한다.
+ * 계산은 순수 함수(ADR-0001), HTML 생성은 `view.ts` 에 있다. 여기서는 입력을 읽고
+ * 결과를 붙이고 저장한다. 라우팅은 해시로만 한다 — 정적 호스팅에는 서버 라우터가 없다.
  */
 import { grade } from './grading'
 import { formatTime, parseTimeInput } from './pace'
-import { weeklyPlan } from './plan'
-import { load, save } from './storage'
-import type { AgeGroup, Distance, Profile, Sex, Stroke } from './types'
-import { NEEDS_INPUT_HTML, resultHtml } from './view'
+import { weekDays, weeklyPlan } from './plan'
+import { addRecord, load, removeRecord, saveProfile } from './storage'
+import type { AgeGroup, Distance, Profile, RaceEvent, Sex, Stroke } from './types'
+import { HOME_HTML, NEEDS_INPUT_HTML, recordsHtml, trainingHtml } from './view'
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
   if (!element) throw new Error(`요소를 찾을 수 없습니다: #${id}`)
   return element as T
+}
+
+const screens = {
+  home: $<HTMLElement>('screen-home'),
+  training: $<HTMLElement>('screen-training'),
+  records: $<HTMLElement>('screen-records'),
 }
 
 const inputs = {
@@ -26,15 +32,39 @@ const inputs = {
   sex: $<HTMLSelectElement>('sex'),
   sessions: $<HTMLInputElement>('sessions'),
   meters: $<HTMLInputElement>('meters'),
+  height: $<HTMLInputElement>('height'),
+  weight: $<HTMLInputElement>('weight'),
 }
-const result = $<HTMLElement>('result')
-const echoes = {
-  current: $<HTMLElement>('current-echo'),
-  target: $<HTMLElement>('target-echo'),
-}
-const savedLabel = $<HTMLElement>('saved')
 
-/** 입력이 전부 유효할 때만 프로필을 만든다. 하나라도 비면 null. */
+const recordInputs = {
+  stroke: $<HTMLSelectElement>('r-stroke'),
+  distance: $<HTMLSelectElement>('r-distance'),
+  date: $<HTMLInputElement>('r-date'),
+  time: $<HTMLInputElement>('r-time'),
+}
+
+const result = $<HTMLElement>('result')
+const recordsResult = $<HTMLElement>('records-result')
+const savedLabel = $<HTMLElement>('saved')
+const recordSaved = $<HTMLElement>('record-saved')
+const backLink = $<HTMLAnchorElement>('back')
+const title = $<HTMLElement>('screen-title')
+const subtitle = $<HTMLElement>('screen-sub')
+
+/** 지금 펼쳐 보는 요일. 주간 플랜을 하루씩 넘겨 보기 위한 것. */
+let dayIndex = 0
+
+// ---------------------------------------------------------------------------
+// 입력 읽기
+// ---------------------------------------------------------------------------
+
+function readBody(): Profile['body'] {
+  const heightCm = Number(inputs.height.value)
+  const weightKg = Number(inputs.weight.value)
+  if (!heightCm || !weightKg) return undefined
+  return { heightCm, weightKg }
+}
+
 function readProfile(): Profile | null {
   const targetCs = parseTimeInput(inputs.target.value)
   const currentCs = parseTimeInput(inputs.current.value)
@@ -56,6 +86,7 @@ function readProfile(): Profile | null {
       currentCs,
     },
     load: { sessionsPerWeek, metersPerSession },
+    body: readBody(),
   }
 }
 
@@ -63,23 +94,26 @@ function readProfile(): Profile | null {
  * 입력한 숫자가 어떤 기록으로 읽혔는지 그 자리에서 되돌려준다.
  * 이게 없으면 `12345` 를 친 사람이 1:23.45 로 읽혔는지 확인할 방법이 없다.
  */
-function renderEcho(field: 'current' | 'target'): void {
-  const raw = inputs[field].value
-  const parsed = parseTimeInput(raw)
-
+function renderEcho(input: HTMLInputElement, echo: HTMLElement): void {
+  const raw = input.value
   if (raw.trim() === '') {
-    echoes[field].textContent = ''
-    echoes[field].classList.remove('bad')
+    echo.textContent = ''
+    echo.classList.remove('bad')
     return
   }
 
-  echoes[field].textContent = parsed === null ? '읽을 수 없는 숫자' : `→ ${formatTime(parsed)}`
-  echoes[field].classList.toggle('bad', parsed === null)
+  const parsed = parseTimeInput(raw)
+  echo.textContent = parsed === null ? '읽을 수 없는 숫자' : `→ ${formatTime(parsed)}`
+  echo.classList.toggle('bad', parsed === null)
 }
 
-function render(): void {
-  renderEcho('current')
-  renderEcho('target')
+// ---------------------------------------------------------------------------
+// 훈련 화면
+// ---------------------------------------------------------------------------
+
+function renderTraining(): void {
+  renderEcho(inputs.current, $<HTMLElement>('current-echo'))
+  renderEcho(inputs.target, $<HTMLElement>('target-echo'))
 
   const profile = readProfile()
   if (!profile) {
@@ -89,12 +123,112 @@ function render(): void {
   }
 
   const grading = grade(profile.goal.currentCs, profile.goal.event, profile.sex, profile.load)
-  result.innerHTML = resultHtml(profile, grading, weeklyPlan(profile, grading))
-  save(profile)
+  const plan = weeklyPlan(profile, grading)
+  const days = weekDays(plan)
+
+  dayIndex = Math.min(Math.max(dayIndex, 0), days.length - 1)
+  result.innerHTML = trainingHtml(profile, grading, plan, days, dayIndex)
+
+  $<HTMLButtonElement>('day-prev').addEventListener('click', () => {
+    dayIndex = (dayIndex - 1 + days.length) % days.length
+    renderTraining()
+  })
+  $<HTMLButtonElement>('day-next').addEventListener('click', () => {
+    dayIndex = (dayIndex + 1) % days.length
+    renderTraining()
+  })
+
+  saveProfile(profile)
 
   const now = new Date()
   savedLabel.textContent = `이 기기에 저장됨 · ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`
 }
+
+// ---------------------------------------------------------------------------
+// 기록 화면
+// ---------------------------------------------------------------------------
+
+function selectedEvent(): RaceEvent {
+  return {
+    stroke: recordInputs.stroke.value as Stroke,
+    distance: Number(recordInputs.distance.value) as Distance,
+  }
+}
+
+function renderRecords(): void {
+  renderEcho(recordInputs.time, $<HTMLElement>('r-echo'))
+
+  const { profile, records } = load()
+  const sex = (profile?.sex ?? inputs.sex.value) as Sex
+  recordsResult.innerHTML = recordsHtml(records, selectedEvent(), sex)
+
+  for (const button of recordsResult.querySelectorAll<HTMLButtonElement>('[data-remove]')) {
+    button.addEventListener('click', () => {
+      // 표는 선택한 종목만 보여주므로, 전체 목록에서의 위치를 다시 찾아야 한다.
+      const event = selectedEvent()
+      const filtered = records.filter(
+        (entry) => entry.event.stroke === event.stroke && entry.event.distance === event.distance,
+      )
+      const target = filtered[Number(button.dataset.remove)]
+      const index = records.indexOf(target!)
+      if (index >= 0) removeRecord(index)
+      renderRecords()
+    })
+  }
+}
+
+function submitRecord(): void {
+  const timeCs = parseTimeInput(recordInputs.time.value)
+  const date = recordInputs.date.value
+
+  if (timeCs === null || !date) {
+    recordSaved.textContent = '날짜와 기록을 모두 넣어주세요'
+    return
+  }
+
+  addRecord({ date, event: selectedEvent(), timeCs })
+  recordInputs.time.value = ''
+  recordSaved.textContent = '추가됨'
+  renderRecords()
+}
+
+// ---------------------------------------------------------------------------
+// 라우팅
+// ---------------------------------------------------------------------------
+
+const ROUTES = {
+  '#/training': { screen: 'training', title: '목표 기록 훈련법', sub: '목표 페이스에서 주간 플랜과 식단을 만듭니다' },
+  '#/records': { screen: 'records', title: '개인기록 추이', sub: '영법별 기록 변화와 등급 위치' },
+} as const
+
+function route(): void {
+  const hash = location.hash as keyof typeof ROUTES
+  const match = ROUTES[hash]
+
+  for (const element of Object.values(screens)) element.hidden = true
+
+  if (!match) {
+    screens.home.hidden = false
+    backLink.hidden = true
+    title.textContent = '나인틴'
+    subtitle.textContent = '마스터즈 수영 훈련 도구'
+    return
+  }
+
+  screens[match.screen].hidden = false
+  backLink.hidden = false
+  title.textContent = match.title
+  subtitle.textContent = match.sub
+
+  if (match.screen === 'training') renderTraining()
+  else renderRecords()
+
+  scrollTo({ top: 0 })
+}
+
+// ---------------------------------------------------------------------------
+// 되살리기와 배선
+// ---------------------------------------------------------------------------
 
 function restore(): void {
   const { profile } = load()
@@ -109,21 +243,37 @@ function restore(): void {
   inputs.sex.value = profile.sex
   inputs.sessions.value = String(profile.load.sessionsPerWeek)
   inputs.meters.value = String(profile.load.metersPerSession)
+
+  if (profile.body) {
+    inputs.height.value = String(profile.body.heightCm)
+    inputs.weight.value = String(profile.body.weightKg)
+    $<HTMLDetailsElement>('body-details').open = true
+  }
+
+  recordInputs.stroke.value = profile.goal.event.stroke
+  recordInputs.distance.value = String(profile.goal.event.distance)
 }
+
+screens.home.innerHTML = HOME_HTML
 
 for (const element of Object.values(inputs)) {
-  element.addEventListener('input', render)
+  element.addEventListener('input', renderTraining)
+}
+for (const element of Object.values(recordInputs)) {
+  element.addEventListener('input', renderRecords)
 }
 
-// 계산은 입력할 때마다 이미 끝나 있다. 이 버튼은 폰에서 화면 아래에 있는 결과로
-// 데려가는 역할만 한다 — 누를 것이 없으면 사람은 입력이 먹혔는지 알 수 없다.
 $<HTMLButtonElement>('show-plan').addEventListener('click', () => {
   inputs.meters.blur() // 키보드를 내려야 결과가 화면에 들어온다
   result.scrollIntoView({ behavior: 'smooth', block: 'start' })
 })
+$<HTMLButtonElement>('add-record').addEventListener('click', submitRecord)
+
+addEventListener('hashchange', route)
 
 restore()
-render()
+recordInputs.date.value = new Date().toISOString().slice(0, 10)
+route()
 
 if ('serviceWorker' in navigator) {
   addEventListener('load', () => {

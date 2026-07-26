@@ -39,11 +39,46 @@ export interface TrainingLoad {
   metersPerSession: number
 }
 
+/**
+ * 신체 데이터. **기기를 벗어나지 않는다** (ADR-0002).
+ * 전부 선택 입력이고, 없으면 식단만 잠긴다.
+ */
+export interface Body {
+  heightCm: number
+  weightKg: number
+}
+
 export interface Profile {
   ageGroup: AgeGroup
   sex: Sex
   goal: Goal
   load: TrainingLoad
+  body?: Body
+}
+
+/** 본인이 직접 남기는 기록 한 줄. 시계열 그래프의 재료다. */
+export interface RecordEntry {
+  /** YYYY-MM-DD */
+  date: string
+  event: RaceEvent
+  timeCs: number
+  /** 대회 기록인지 훈련 중 측정인지 */
+  meet?: boolean
+  note?: string
+}
+
+/** 연령부의 중간 나이. 기초대사량 계산에 쓴다. */
+export const AGE_GROUP_MIDPOINT: Record<AgeGroup, number> = {
+  '25-29': 27,
+  '30-34': 32,
+  '35-39': 37,
+  '40-44': 42,
+  '45-49': 47,
+  '50-54': 52,
+  '55-59': 57,
+  '60-64': 62,
+  '65-69': 67,
+  '70+': 72,
 }
 
 export const STROKE_LABEL: Record<Stroke, string> = {
