@@ -1,32 +1,31 @@
+/*
+ * 라이트 전용. OS 다크 모드를 따라가지 않는다.
+ *
+ * 앞서 `prefers-color-scheme: dark` 분기를 뒀더니 폰이 다크 모드인 회원에게는
+ * 전체가 어둡게 보였다. 레퍼런스 디자인이 밝은 카드 기반이므로 한 가지로 고정한다.
+ * 팀 로고의 파랑만 강조색으로 살린다.
+ */
 :root {
-  --bg: #f6f8fa;
+  --bg: #f4f5f7;
   --surface: #ffffff;
-  --text: #12212b;
-  --muted: #5b6b76;
-  --line: #d8e0e6;
+  --surface-2: #f8f9fb;
+  --text: #1a1d21;
+  --muted: #6b7280;
+  --line: #e3e6ea;
+  --line-strong: #cfd4da;
+
   /* 팀 로고의 파랑. web/icon-*.png 와 manifest theme_color 가 같은 값을 쓴다. */
   --accent: #0868e8;
-  /* 차트 마크 전용. UI 강조색과 역할이 달라 따로 둔다 — 마크는 명도 밴드를,
-     UI 텍스트는 본문 대비를 만족해야 한다. 둘 다 검증기를 통과한 값이다. */
+  --accent-soft: #eaf2fe;
+  /* 차트 마크. 흰 표면에 대해 검증기를 통과한 값이다. */
   --series-1: #0868e8;
-  --good: #006300;
-  color-scheme: light dark;
-}
+  --good: #007a33;
+  --bad: #c0392b;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d1418;
-    --surface: #151f26;
-    --text: #e6edf2;
-    --muted: #93a4b0;
-    --line: #263440;
-    /* 어두운 배경에서 #0868e8 은 대비가 모자란다. 같은 색상각을 밝게 올린 값. */
-    --accent: #6aa8ff;
-    /* 마크는 어두운 표면용 명도 밴드(L 0.48~0.67)에 들어와야 한다. #6aa8ff 는
-       텍스트로는 맞지만 밴드를 벗어나므로 마크에는 한 단계 어두운 값을 쓴다. */
-    --series-1: #3987e5;
-    --good: #0ca30c;
-  }
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+
+  color-scheme: light;
 }
 
 * {
@@ -35,7 +34,7 @@
 
 body {
   margin: 0;
-  padding: 1.25rem 1rem calc(2rem + env(safe-area-inset-bottom));
+  padding: 0;
   background: var(--bg);
   color: var(--text);
   font-family:
@@ -48,19 +47,146 @@ body {
 main {
   max-width: 34rem;
   margin: 0 auto;
+  padding: 0 1rem calc(2.5rem + env(safe-area-inset-bottom));
 }
 
-h1 {
-  margin: 0;
-  font-size: 1.5rem;
-  letter-spacing: -0.02em;
+/* --- 상단 바 ---------------------------------------------------------- */
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 3.5rem 1fr 3.5rem;
+  align-items: center;
+  margin: 0 -1rem 1rem;
+  padding: calc(0.6rem + env(safe-area-inset-top)) 0.5rem 0.6rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
 }
+
+header h1 {
+  grid-column: 2;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: -0.01em;
+}
+
+.back {
+  grid-column: 1;
+  justify-self: start;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+#screen-sub {
+  grid-column: 1 / -1;
+  text-align: center;
+  margin-top: 0.1rem;
+}
+
+/* --- 시작 화면 -------------------------------------------------------- */
+/* 게임 타이틀처럼 로고 한 장과 ENTER 하나만 둔다. */
+
+.splash {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 1.75rem;
+  min-height: 78vh;
+  text-align: center;
+}
+
+.splash img {
+  width: min(62vw, 15rem);
+  height: auto;
+}
+
+.splash .tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+
+.enter {
+  padding: 0.9rem 3rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  border-radius: 999px;
+  animation: pulse 2.2s ease-in-out infinite;
+}
+
+.enter-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(8, 104, 232, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(8, 104, 232, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    animation: none;
+  }
+}
+
+/* --- 메뉴 ------------------------------------------------------------- */
+
+.home {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.tile {
+  display: grid;
+  gap: 0.2rem;
+  padding: 1.1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-decoration: none;
+  color: inherit;
+}
+
+.tile strong {
+  font-size: 1.05rem;
+  color: var(--accent);
+}
+
+.tile span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* --- 폼 --------------------------------------------------------------- */
 
 h2 {
-  margin: 1.5rem 0 0.5rem;
-  font-size: 1rem;
+  margin: 1.75rem 0 0.6rem;
+  font-size: 0.95rem;
   color: var(--muted);
   font-weight: 600;
+}
+
+h2 .hint {
+  display: inline;
+  margin-left: 0.4rem;
+  font-weight: 400;
 }
 
 .hint {
@@ -69,8 +195,16 @@ h2 {
   font-size: 0.85rem;
 }
 
+.card {
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
 form {
-  margin: 1.25rem 0;
+  margin: 0 0 1.25rem;
   display: grid;
   gap: 0.75rem;
 }
@@ -79,6 +213,8 @@ form {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
+  /* 칸 높이가 달라도 위쪽을 맞춘다 — 아래 .echo 가 한쪽에만 붙는다. */
+  align-items: start;
 }
 
 label {
@@ -86,6 +222,8 @@ label {
   gap: 0.3rem;
   font-size: 0.85rem;
   color: var(--muted);
+  /* 그리드 아이템 기본값 auto 를 풀어야 안쪽 입력이 칸보다 넓어지지 않는다. */
+  min-width: 0;
 }
 
 select,
@@ -93,12 +231,21 @@ input {
   font: inherit;
   /* iOS 는 16px 미만 입력에서 화면을 확대한다. */
   font-size: 1rem;
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
   background: var(--surface);
   color: var(--text);
   width: 100%;
+  /* input[type=date] 는 고유 최소 너비가 커서 이걸 풀지 않으면 칸을 넘친다. */
+  min-width: 0;
+}
+
+/* iOS 의 날짜 입력은 기본 높이가 다르다. 옆 칸과 눈높이를 맞춘다. */
+input[type='date'] {
+  min-height: 2.9rem;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 select:focus-visible,
@@ -115,45 +262,35 @@ input:focus-visible {
 }
 
 .echo.bad {
-  color: #c0392b;
+  color: var(--bad);
 }
 
-@media (prefers-color-scheme: dark) {
-  .echo.bad {
-    color: #ff8a7a;
-  }
-}
+/* --- 버튼 ------------------------------------------------------------- */
 
 .actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-top: 0.25rem;
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+  margin-top: 0.5rem;
 }
 
 button {
   font: inherit;
   font-size: 1rem;
   font-weight: 600;
-  padding: 0.75rem 1.1rem;
+  padding: 0.8rem 1.1rem;
   border: 0;
-  border-radius: 0.5rem;
+  border-radius: 10px;
   background: var(--accent);
   color: #fff;
   cursor: pointer;
   /* 폰에서 엄지로 누를 수 있는 최소 크기 */
-  min-height: 2.75rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  button {
-    color: #0d1418;
-  }
+  min-height: 2.9rem;
+  width: 100%;
 }
 
 button:active {
-  opacity: 0.85;
+  opacity: 0.88;
 }
 
 button:focus-visible {
@@ -166,13 +303,16 @@ button:focus-visible {
   color: var(--muted);
 }
 
+/* --- 목표 페이스 ------------------------------------------------------ */
+
 .pace {
   display: grid;
   gap: 0.15rem;
-  padding: 1rem;
+  padding: 1.1rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 .pace-label {
@@ -182,7 +322,7 @@ button:focus-visible {
 
 .pace-value {
   font-size: 2.5rem;
-  font-variant-numeric: tabular-nums;
+  font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--accent);
 }
@@ -195,14 +335,14 @@ button:focus-visible {
 .grades {
   display: flex;
   gap: 0.5rem;
-  margin-top: 0.5rem;
+  margin-top: 0.6rem;
 }
 
 .grades span {
   flex: 1;
-  padding: 0.5rem 0.7rem;
+  padding: 0.55rem 0.7rem;
   border: 1px solid var(--line);
-  border-radius: 0.5rem;
+  border-radius: 10px;
   background: var(--surface);
   font-size: 0.8rem;
   color: var(--muted);
@@ -218,20 +358,54 @@ button:focus-visible {
   margin: 0.75rem 0 0;
   padding: 0.7rem 0.8rem;
   border-left: 3px solid var(--accent);
-  border-radius: 0 0.4rem 0.4rem 0;
-  background: var(--surface);
+  border-radius: 0 10px 10px 0;
+  background: var(--accent-soft);
   font-size: 0.85rem;
+}
+
+/* --- 세션 ------------------------------------------------------------- */
+
+.pager {
+  display: grid;
+  grid-template-columns: 3rem 1fr 3rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.pager button {
+  padding: 0.4rem 0;
+  font-size: 1.2rem;
+  line-height: 1;
+  min-height: 2.4rem;
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px solid var(--line-strong);
+}
+
+.pager-label {
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .session {
   margin-bottom: 0.75rem;
-  padding: 0.85rem 0.9rem;
+  padding: 0.9rem;
   border: 1px solid var(--line);
-  border-radius: 0.6rem;
+  border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
-.session h3 {
+.session.rest {
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.session h3,
+.diet h3 {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -252,12 +426,12 @@ button:focus-visible {
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.55rem;
+  gap: 0.6rem;
 }
 
 .session li {
   display: grid;
-  grid-template-columns: 3.4rem 1fr;
+  grid-template-columns: 3.2rem 1fr;
   gap: 0.5rem;
   align-items: baseline;
 }
@@ -271,6 +445,7 @@ button:focus-visible {
 .item {
   display: grid;
   gap: 0.1rem;
+  min-width: 0;
 }
 
 .item strong {
@@ -284,23 +459,232 @@ button:focus-visible {
   color: var(--accent);
 }
 
-h2 .hint {
-  display: inline;
-  margin-left: 0.4rem;
-  font-weight: 400;
+/* --- 훈련 로그 -------------------------------------------------------- */
+
+.log {
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
 }
+
+.log h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.log-row button {
+  width: auto;
+  padding: 0.65rem 1rem;
+}
+
+.verdict {
+  margin: 0.6rem 0 0;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 0.85rem;
+}
+
+.verdict.too-hard {
+  background: #fdf0ed;
+  border-left: 3px solid var(--bad);
+}
+
+.verdict.ready {
+  background: #eaf7ef;
+  border-left: 3px solid var(--good);
+}
+
+/* --- 식단 ------------------------------------------------------------- */
+
+.diet {
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.diet.locked {
+  background: var(--surface-2);
+  box-shadow: none;
+  border-style: dashed;
+}
+
+.meals {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.meal h4 {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.meal ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.meal li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.meal li b {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.meal li .hint {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+}
+
+.source {
+  margin-top: 0.85rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+}
+
+/* --- 차트 ------------------------------------------------------------- */
+/* 계열이 하나뿐이라 범례가 없다. 끝점 직접 라벨과 아래 표가 값을 담당한다. */
+
+.chart {
+  margin: 1rem 0 0;
+  padding: 0.5rem 0.25rem 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart figcaption {
+  padding: 0 0.5rem 0.6rem;
+}
+
+.c-line {
+  fill: none;
+  stroke: var(--series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* 겹치는 마크는 테두리가 아니라 표면색 링으로 띄운다 */
+.c-dot {
+  fill: var(--series-1);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.c-best {
+  fill: none;
+  stroke: var(--series-1);
+  stroke-width: 2;
+}
+
+.c-hit {
+  fill: transparent;
+}
+
+.c-grid,
+.c-axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.c-tick,
+.c-band {
+  fill: var(--muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-tick-end {
+  text-anchor: end;
+}
+
+.c-value {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 등급 위치 -------------------------------------------------------- */
+
+.standing {
+  margin-top: 1rem;
+}
+
+.standing .bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.standing .bar span {
+  display: block;
+  height: 100%;
+  background: var(--series-1);
+}
+
+.standing-text {
+  margin: 0.45rem 0 0;
+  font-size: 0.9rem;
+}
+
+.warn {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* --- 표 --------------------------------------------------------------- */
 
 table {
   width: 100%;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
 }
 
 th,
 td {
-  padding: 0.45rem 0.5rem;
+  padding: 0.55rem 0.6rem;
   border-bottom: 1px solid var(--line);
   text-align: right;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 th:first-child,
@@ -313,12 +697,29 @@ th {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--muted);
+  background: var(--surface-2);
+}
+
+.records .better {
+  color: var(--good);
+  font-weight: 600;
+}
+
+.link {
+  width: auto;
+  padding: 0.2rem 0.4rem;
+  min-height: auto;
+  background: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  text-decoration: underline;
 }
 
 code {
   padding: 0.1rem 0.3rem;
-  border-radius: 0.25rem;
-  background: var(--surface);
+  border-radius: 6px;
+  background: var(--surface-2);
   border: 1px solid var(--line);
   font-size: 0.9em;
 }
@@ -334,121 +735,3 @@ footer {
 footer p {
   margin: 0;
 }
-
-/* --- 처음 화면 -------------------------------------------------------- */
-
-.home { display: grid; gap: 0.75rem; margin-top: 1.5rem; }
-
-.tile {
-  display: grid;
-  gap: 0.2rem;
-  padding: 1.1rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  text-decoration: none;
-  color: inherit;
-}
-
-.tile strong { font-size: 1.05rem; color: var(--accent); }
-.tile span { font-size: 0.85rem; color: var(--muted); }
-
-.back {
-  display: inline-block;
-  margin-bottom: 0.5rem;
-  font-size: 0.85rem;
-  color: var(--muted);
-  text-decoration: none;
-}
-
-/* --- 하루씩 넘기기 ---------------------------------------------------- */
-
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin: 0.75rem 0;
-}
-
-.pager button { padding: 0.4rem 1.1rem; font-size: 1.3rem; line-height: 1; }
-.pager-label { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.session.rest { border-style: dashed; }
-
-/* --- 식단 ------------------------------------------------------------- */
-
-.diet {
-  margin-top: 1rem;
-  padding: 0.9rem;
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
-  background: var(--surface);
-}
-
-.diet h3 {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin: 0 0 0.35rem;
-  font-size: 0.95rem;
-}
-
-.diet.locked { border-style: dashed; }
-.meals { display: grid; gap: 0.8rem; margin-top: 0.75rem; }
-
-.meal h4 { margin: 0 0 0.3rem; font-size: 0.85rem; color: var(--muted); font-weight: 600; }
-.meal ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.3rem; }
-.meal li { display: grid; grid-template-columns: 1fr auto; gap: 0 0.5rem; font-size: 0.85rem; }
-.meal li b { font-variant-numeric: tabular-nums; color: var(--accent); }
-.meal li .hint { grid-column: 1 / -1; font-size: 0.75rem; }
-
-.source { margin-top: 0.75rem; padding-top: 0.6rem; border-top: 1px solid var(--line); }
-
-/* --- 차트 ------------------------------------------------------------- */
-/* 계열이 하나뿐이라 범례가 없다. 끝점 직접 라벨과 아래 표가 값을 담당한다. */
-
-.chart { margin: 1rem 0 0; }
-.chart svg { width: 100%; height: auto; display: block; }
-
-.c-line {
-  fill: none;
-  stroke: var(--series-1);
-  stroke-width: 2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-
-/* 겹치는 마크는 테두리가 아니라 표면색 링으로 띄운다 */
-.c-dot { fill: var(--series-1); stroke: var(--surface); stroke-width: 2; }
-.c-best { fill: none; stroke: var(--series-1); stroke-width: 2; }
-.c-hit { fill: transparent; }
-
-.c-grid, .c-axis { stroke: var(--line); stroke-width: 1; }
-.c-tick, .c-band { fill: var(--muted); font-size: 9px; font-variant-numeric: tabular-nums; }
-.c-tick-end { text-anchor: end; }
-.c-value { fill: var(--text); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
-
-/* --- 등급 위치 -------------------------------------------------------- */
-
-.standing { margin-top: 1rem; }
-.standing .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
-.standing .bar span { display: block; height: 100%; background: var(--series-1); }
-.standing-text { margin: 0.4rem 0 0; font-size: 0.9rem; }
-.warn { color: var(--muted); font-style: italic; }
-
-/* --- 기록 표 ---------------------------------------------------------- */
-
-.records .better { color: var(--good); font-weight: 600; }
-
-.link {
-  padding: 0.2rem 0.4rem;
-  min-height: auto;
-  background: none;
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 400;
-  text-decoration: underline;
-}
-
-details summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); padding: 0.4rem 0; }

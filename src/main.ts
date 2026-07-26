@@ -7,9 +7,9 @@
 import { grade } from './grading'
 import { formatTime, parseTimeInput } from './pace'
 import { weekDays, weeklyPlan } from './plan'
-import { addRecord, load, removeRecord, saveProfile } from './storage'
+import { addLog, addRecord, load, removeRecord, saveProfile } from './storage'
 import type { AgeGroup, Distance, Profile, RaceEvent, Sex, Stroke } from './types'
-import { HOME_HTML, NEEDS_INPUT_HTML, recordsHtml, trainingHtml } from './view'
+import { HOME_HTML, NEEDS_INPUT_HTML, recordsHtml, SPLASH_HTML, trainingHtml } from './view'
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
@@ -18,6 +18,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 }
 
 const screens = {
+  splash: $<HTMLElement>('screen-splash'),
   home: $<HTMLElement>('screen-home'),
   training: $<HTMLElement>('screen-training'),
   records: $<HTMLElement>('screen-records'),
@@ -127,7 +128,7 @@ function renderTraining(): void {
   const days = weekDays(plan)
 
   dayIndex = Math.min(Math.max(dayIndex, 0), days.length - 1)
-  result.innerHTML = trainingHtml(profile, grading, plan, days, dayIndex)
+  result.innerHTML = trainingHtml(profile, grading, plan, days, dayIndex, load().logs)
 
   $<HTMLButtonElement>('day-prev').addEventListener('click', () => {
     dayIndex = (dayIndex - 1 + days.length) % days.length
@@ -135,6 +136,25 @@ function renderTraining(): void {
   })
   $<HTMLButtonElement>('day-next').addEventListener('click', () => {
     dayIndex = (dayIndex + 1) % days.length
+    renderTraining()
+  })
+
+  // 완주 기록은 훈련일에만 나온다. 없는 날은 조용히 넘어간다.
+  const logSave = document.getElementById('log-save') as HTMLButtonElement | null
+  logSave?.addEventListener('click', () => {
+    const field = $<HTMLInputElement>('log-reps')
+    const completedReps = Number(field.value)
+    const planned = Number(logSave.dataset.planned)
+    const methodId = logSave.dataset.method
+
+    if (!methodId || !Number.isFinite(completedReps) || field.value.trim() === '') return
+
+    addLog({
+      date: new Date().toISOString().slice(0, 10),
+      methodId,
+      plannedReps: planned,
+      completedReps: Math.max(0, Math.min(completedReps, planned)),
+    })
     renderTraining()
   })
 
@@ -197,31 +217,43 @@ function submitRecord(): void {
 // ---------------------------------------------------------------------------
 
 const ROUTES = {
-  '#/training': { screen: 'training', title: '목표 기록 훈련법', sub: '목표 페이스에서 주간 플랜과 식단을 만듭니다' },
-  '#/records': { screen: 'records', title: '개인기록 추이', sub: '영법별 기록 변화와 등급 위치' },
+  '#/home': { screen: 'home', title: '나인틴', sub: '무엇을 하시겠습니까', back: false },
+  '#/training': {
+    screen: 'training',
+    title: '목표 기록 훈련법',
+    sub: '목표 페이스에서 주간 플랜과 식단을 만듭니다',
+    back: true,
+  },
+  '#/records': {
+    screen: 'records',
+    title: '개인기록 추이',
+    sub: '영법별 기록 변화와 등급 위치',
+    back: true,
+  },
 } as const
 
+const topbar = $<HTMLElement>('topbar')
+
 function route(): void {
-  const hash = location.hash as keyof typeof ROUTES
-  const match = ROUTES[hash]
+  const match = ROUTES[location.hash as keyof typeof ROUTES]
 
   for (const element of Object.values(screens)) element.hidden = true
 
+  // 해시가 없거나 모르는 값이면 시작 화면. 상단 바도 감춰 타이틀 화면답게 둔다.
   if (!match) {
-    screens.home.hidden = false
-    backLink.hidden = true
-    title.textContent = '나인틴'
-    subtitle.textContent = '마스터즈 수영 훈련 도구'
+    screens.splash.hidden = false
+    topbar.hidden = true
     return
   }
 
   screens[match.screen].hidden = false
-  backLink.hidden = false
+  topbar.hidden = false
+  backLink.hidden = !match.back
   title.textContent = match.title
   subtitle.textContent = match.sub
 
   if (match.screen === 'training') renderTraining()
-  else renderRecords()
+  else if (match.screen === 'records') renderRecords()
 
   scrollTo({ top: 0 })
 }
@@ -247,14 +279,25 @@ function restore(): void {
   if (profile.body) {
     inputs.height.value = String(profile.body.heightCm)
     inputs.weight.value = String(profile.body.weightKg)
-    $<HTMLDetailsElement>('body-details').open = true
   }
 
   recordInputs.stroke.value = profile.goal.event.stroke
   recordInputs.distance.value = String(profile.goal.event.distance)
 }
 
+screens.splash.innerHTML = SPLASH_HTML
 screens.home.innerHTML = HOME_HTML
+
+const goHome = (): void => {
+  location.hash = '#/home'
+}
+
+$<HTMLButtonElement>('enter').addEventListener('click', goHome)
+
+// 게임 타이틀처럼 Enter 키로도 들어간다. 시작 화면에 있을 때만 받는다.
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !screens.splash.hidden) goHome()
+})
 
 for (const element of Object.values(inputs)) {
   element.addEventListener('input', renderTraining)

@@ -14,14 +14,17 @@
   </head>
   <body>
     <main>
-      <header>
-        <a class="back" href="#/" id="back" hidden>‹ 처음으로</a>
+      <header id="topbar" hidden>
+        <a class="back" href="#/home" id="back">‹ 뒤로</a>
         <h1 id="screen-title">나인틴</h1>
-        <p class="hint" id="screen-sub">마스터즈 수영 훈련 도구</p>
+        <p class="hint" id="screen-sub"></p>
       </header>
 
-      <!-- 처음 화면 -->
-      <section id="screen-home"></section>
+      <!-- 시작 화면 (ENTER) -->
+      <section id="screen-splash"></section>
+
+      <!-- 메뉴 -->
+      <section id="screen-home" hidden></section>
 
       <!-- 목표 기록 훈련법 -->
       <section id="screen-training" hidden>
@@ -100,23 +103,24 @@
             </label>
           </div>
 
-          <details id="body-details">
-            <summary>키 · 체중 넣기 (식단 계산용)</summary>
-            <p class="hint">
-              이 두 값은 <strong>이 기기에만 저장됩니다.</strong> 서버로 보내는 코드가 없어
-              코치도 팀원도 볼 수 없습니다.
-            </p>
-            <div class="row">
-              <label>
-                키 (cm)
-                <input id="height" type="number" min="120" max="220" step="1" placeholder="172" />
-              </label>
-              <label>
-                체중 (kg)
-                <input id="weight" type="number" min="35" max="160" step="0.5" placeholder="68" />
-              </label>
-            </div>
-          </details>
+          <!-- 식단이 주요 기능이 된 뒤로 이 두 칸을 접어두면 안 된다.
+               앞서 <details> 로 감췄다가 회원이 찾지 못했다. -->
+          <h2>식단 계산용 (선택)</h2>
+          <div class="row">
+            <label>
+              키 (cm)
+              <input id="height" type="number" min="120" max="220" step="1" placeholder="172" />
+            </label>
+            <label>
+              체중 (kg)
+              <input id="weight" type="number" min="35" max="160" step="0.5" placeholder="68" />
+            </label>
+          </div>
+          <p class="hint">
+            안 넣으면 훈련 플랜만 나옵니다. 넣으면 식단이 계산되고, 이 두 값은
+            <strong>이 기기에만 저장됩니다</strong> — 서버로 보내는 코드가 없어 코치도 팀원도
+            볼 수 없습니다.
+          </p>
 
           <div class="actions">
             <button id="show-plan" type="button">이번 주 플랜 보기</button>
@@ -150,17 +154,17 @@
               </select>
             </label>
           </div>
-          <div class="row">
-            <label>
-              날짜
-              <input id="r-date" type="date" />
-            </label>
-            <label>
-              기록
-              <input id="r-time" type="text" inputmode="numeric" autocomplete="off" placeholder="12345" />
-              <span class="echo" id="r-echo"></span>
-            </label>
-          </div>
+          <!-- 날짜와 기록을 한 줄에 두면 iOS 날짜 입력이 칸을 넘쳐 겹친다.
+               min-width 를 풀어도 좁은 화면에서는 빠듯하므로 줄을 나눈다. -->
+          <label>
+            날짜
+            <input id="r-date" type="date" />
+          </label>
+          <label>
+            기록
+            <input id="r-time" type="text" inputmode="numeric" autocomplete="off" placeholder="12345" />
+            <span class="echo" id="r-echo"></span>
+          </label>
           <div class="actions">
             <button id="add-record" type="button">기록 추가</button>
             <span class="saved" id="record-saved" aria-live="polite"></span>

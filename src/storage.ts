@@ -5,36 +5,43 @@
  * 신체 데이터(`profile.body`)는 영구히 여기 남는다 — 서버 테이블에 컬럼 자체를
  * 만들지 않는다 (ADR-0002).
  */
+import type { SetLog } from './log'
 import type { Profile, RecordEntry } from './types'
 
 const KEY = 'masters-swim/v1'
 
 export interface SavedState {
-  version: 2
+  version: 3
   profile: Profile | null
   records: RecordEntry[]
+  logs: SetLog[]
   updatedAt: string
 }
 
-const EMPTY: SavedState = { version: 2, profile: null, records: [], updatedAt: '' }
+const EMPTY: SavedState = { version: 3, profile: null, records: [], logs: [], updatedAt: '' }
 
 /** 어느 버전에서 왔는지 모르는 값. 좁히기 전에는 이 모양으로만 다룬다. */
 interface StoredShape {
   version?: number
   profile?: Profile | null
   records?: RecordEntry[]
+  logs?: SetLog[]
   updatedAt?: string
 }
 
-/** v1 에는 records 가 없었다. 필드를 채워 넣기만 하면 되므로 값을 버리지 않는다. */
+/**
+ * v1 에는 records 가, v2 에는 logs 가 없었다.
+ * 빠진 필드를 채우기만 하면 되므로 어느 버전에서 와도 값을 버리지 않는다.
+ */
 function migrate(raw: unknown): SavedState {
   const state = raw as StoredShape | null
-  if (state?.version !== 1 && state?.version !== 2) return EMPTY
+  if (!state?.version || state.version > 3) return EMPTY
 
   return {
-    version: 2,
+    version: 3,
     profile: state.profile ?? null,
     records: state.records ?? [],
+    logs: state.logs ?? [],
     updatedAt: state.updatedAt ?? '',
   }
 }
@@ -74,6 +81,15 @@ export function removeRecord(index: number): void {
   write({ ...state, records: state.records.filter((_, i) => i !== index) })
 }
 
+/** 같은 날 같은 방법을 두 번 남기면 뒤엣것으로 덮는다 — 오타를 고칠 방법이 있어야 한다. */
+export function addLog(entry: SetLog): void {
+  const state = load()
+  const rest = state.logs.filter(
+    (log) => !(log.date === entry.date && log.methodId === entry.methodId),
+  )
+  write({ ...state, logs: [...rest, entry].sort((a, b) => a.date.localeCompare(b.date)) })
+}
+
 /** 기기를 바꿀 때 붙여넣기로 복구할 수 있게 전체 상태를 텍스트로 뽑는다. */
 export function exportJson(): string {
   return JSON.stringify(load(), null, 2)
@@ -82,7 +98,7 @@ export function exportJson(): string {
 export function importJson(text: string): boolean {
   try {
     const state = migrate(JSON.parse(text))
-    if (!state.profile && state.records.length === 0) return false
+    if (!state.profile && state.records.length === 0 && state.logs.length === 0) return false
     write(state)
     return true
   } catch {

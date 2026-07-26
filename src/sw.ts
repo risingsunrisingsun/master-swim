@@ -10,7 +10,7 @@
 const sw = globalThis as unknown as ServiceWorkerGlobalScope
 
 /** 배포할 때마다 올린다. 값이 바뀌면 옛 캐시가 정리된다. */
-const CACHE = 'masters-swim-v4'
+const CACHE = 'masters-swim-v5'
 
 const SHELL = [
   './',
@@ -22,6 +22,7 @@ const SHELL = [
   './icon-512.png',
   './icon-maskable-512.png',
   './apple-touch-icon.png',
+  './logo.png',
 ]
 
 sw.addEventListener('install', (event) => {

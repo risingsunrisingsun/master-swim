@@ -7,6 +7,7 @@
 import { standing, toNextLevel } from './benchmark'
 import { EMPTY_CHART_HTML, recordChart, type ChartBand, type ChartPoint } from './chart'
 import { levelBoundaries, type Grading } from './grading'
+import { verdict, type SetLog } from './log'
 import { dailyDiet, GROUP_LABEL, REPRESENTATIVE, type DailyDiet } from './nutrition'
 import { formatTime, improvementPercent, racePace25, splitTargets } from './pace'
 import { SESSION_MET, weeklyMeters, type PlannedSession, type WeekDay } from './plan'
@@ -36,8 +37,16 @@ const meters = (value: number): string => `${Math.round(value).toLocaleString('k
 const kcal = (value: number): string => `${Math.round(value).toLocaleString('ko-KR')}kcal`
 
 // ---------------------------------------------------------------------------
-// 홈
+// 시작 화면과 메뉴
 // ---------------------------------------------------------------------------
+
+/** 게임 타이틀처럼 로고 한 장과 ENTER 하나만 둔다. */
+export const SPLASH_HTML = `<div class="splash">
+    <img src="./logo.png" alt="나인틴 수영팀" width="558" height="408" />
+    <p class="tagline">마스터즈 수영 훈련 도구</p>
+    <button type="button" id="enter" class="enter">ENTER</button>
+    <p class="enter-hint">눌러서 시작하세요</p>
+  </div>`
 
 export const HOME_HTML = `<nav class="home">
     <a class="tile" href="#/training">
@@ -109,13 +118,62 @@ export const NEEDS_BODY_HTML = `<section class="diet locked">
     </p>
   </section>`
 
-export function dayHtml(profile: Profile, day: WeekDay, dayCount: number): string {
+/**
+ * 주 세트의 완주 개수를 받는 칸과 목표 판정.
+ *
+ * 처방만 하고 결과를 받지 않으면 목표기록을 검증할 수단이 없다 — USRPT 는
+ * 실패 지점을 측정값으로 쓰는 방식이다(ADR-0003, ADR-0007).
+ */
+function logHtml(session: PlannedSession, logs: readonly SetLog[], today: string): string {
+  const main = session.items.find((item) => item.role === 'main')
+  if (!main || main.method.kind !== 'pool') return ''
+
+  // 계획에 실제로 쓰인 반복 수는 지시문 앞머리("20 × 25m …")에 이미 들어 있다.
+  // 두 축 등급을 합쳐 만든 값이라 카탈로그를 다시 뒤지는 것보다 이쪽이 정확하다.
+  const planned = Number(/^(\d+)\s*×/.exec(main.text)?.[1] ?? 0)
+  if (planned <= 0) return ''
+
+  const result = verdict(logs, main.method.id)
+  const already = logs.find((log) => log.date === today && log.methodId === main.method.id)
+
+  return `<div class="log">
+      <h4>${escapeHtml(main.method.name)} 완주 기록</h4>
+      <div class="log-row">
+        <label>
+          계획 ${planned}개 중 페이스를 지킨 개수
+          <input
+            type="number"
+            id="log-reps"
+            min="0"
+            max="${planned}"
+            step="1"
+            inputmode="numeric"
+            value="${already ? already.completedReps : ''}"
+            placeholder="0"
+          />
+        </label>
+        <button type="button" id="log-save" data-method="${escapeHtml(main.method.id)}" data-planned="${planned}">${already ? '수정' : '기록'}</button>
+      </div>
+      <p class="verdict ${result.kind === 'too-hard' ? 'too-hard' : result.kind === 'ready' ? 'ready' : ''}">
+        ${escapeHtml(result.message)}
+      </p>
+    </div>`
+}
+
+export function dayHtml(
+  profile: Profile,
+  day: WeekDay,
+  dayCount: number,
+  logs: readonly SetLog[] = [],
+  today = new Date().toISOString().slice(0, 10),
+): string {
   const session = day.session
 
   const training = session
     ? `<article class="session">
         <h3>${day.label}요일 · ${escapeHtml(session.title)} <span class="meters">${meters(session.meters)}</span></h3>
         <ul>${sessionItemsHtml(session)}</ul>
+        ${logHtml(session, logs, today)}
       </article>`
     : `<article class="session rest">
         <h3>${day.label}요일 · 휴식</h3>
@@ -175,6 +233,7 @@ export function trainingHtml(
   plan: readonly PlannedSession[],
   days: readonly WeekDay[],
   dayIndex: number,
+  logs: readonly SetLog[] = [],
 ): string {
   const { event, targetCs, currentCs } = profile.goal
   const pace = racePace25(targetCs, event.distance)
@@ -196,7 +255,7 @@ export function trainingHtml(
     ${gradingHtml(grading)}
 
     <h2>이번 주 <span class="hint">계획 ${meters(planned)} / 입력 ${meters(declared)}</span></h2>
-    ${dayHtml(profile, days[dayIndex]!, days.length)}
+    ${dayHtml(profile, days[dayIndex]!, days.length, logs)}
 
     ${splitsHtml(targetCs, event.distance)}`
 }

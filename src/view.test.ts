@@ -10,6 +10,7 @@ import {
   HOME_HTML,
   NEEDS_BODY_HTML,
   recordsHtml,
+  SPLASH_HTML,
   splitsHtml,
   trainingHtml,
 } from './view'
@@ -37,10 +38,61 @@ describe('escapeHtml', () => {
   })
 })
 
-describe('처음 화면', () => {
-  test('두 기능으로 가는 링크가 있다', () => {
+describe('시작 화면과 메뉴', () => {
+  test('시작 화면에는 로고와 ENTER 만 있다', () => {
+    expect(SPLASH_HTML).toContain('logo.png')
+    expect(SPLASH_HTML).toContain('ENTER')
+    expect(SPLASH_HTML).toContain('id="enter"')
+  })
+
+  test('메뉴에 두 기능으로 가는 링크가 있다', () => {
     expect(HOME_HTML).toContain('#/training')
     expect(HOME_HTML).toContain('#/records')
+  })
+})
+
+describe('훈련 로그', () => {
+  const trainingDay = days.find((day) => day.session !== null)!
+
+  test('훈련일에 완주 개수를 받는 칸이 나온다', () => {
+    const html = dayHtml(profile, trainingDay, 7, [], '2026-07-26')
+    expect(html).toContain('id="log-reps"')
+    expect(html).toContain('완주 기록')
+  })
+
+  test('휴식일에는 완주 칸이 없다', () => {
+    const restDay = days.find((day) => day.session === null)!
+    expect(dayHtml(profile, restDay, 7, [], '2026-07-26')).not.toContain('log-reps')
+  })
+
+  test('계획 개수가 세트 지시문과 일치한다', () => {
+    const html = dayHtml(profile, trainingDay, 7, [], '2026-07-26')
+    // 100m 목표 · 강도/분량 중급이면 주 세트는 레이스페이스 50 8회다
+    expect(html).toContain('data-planned="8"')
+    expect(html).toContain('계획 8개 중')
+  })
+
+  test('기록이 없으면 판정을 보류한다', () => {
+    expect(dayHtml(profile, trainingDay, 7, [], '2026-07-26')).toContain('남기면 목표가 적절한지')
+  })
+
+  test('세 번 연속 못 채우면 목표가 이르다고 알린다', () => {
+    const logs = ['2026-07-10', '2026-07-15', '2026-07-20'].map((date) => ({
+      date,
+      methodId: 'rp50',
+      plannedReps: 8,
+      completedReps: 3,
+    }))
+    const html = dayHtml(profile, trainingDay, 7, logs, '2026-07-26')
+    expect(html).toContain('too-hard')
+    expect(html).toContain('이릅니다')
+  })
+
+  test('오늘 이미 남긴 값은 되불러 수정할 수 있다', () => {
+    const logs = [{ date: '2026-07-26', methodId: 'rp50', plannedReps: 8, completedReps: 6 }]
+    const html = dayHtml(profile, trainingDay, 7, logs, '2026-07-26')
+    expect(html).toContain('value="6"')
+    expect(html).toContain('>수정<')
   })
 })
 
