@@ -4,7 +4,8 @@
   --text: #12212b;
   --muted: #5b6b76;
   --line: #d8e0e6;
-  --accent: #0b6ea8;
+  /* 팀 로고의 파랑. web/icon-*.png 와 manifest theme_color 가 같은 값을 쓴다. */
+  --accent: #0868e8;
   color-scheme: light dark;
 }
 
@@ -15,7 +16,8 @@
     --text: #e6edf2;
     --muted: #93a4b0;
     --line: #263440;
-    --accent: #4db4e8;
+    /* 어두운 배경에서 #0868e8 은 대비가 모자란다. 같은 색상각을 밝게 올린 값. */
+    --accent: #6aa8ff;
   }
 }
 

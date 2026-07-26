@@ -42,8 +42,21 @@ GitHub Pages 로 배포한다.
 3. 저장소 **Settings → Pages → Source** 를 **GitHub Actions** 로 설정.
 4. Actions 탭에서 배포 완료를 확인하고 `https://<계정>.github.io/<저장소>/` 를 연다.
 
+## 아이콘
+
+`260301.png` (팀 로고 배너)에서 잘라 만든다. 로고가 바뀌면 원본을 갈아끼우고
+저장소 루트에서 다시 돌린다:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\make-icons.ps1
+```
+
+배너에서 **"19 + 물결" 부분만** 쓴다 — `NINETEEN` 워드마크는 192px 에서 읽히지 않는다.
+`icon-maskable-512.png` 는 안드로이드가 아이콘을 원형·둥근사각형으로 깎아도 잘리지
+않도록 여백을 더 준 판이다.
+
 ## 배포 전 확인
 
-- [ ] PWA 아이콘 PNG (192·512) 추가 — iOS 홈화면 아이콘은 SVG 를 받지 않는다
 - [ ] `src/sw.ts` 의 `CACHE` 버전을 올렸는지 (안 올리면 옛 캐시가 남는다)
 - [ ] 모든 자산 참조가 상대경로(`./`)인지 — Pages 는 하위 경로로 서빙한다
+- [ ] 아이콘을 바꿨다면 `web/` 의 PNG 네 개가 모두 갱신됐는지
