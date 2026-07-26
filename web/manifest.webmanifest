@@ -1,0 +1,20 @@
+{
+  "name": "마스터즈 수영 · 목표 페이스",
+  "short_name": "목표 페이스",
+  "description": "목표기록에서 훈련 페이스와 세트를 계산하는 마스터즈 수영 도구",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f8fa",
+  "theme_color": "#0b3b5c",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

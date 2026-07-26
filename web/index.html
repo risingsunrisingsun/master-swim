@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>마스터즈 수영 · 목표 페이스</title>
+    <meta name="description" content="목표기록에서 훈련 페이스와 세트를 계산하는 마스터즈 수영 도구" />
+    <meta name="theme-color" content="#0b3b5c" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>목표 페이스</h1>
+        <p class="hint">25m 단수로 기준 · 입력값은 이 기기에만 저장됩니다.</p>
+      </header>
+
+      <form id="form" autocomplete="off">
+        <div class="row">
+          <label>
+            영법
+            <select id="stroke">
+              <option value="free">자유형</option>
+              <option value="back">배영</option>
+              <option value="breast">평영</option>
+              <option value="fly">접영</option>
+            </select>
+          </label>
+          <label>
+            거리
+            <select id="distance">
+              <option value="25">25m</option>
+              <option value="50">50m</option>
+              <option value="100" selected>100m</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            현재기록
+            <input id="current" type="text" inputmode="decimal" placeholder="1:25.00" />
+          </label>
+          <label>
+            목표기록
+            <input id="target" type="text" inputmode="decimal" placeholder="1:20.00" />
+          </label>
+        </div>
+
+        <label>
+          주간 훈련 횟수
+          <input id="sessions" type="number" min="1" max="14" step="1" value="3" />
+        </label>
+      </form>
+
+      <section id="result" aria-live="polite"></section>
+
+      <footer>
+        <p>
+          이 도구는 훈련 참고용입니다. 심혈관 질환·당뇨·관절 부상 이력이 있거나 통증이 있으면
+          의료 전문가와 상의한 뒤 훈련하세요. 제시된 강도는 개인의 건강 상태를 고려하지 않습니다.
+        </p>
+      </footer>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
