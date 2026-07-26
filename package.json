@@ -6,7 +6,7 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "serve": "bun run build.ts && bun --port 5173 dist",
+    "serve": "bun run build.ts && bun run serve.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

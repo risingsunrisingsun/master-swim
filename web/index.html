@@ -50,10 +50,41 @@
           </label>
         </div>
 
-        <label>
-          주간 훈련 횟수
-          <input id="sessions" type="number" min="1" max="14" step="1" value="3" />
-        </label>
+        <div class="row">
+          <label>
+            연령부
+            <select id="age-group">
+              <option value="25-29">25-29</option>
+              <option value="30-34">30-34</option>
+              <option value="35-39">35-39</option>
+              <option value="40-44">40-44</option>
+              <option value="45-49" selected>45-49</option>
+              <option value="50-54">50-54</option>
+              <option value="55-59">55-59</option>
+              <option value="60-64">60-64</option>
+              <option value="65-69">65-69</option>
+              <option value="70+">70+</option>
+            </select>
+          </label>
+          <label>
+            성별
+            <select id="sex">
+              <option value="M">남</option>
+              <option value="F">여</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            주간 훈련 횟수
+            <input id="sessions" type="number" min="1" max="7" step="1" value="3" />
+          </label>
+          <label>
+            세션당 거리 (m)
+            <input id="meters" type="number" min="500" max="8000" step="100" value="2000" />
+          </label>
+        </div>
       </form>
 
       <section id="result" aria-live="polite"></section>

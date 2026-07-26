@@ -1,77 +1,68 @@
 /**
- * 1차 뼈대 화면.
+ * 화면 배선.
  *
- * 목표기록 하나를 받아 훈련 목표 페이스와 구간 목표를 보여준다.
- * 파이프라인(입력 → 순수 계산 → 저장 → 오프라인)이 끝까지 도는지 확인하는 게 목적이고,
- * 주간 플랜과 방법 카탈로그는 이 위에 붙는다.
+ * 계산은 순수 함수(ADR-0001), HTML 생성은 `view.ts` 에 있다. 여기서는 입력을 읽어
+ * 프로필로 만들고, 결과를 붙이고, 저장하고, 서비스워커를 등록하는 일만 한다.
  */
-import { formatTime, improvementPercent, parseTime, racePace25, splitTargets } from './pace'
+import { grade } from './grading'
+import { formatTime, parseTime } from './pace'
+import { weeklyPlan } from './plan'
 import { load, save } from './storage'
-import type { Distance, Profile, Stroke } from './types'
-import { STROKE_LABEL } from './types'
+import type { AgeGroup, Distance, Profile, Sex, Stroke } from './types'
+import { NEEDS_INPUT_HTML, resultHtml } from './view'
 
 const $ = <T extends HTMLElement>(id: string): T => {
-  const el = document.getElementById(id)
-  if (!el) throw new Error(`요소를 찾을 수 없습니다: #${id}`)
-  return el as T
+  const element = document.getElementById(id)
+  if (!element) throw new Error(`요소를 찾을 수 없습니다: #${id}`)
+  return element as T
 }
 
-const strokeInput = $<HTMLSelectElement>('stroke')
-const distanceInput = $<HTMLSelectElement>('distance')
-const currentInput = $<HTMLInputElement>('current')
-const targetInput = $<HTMLInputElement>('target')
-const sessionsInput = $<HTMLInputElement>('sessions')
+const inputs = {
+  stroke: $<HTMLSelectElement>('stroke'),
+  distance: $<HTMLSelectElement>('distance'),
+  current: $<HTMLInputElement>('current'),
+  target: $<HTMLInputElement>('target'),
+  ageGroup: $<HTMLSelectElement>('age-group'),
+  sex: $<HTMLSelectElement>('sex'),
+  sessions: $<HTMLInputElement>('sessions'),
+  meters: $<HTMLInputElement>('meters'),
+}
 const result = $<HTMLElement>('result')
 
-function render(): void {
-  const stroke = strokeInput.value as Stroke
-  const distance = Number(distanceInput.value) as Distance
-  const targetCs = parseTime(targetInput.value)
-  const currentCs = parseTime(currentInput.value)
+/** 입력이 전부 유효할 때만 프로필을 만든다. 하나라도 비면 null. */
+function readProfile(): Profile | null {
+  const targetCs = parseTime(inputs.target.value)
+  const currentCs = parseTime(inputs.current.value)
+  const sessionsPerWeek = Number(inputs.sessions.value)
+  const metersPerSession = Number(inputs.meters.value)
 
-  if (targetCs === null) {
-    result.innerHTML = '<p class="hint">목표기록을 <code>1:23.45</code> 형식으로 넣어주세요.</p>'
+  if (targetCs === null || currentCs === null) return null
+  if (!Number.isFinite(sessionsPerWeek) || !Number.isFinite(metersPerSession)) return null
+
+  return {
+    ageGroup: inputs.ageGroup.value as AgeGroup,
+    sex: inputs.sex.value as Sex,
+    goal: {
+      event: {
+        stroke: inputs.stroke.value as Stroke,
+        distance: Number(inputs.distance.value) as Distance,
+      },
+      targetCs,
+      currentCs,
+    },
+    load: { sessionsPerWeek, metersPerSession },
+  }
+}
+
+function render(): void {
+  const profile = readProfile()
+  if (!profile) {
+    result.innerHTML = NEEDS_INPUT_HTML
     return
   }
 
-  const pace = racePace25(targetCs, distance)
-  const splits = splitTargets(targetCs, distance)
-  const gap = currentCs !== null ? improvementPercent(currentCs, targetCs) : null
-
-  result.innerHTML = `
-    <div class="pace">
-      <span class="pace-label">훈련 목표 페이스 · 25m</span>
-      <strong class="pace-value">${formatTime(pace)}</strong>
-      <span class="hint">벽에서 푸시오프로 출발했을 때 기준입니다.</span>
-    </div>
-
-    ${gap === null ? '' : `<p class="gap">현재기록 대비 <strong>${gap.toFixed(1)}%</strong> 단축이 필요합니다.</p>`}
-
-    <h2>대회 구간 목표</h2>
-    <table>
-      <thead><tr><th>구간</th><th>랩</th><th>누적</th></tr></thead>
-      <tbody>
-        ${splits
-          .map((cumulative, i) => {
-            const lap = i === 0 ? cumulative : cumulative - splits[i - 1]!
-            return `<tr><td>${(i + 1) * 25}m</td><td>${formatTime(lap)}</td><td>${formatTime(cumulative)}</td></tr>`
-          })
-          .join('')}
-      </tbody>
-    </table>
-    <p class="hint">${STROKE_LABEL[stroke]} ${distance}m · 25m 단수로 기준</p>
-  `
-
-  const sessions = Number(sessionsInput.value)
-  if (currentCs === null || !Number.isFinite(sessions)) return
-
-  const profile: Profile = {
-    // 연령부·성별은 등급 배정과 목표 검증에 필요하지만 2차 화면에서 받는다.
-    ageGroup: '40-44',
-    sex: 'M',
-    goal: { event: { stroke, distance }, targetCs, currentCs },
-    load: { sessionsPerWeek: sessions, metersPerSession: 0 },
-  }
+  const grading = grade(profile.goal.currentCs, profile.goal.event, profile.sex, profile.load)
+  result.innerHTML = resultHtml(profile, grading, weeklyPlan(profile, grading))
   save(profile)
 }
 
@@ -79,15 +70,18 @@ function restore(): void {
   const { profile } = load()
   if (!profile) return
 
-  strokeInput.value = profile.goal.event.stroke
-  distanceInput.value = String(profile.goal.event.distance)
-  currentInput.value = formatTime(profile.goal.currentCs)
-  targetInput.value = formatTime(profile.goal.targetCs)
-  sessionsInput.value = String(profile.load.sessionsPerWeek)
+  inputs.stroke.value = profile.goal.event.stroke
+  inputs.distance.value = String(profile.goal.event.distance)
+  inputs.current.value = formatTime(profile.goal.currentCs)
+  inputs.target.value = formatTime(profile.goal.targetCs)
+  inputs.ageGroup.value = profile.ageGroup
+  inputs.sex.value = profile.sex
+  inputs.sessions.value = String(profile.load.sessionsPerWeek)
+  inputs.meters.value = String(profile.load.metersPerSession)
 }
 
-for (const el of [strokeInput, distanceInput, currentInput, targetInput, sessionsInput]) {
-  el.addEventListener('input', render)
+for (const element of Object.values(inputs)) {
+  element.addEventListener('input', render)
 }
 
 restore()

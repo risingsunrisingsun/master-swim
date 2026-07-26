@@ -23,12 +23,17 @@ GitHub Pages 로 배포한다.
 | 경로 | 역할 |
 | --- | --- |
 | `src/pace.ts` | 목표 페이스 엔진. 순수 함수만 — DOM·저장소·네트워크 참조 없음 |
+| `src/grading.ts` | 등급 배정. 기록 축(강도) × 훈련량 축(분량) |
+| `src/methods.ts` | 훈련방법 카탈로그 20개 + 등급별 파라미터 |
+| `src/plan.ts` | 주간 플랜 배치. 목표 거리로 세션 구성을 결정 |
+| `src/view.ts` | HTML 생성. 순수 함수라 브라우저 없이 테스트된다 |
 | `src/types.ts` | 종목·거리·등급의 정의 |
 | `src/storage.ts` | localStorage 래퍼 + JSON 내보내기/가져오기 |
-| `src/main.ts` | 화면 조립과 서비스워커 등록 |
+| `src/main.ts` | DOM 배선과 서비스워커 등록 |
 | `src/sw.ts` | 앱 셸 캐시 (오프라인 동작) |
 | `web/` | 정적 자산. `dist/` 로 그대로 복사된다 |
 | `build.ts` | `web/` 복사 + `src/` 번들 |
+| `serve.ts` | 개발용 정적 서버 |
 
 ## 최초 배포 절차
 
