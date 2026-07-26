@@ -105,6 +105,20 @@ describe('분포가 상식과 맞는가', () => {
       expect(women).toBeGreaterThan(men)
     }
   })
+
+  // 50·60대를 뺀 이유가 각각 다르다. 50대 네 분포는 원본 그래프 왼쪽의 넓은 평지 때문에
+  // 커트라인이 젊은 연대보다 빠르게 나온다(`distributions.ts` 머리말 — 전사 오류가 아니다).
+  // 60대는 표본이 333~680건이라 상위 5%가 몇 건에 좌우된다.
+  test('상위 5% 커트라인도 20~40대에서는 나이 순서를 지킨다', () => {
+    for (const stroke of ['free', 'back'] as const) {
+      for (const sex of ['M', 'F'] as const) {
+        const cuts = ([20, 30, 40] as const).map((decade) =>
+          timeForTopPercent(5, findDistribution(stroke, 50, sex, decade)!),
+        )
+        for (let i = 1; i < cuts.length; i++) expect(cuts[i]!).toBeGreaterThan(cuts[i - 1]!)
+      }
+    }
+  })
 })
 
 describe('findDistribution', () => {
