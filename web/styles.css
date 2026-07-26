@@ -99,6 +99,65 @@ input:focus-visible {
   outline-offset: 1px;
 }
 
+.echo {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  min-height: 1.2em;
+}
+
+.echo.bad {
+  color: #c0392b;
+}
+
+@media (prefers-color-scheme: dark) {
+  .echo.bad {
+    color: #ff8a7a;
+  }
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+button {
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0.75rem 1.1rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  /* 폰에서 엄지로 누를 수 있는 최소 크기 */
+  min-height: 2.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  button {
+    color: #0d1418;
+  }
+}
+
+button:active {
+  opacity: 0.85;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.saved {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 .pace {
   display: grid;
   gap: 0.15rem;

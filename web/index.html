@@ -43,13 +43,32 @@
         <div class="row">
           <label>
             현재기록
-            <input id="current" type="text" inputmode="decimal" placeholder="1:25.00" />
+            <!-- 숫자 키패드에는 콜론이 없다. 숫자만 받아 오른쪽부터 채운다. -->
+            <input
+              id="current"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="12500"
+            />
+            <span class="echo" id="current-echo"></span>
           </label>
           <label>
             목표기록
-            <input id="target" type="text" inputmode="decimal" placeholder="1:20.00" />
+            <input
+              id="target"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="12000"
+            />
+            <span class="echo" id="target-echo"></span>
           </label>
         </div>
+        <p class="hint">
+          기록은 <strong>숫자만</strong> 누르세요. 뒤에서부터 1/100초 · 초 · 분으로 채워집니다 —
+          <code>12345</code> → 1:23.45, <code>2345</code> → 23.45
+        </p>
 
         <div class="row">
           <label>
@@ -85,6 +104,11 @@
             세션당 거리 (m)
             <input id="meters" type="number" min="500" max="8000" step="100" value="2000" />
           </label>
+        </div>
+
+        <div class="actions">
+          <button id="show-plan" type="button">이번 주 플랜 보기</button>
+          <span class="saved" id="saved" aria-live="polite"></span>
         </div>
       </form>
 

@@ -34,6 +34,36 @@ export function parseTime(input: string): number | null {
   return (Number(minutes ?? 0) * 60 + sec) * 100 + centis
 }
 
+/**
+ * 폰에서 들어오는 입력을 받는다.
+ *
+ * 숫자 키패드에는 콜론이 없어서 `1:23.45` 를 칠 수가 없다. 그래서 스톱워치·기록 앱이
+ * 쓰는 방식대로 **숫자만 받아 오른쪽부터 채운다** — 뒤 두 자리가 1/100초, 그 앞 두
+ * 자리가 초, 나머지가 분이다.
+ *
+ *   12345 → 1:23.45      2345 → 23.45      130 → 1.30
+ *
+ * 구분자를 칠 수 있는 환경(데스크톱)에서는 `1:23.45` 도 그대로 받는다.
+ */
+export function parseTimeInput(input: string): number | null {
+  const text = input.trim()
+  if (text === '') return null
+
+  // 콜론이 있으면 사용자가 형식을 갖춰 쳤다는 뜻이다. 기존 규칙으로 보낸다.
+  if (text.includes(':')) return parseTime(text)
+
+  const digits = text.replace(/\D/g, '')
+  if (digits === '' || digits.length > 6) return null
+
+  const padded = digits.padStart(3, '0')
+  const centis = Number(padded.slice(-2))
+  const seconds = Number(padded.slice(-4, -2))
+  const minutes = Number(padded.slice(0, -4) || '0')
+
+  if (seconds > 59) return null
+  return (minutes * 60 + seconds) * 100 + centis
+}
+
 /** centisecond 를 "1:23.45" 로. 1분 미만이면 "23.45". */
 export function formatTime(cs: number): string {
   const rounded = Math.round(cs)
