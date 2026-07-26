@@ -31,6 +31,12 @@ export interface PoolSpec {
   restCs: number | null
   /** 목표 페이스 대비 보정(centisecond). 음수면 목표보다 빠르게. */
   paceOffsetCs: number
+  /**
+   * 표시된 페이스가 적용되는 범위.
+   * `each`(기본)는 모든 반복, `final`은 마지막 반복의 목표다 — 데센딩처럼 반복마다
+   * 페이스가 달라지는 세트에서 한 값만 띄우면 "매 반복 이 페이스"로 오해된다.
+   */
+  paceScope?: 'each' | 'final'
   effort?: Effort
   note?: string
 }
@@ -122,28 +128,28 @@ const POOL_METHODS: TrainingMethod[] = [
         reps: 2,
         distance: 100,
         restCs: 10 * SECONDS,
-        paceOffsetCs: -30,
+        paceOffsetCs: -50,
         note: '25m 마다 끊어 쉬고 4구간 합계로 판정',
       },
       intermediate: {
         reps: 3,
         distance: 100,
         restCs: 8 * SECONDS,
-        paceOffsetCs: -30,
+        paceOffsetCs: -50,
         note: '25m 마다 끊어 쉬고 4구간 합계로 판정',
       },
       advanced: {
         reps: 4,
         distance: 100,
         restCs: 6 * SECONDS,
-        paceOffsetCs: -30,
+        paceOffsetCs: -50,
         note: '25m 마다 끊어 쉬고 4구간 합계로 판정',
       },
       elite: {
         reps: 5,
         distance: 100,
         restCs: 5 * SECONDS,
-        paceOffsetCs: -30,
+        paceOffsetCs: -50,
         note: '25m 마다 끊어 쉬고 4구간 합계로 판정',
       },
     },
@@ -166,20 +172,23 @@ const POOL_METHODS: TrainingMethod[] = [
         distance: 50,
         restCs: 30 * SECONDS,
         paceOffsetCs: 0,
-        note: '1번은 목표 페이스 +2초, 마지막은 목표 페이스',
+        paceScope: 'final',
+        note: '1번은 +2초에서 시작해 매 반복 당긴다',
       },
       intermediate: {
         reps: 8,
         distance: 50,
         restCs: 25 * SECONDS,
         paceOffsetCs: 0,
-        note: '4개씩 두 묶음. 각 묶음의 마지막이 목표 페이스',
+        paceScope: 'final',
+        note: '4개씩 두 묶음. 각 묶음의 마지막에서 이 페이스',
       },
       advanced: {
         reps: 12,
         distance: 50,
         restCs: 20 * SECONDS,
         paceOffsetCs: 0,
+        paceScope: 'final',
         note: '4개씩 세 묶음. 묶음마다 시작 페이스를 당긴다',
       },
       elite: {
@@ -187,7 +196,8 @@ const POOL_METHODS: TrainingMethod[] = [
         distance: 50,
         restCs: 15 * SECONDS,
         paceOffsetCs: 0,
-        note: '4개씩 네 묶음. 마지막 묶음은 전부 목표 페이스 이하',
+        paceScope: 'final',
+        note: '4개씩 네 묶음. 마지막 묶음은 전부 이 페이스 이하',
       },
     },
   },
@@ -570,7 +580,8 @@ export function describePoolSet(spec: PoolSpec, pace25Cs: number, targetDistance
     return `${head} ${label}${rest}`
   }
 
-  const target = `@ ${formatTime(repTargetCs)}`
+  const target =
+    spec.paceScope === 'final' ? `마지막 @ ${formatTime(repTargetCs)}` : `@ ${formatTime(repTargetCs)}`
   if (spec.restCs === null) return `${head} ${target}`
 
   return `${head} ${target} · 인터벌 ${formatTime(repTargetCs + spec.restCs)}`

@@ -74,9 +74,17 @@ describe('describePoolSet', () => {
     expect(describePoolSet(poolSpec('rp50', 'elite')!, pace, 100)).toContain('12 × 50m @ 40.35')
   })
 
-  test('브로큰은 목표보다 빠른 페이스를 지시한다', () => {
+  test('브로큰은 목표보다 눈에 보이게 빠른 페이스를 지시한다', () => {
+    // 훈련은 푸시오프 출발이라 비교 기준은 목표기록 1:20.00 이 아니라 1:20.70 이다.
+    // 표시값이 목표기록보다도 확실히 빨라야 회원이 '더 빠르게'로 읽는다.
     expect(describePoolSet(poolSpec('broken', 'advanced')!, pace, 100)).toContain(
-      '4 × 100m @ 1:19.50',
+      '4 × 100m @ 1:18.70',
+    )
+  })
+
+  test('데센딩은 표시된 페이스가 마지막 반복 목표임을 밝힌다', () => {
+    expect(describePoolSet(poolSpec('descending', 'beginner')!, pace, 100)).toBe(
+      '4 × 50m 마지막 @ 40.35 · 인터벌 1:10.35',
     )
   })
 
