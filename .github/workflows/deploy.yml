@@ -33,11 +33,10 @@ jobs:
 
       - run: bun run build
 
-      # enablement 를 켜두면 저장소 설정에서 Pages 를 미리 만지지 않아도 된다.
-      # 이걸 빼면 첫 실행이 "Pages 가 활성화되지 않았다"로 실패한다.
+      # 저장소 Settings → Pages → Source 를 "GitHub Actions" 로 한 번 바꿔둬야 한다.
+      # `enablement: true` 로 자동화할 수 없다 — 그 옵션은 PUT /repos/.../pages 를
+      # 호출하는데 admin 권한이 필요하고, 워크플로의 GITHUB_TOKEN 은 admin 이 아니다.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:

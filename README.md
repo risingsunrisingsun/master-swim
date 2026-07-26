@@ -38,9 +38,15 @@ GitHub Pages 로 배포한다.
 ## 최초 배포 절차
 
 1. GitHub 에 **공개** 저장소를 만든다 (무료 티어 Pages 는 공개 저장소를 요구한다).
-2. `git remote add origin <URL>` 후 `main` 을 push.
-3. 저장소 **Settings → Pages → Source** 를 **GitHub Actions** 로 설정.
+2. 저장소 **Settings → Pages → Source** 를 **GitHub Actions** 로 설정한다.
+   **이 단계는 자동화할 수 없다** — 워크플로의 `GITHUB_TOKEN` 은 admin 이 아니라
+   Pages 를 켜는 API 를 호출하지 못한다. 건너뛰면 `configure-pages` 에서 실패한다.
+3. `git remote add origin <URL>` 후 `main` 을 push.
 4. Actions 탭에서 배포 완료를 확인하고 `https://<계정>.github.io/<저장소>/` 를 연다.
+
+> 계정을 두 개 이상 쓰면 Git Credential Manager 가 `github.com` 하나에 자격증명을
+> 하나만 들고 있어 다른 계정 저장소로 push 할 때 403 이 난다.
+> `git config --global credential.useHttpPath true` 로 저장소별 자격증명을 쓰게 한다.
 
 ## 아이콘
 
