@@ -5,7 +5,7 @@
  * 결과를 붙이고 저장한다. 라우팅은 해시로만 한다 — 정적 호스팅에는 서버 라우터가 없다.
  */
 import { grade } from './grading'
-import { formatTime, parseTimeInput } from './pace'
+import { composeTimeInput, formatTime, parseTimeInput, splitTimeInput } from './pace'
 import { weekDays, weeklyPlan } from './plan'
 import { addLog, addRecord, load, removeRecord, saveProfile } from './storage'
 import type { AgeGroup, Distance, Profile, RaceEvent, Sex, Stroke } from './types'
@@ -27,14 +27,45 @@ const screens = {
 const inputs = {
   stroke: $<HTMLSelectElement>('stroke'),
   distance: $<HTMLSelectElement>('distance'),
-  current: $<HTMLInputElement>('current'),
-  target: $<HTMLInputElement>('target'),
+  currentMin: $<HTMLInputElement>('current-min'),
+  currentSec: $<HTMLInputElement>('current-sec'),
+  targetMin: $<HTMLInputElement>('target-min'),
+  targetSec: $<HTMLInputElement>('target-sec'),
   ageGroup: $<HTMLSelectElement>('age-group'),
   sex: $<HTMLSelectElement>('sex'),
   sessions: $<HTMLInputElement>('sessions'),
   meters: $<HTMLInputElement>('meters'),
   height: $<HTMLInputElement>('height'),
   weight: $<HTMLInputElement>('weight'),
+}
+
+/**
+ * 칸 구성이 바뀌어도 **같은 기록을 가리키게** 다시 접는다.
+ *
+ * 100m→50m 이면 분을 초로 내리고(1:25.00 → 85.00), 50m→100m 이면 60초 이상을
+ * 분으로 올린다. 분 칸을 그냥 지우면 1:25.00 이 25.00 이 되어 조용히 1분이 사라진다.
+ */
+function refoldTime(min: HTMLInputElement, sec: HTMLInputElement, secondsOnly: boolean): void {
+  const cs = composeTimeInput(min.value, sec.value)
+  if (cs === null) {
+    // 읽을 수 없는 입력이라 보존할 값이 없다. 숨는 칸만 비운다.
+    if (secondsOnly) min.value = ''
+    return
+  }
+
+  const next = splitTimeInput(cs, secondsOnly)
+  min.value = next.minutes
+  sec.value = next.seconds
+}
+
+/** 50m 는 초 칸만, 100m 는 분 칸까지. 거리를 알면 자리수도 안다. */
+function applyDistanceToTimeFields(): void {
+  const secondsOnly = Number(inputs.distance.value) < 100
+  for (const id of ['current-row', 'target-row']) {
+    $<HTMLElement>(id).classList.toggle('sec-only', secondsOnly)
+  }
+  refoldTime(inputs.currentMin, inputs.currentSec, secondsOnly)
+  refoldTime(inputs.targetMin, inputs.targetSec, secondsOnly)
 }
 
 const recordInputs = {
@@ -55,6 +86,14 @@ const subtitle = $<HTMLElement>('screen-sub')
 /** 지금 펼쳐 보는 요일. 주간 플랜을 하루씩 넘겨 보기 위한 것. */
 let dayIndex = 0
 
+/**
+ * 식단을 펼쳐 뒀는지. 기본값은 접힘이다.
+ *
+ * 훈련 화면은 입력 한 글자마다 통째로 다시 그려지므로 `<details open>` 이 매번
+ * 초기화된다. 요일을 넘길 때도 편 상태를 유지하려면 여기서 들고 있어야 한다.
+ */
+let dietOpen = false
+
 // ---------------------------------------------------------------------------
 // 입력 읽기
 // ---------------------------------------------------------------------------
@@ -67,8 +106,8 @@ function readBody(): Profile['body'] {
 }
 
 function readProfile(): Profile | null {
-  const targetCs = parseTimeInput(inputs.target.value)
-  const currentCs = parseTimeInput(inputs.current.value)
+  const targetCs = composeTimeInput(inputs.targetMin.value, inputs.targetSec.value)
+  const currentCs = composeTimeInput(inputs.currentMin.value, inputs.currentSec.value)
   const sessionsPerWeek = Number(inputs.sessions.value)
   const metersPerSession = Number(inputs.meters.value)
 
@@ -108,13 +147,26 @@ function renderEcho(input: HTMLInputElement, echo: HTMLElement): void {
   echo.classList.toggle('bad', parsed === null)
 }
 
+/** 분·초 두 칸짜리 입력의 되읽기. 훈련 화면 전용이다. */
+function renderPairEcho(min: HTMLInputElement, sec: HTMLInputElement, echo: HTMLElement): void {
+  if (min.value.trim() === '' && sec.value.trim() === '') {
+    echo.textContent = ''
+    echo.classList.remove('bad')
+    return
+  }
+
+  const parsed = composeTimeInput(min.value, sec.value)
+  echo.textContent = parsed === null ? '읽을 수 없는 숫자' : `→ ${formatTime(parsed)}`
+  echo.classList.toggle('bad', parsed === null)
+}
+
 // ---------------------------------------------------------------------------
 // 훈련 화면
 // ---------------------------------------------------------------------------
 
 function renderTraining(): void {
-  renderEcho(inputs.current, $<HTMLElement>('current-echo'))
-  renderEcho(inputs.target, $<HTMLElement>('target-echo'))
+  renderPairEcho(inputs.currentMin, inputs.currentSec, $<HTMLElement>('current-echo'))
+  renderPairEcho(inputs.targetMin, inputs.targetSec, $<HTMLElement>('target-echo'))
 
   const profile = readProfile()
   if (!profile) {
@@ -128,7 +180,13 @@ function renderTraining(): void {
   const days = weekDays(plan)
 
   dayIndex = Math.min(Math.max(dayIndex, 0), days.length - 1)
-  result.innerHTML = trainingHtml(profile, grading, plan, days, dayIndex, load().logs)
+  result.innerHTML = trainingHtml(profile, grading, plan, days, dayIndex, load().logs, dietOpen)
+
+  // 식단을 편 상태는 다시 그려도 살아남아야 한다. 키·체중이 없으면 이 칸이 없다.
+  const diet = document.getElementById('diet') as HTMLDetailsElement | null
+  diet?.addEventListener('toggle', () => {
+    dietOpen = diet.open
+  })
 
   $<HTMLButtonElement>('day-prev').addEventListener('click', () => {
     dayIndex = (dayIndex - 1 + days.length) % days.length
@@ -233,21 +291,25 @@ const ROUTES = {
 } as const
 
 const topbar = $<HTMLElement>('topbar')
+const disclaimer = $<HTMLElement>('disclaimer')
 
 function route(): void {
   const match = ROUTES[location.hash as keyof typeof ROUTES]
 
   for (const element of Object.values(screens)) element.hidden = true
 
-  // 해시가 없거나 모르는 값이면 시작 화면. 상단 바도 감춰 타이틀 화면답게 둔다.
+  // 해시가 없거나 모르는 값이면 시작 화면. 상단 바와 주의문도 감춰 타이틀 화면답게 둔다 —
+  // 기능이 없는 화면이고, ENTER 를 누른 다음 화면부터 주의문이 계속 따라붙는다.
   if (!match) {
     screens.splash.hidden = false
     topbar.hidden = true
+    disclaimer.hidden = true
     return
   }
 
   screens[match.screen].hidden = false
   topbar.hidden = false
+  disclaimer.hidden = false
   backLink.hidden = !match.back
   title.textContent = match.title
   subtitle.textContent = match.sub
@@ -267,10 +329,19 @@ function restore(): void {
   if (!profile) return
 
   inputs.stroke.value = profile.goal.event.stroke
+  // 25m 를 목표로 저장해 둔 회원이 있을 수 있다. 그 값은 더 이상 목록에 없으므로
+  // 브라우저가 비워버린다 — 50m 로 올려 받는다.
   inputs.distance.value = String(profile.goal.event.distance)
-  // 되살릴 때도 사람이 읽는 형식으로 넣는다. parseTimeInput 이 콜론을 그대로 받는다.
-  inputs.current.value = formatTime(profile.goal.currentCs)
-  inputs.target.value = formatTime(profile.goal.targetCs)
+  if (inputs.distance.value === '') inputs.distance.value = '50'
+
+  const secondsOnly = profile.goal.event.distance < 100
+  const current = splitTimeInput(profile.goal.currentCs, secondsOnly)
+  const target = splitTimeInput(profile.goal.targetCs, secondsOnly)
+  inputs.currentMin.value = current.minutes
+  inputs.currentSec.value = current.seconds
+  inputs.targetMin.value = target.minutes
+  inputs.targetSec.value = target.seconds
+
   inputs.ageGroup.value = profile.ageGroup
   inputs.sex.value = profile.sex
   inputs.sessions.value = String(profile.load.sessionsPerWeek)
@@ -302,6 +373,12 @@ document.addEventListener('keydown', (event) => {
 for (const element of Object.values(inputs)) {
   element.addEventListener('input', renderTraining)
 }
+
+// 거리를 바꾸면 분 칸이 붙거나 떨어진다. 위 리스너보다 먼저 돌아야 하므로 따로 건다.
+inputs.distance.addEventListener('change', () => {
+  applyDistanceToTimeFields()
+  renderTraining()
+})
 for (const element of Object.values(recordInputs)) {
   element.addEventListener('input', renderRecords)
 }
@@ -315,6 +392,7 @@ $<HTMLButtonElement>('add-record').addEventListener('click', submitRecord)
 addEventListener('hashchange', route)
 
 restore()
+applyDistanceToTimeFields()
 recordInputs.date.value = new Date().toISOString().slice(0, 10)
 route()
 

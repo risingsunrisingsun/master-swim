@@ -4,6 +4,7 @@ import { parseTime } from './pace'
 import { weekDays, weeklyPlan } from './plan'
 import type { Body, Profile, RecordEntry } from './types'
 import {
+  CAFE_URL,
   dayHtml,
   escapeHtml,
   gradingHtml,
@@ -49,31 +50,39 @@ describe('시작 화면과 메뉴', () => {
     expect(HOME_HTML).toContain('#/training')
     expect(HOME_HTML).toContain('#/records')
   })
+
+  test('메뉴 맨 아래에 팀 카페로 나가는 링크가 있다', () => {
+    expect(HOME_HTML).toContain('나인틴 훈련일정 확인')
+    expect(HOME_HTML).toContain(CAFE_URL)
+    // 새 탭으로 나가되 opener 를 넘기지 않는다.
+    expect(HOME_HTML).toContain('rel="noopener noreferrer"')
+    expect(HOME_HTML.indexOf(CAFE_URL)).toBeGreaterThan(HOME_HTML.indexOf('#/records'))
+  })
 })
 
 describe('훈련 로그', () => {
   const trainingDay = days.find((day) => day.session !== null)!
 
   test('훈련일에 완주 개수를 받는 칸이 나온다', () => {
-    const html = dayHtml(profile, trainingDay, 7, [], '2026-07-26')
+    const html = dayHtml(profile, trainingDay, 7, [], false, '2026-07-26')
     expect(html).toContain('id="log-reps"')
     expect(html).toContain('완주 기록')
   })
 
   test('휴식일에는 완주 칸이 없다', () => {
     const restDay = days.find((day) => day.session === null)!
-    expect(dayHtml(profile, restDay, 7, [], '2026-07-26')).not.toContain('log-reps')
+    expect(dayHtml(profile, restDay, 7, [], false, '2026-07-26')).not.toContain('log-reps')
   })
 
   test('계획 개수가 세트 지시문과 일치한다', () => {
-    const html = dayHtml(profile, trainingDay, 7, [], '2026-07-26')
+    const html = dayHtml(profile, trainingDay, 7, [], false, '2026-07-26')
     // 100m 목표 · 강도/분량 중급이면 주 세트는 레이스페이스 50 8회다
     expect(html).toContain('data-planned="8"')
     expect(html).toContain('계획 8개 중')
   })
 
   test('기록이 없으면 판정을 보류한다', () => {
-    expect(dayHtml(profile, trainingDay, 7, [], '2026-07-26')).toContain('남기면 목표가 적절한지')
+    expect(dayHtml(profile, trainingDay, 7, [], false, '2026-07-26')).toContain('남기면 목표가 적절한지')
   })
 
   test('세 번 연속 못 채우면 목표가 이르다고 알린다', () => {
@@ -83,14 +92,14 @@ describe('훈련 로그', () => {
       plannedReps: 8,
       completedReps: 3,
     }))
-    const html = dayHtml(profile, trainingDay, 7, logs, '2026-07-26')
+    const html = dayHtml(profile, trainingDay, 7, logs, false, '2026-07-26')
     expect(html).toContain('too-hard')
     expect(html).toContain('이릅니다')
   })
 
   test('오늘 이미 남긴 값은 되불러 수정할 수 있다', () => {
     const logs = [{ date: '2026-07-26', methodId: 'rp50', plannedReps: 8, completedReps: 6 }]
-    const html = dayHtml(profile, trainingDay, 7, logs, '2026-07-26')
+    const html = dayHtml(profile, trainingDay, 7, logs, false, '2026-07-26')
     expect(html).toContain('value="6"')
     expect(html).toContain('>수정<')
   })
@@ -155,6 +164,18 @@ describe('dayHtml', () => {
 
   test('식단에 근거를 밝힌다', () => {
     expect(dayHtml({ ...profile, body }, trainingDay, 7)).toContain('KDRIs')
+  })
+
+  // 하루 화면의 주인공은 그날의 세트다. 식단은 눌러야 펼쳐진다.
+  test('식단은 기본적으로 접혀 있다', () => {
+    const html = dayHtml({ ...profile, body }, trainingDay, 7)
+    expect(html).toContain('<details class="diet"')
+    expect(html).not.toContain(' open>')
+  })
+
+  test('펼친 상태를 넘기면 열린 채로 그린다 — 요일을 넘겨도 유지된다', () => {
+    const html = dayHtml({ ...profile, body }, trainingDay, 7, [], true)
+    expect(html).toContain(' open>')
   })
 })
 

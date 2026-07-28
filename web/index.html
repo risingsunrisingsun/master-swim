@@ -15,8 +15,14 @@
   <body>
     <main>
       <header id="topbar" hidden>
-        <a class="back" href="#/home" id="back">‹ 뒤로</a>
         <h1 id="screen-title">나인틴</h1>
+        <!-- 뒤로는 오른쪽 위 화살표 하나. 엄지가 닿는 쪽에 두고 글자를 뺀다. -->
+        <a class="back" href="#/home" id="back" aria-label="뒤로">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+            <polyline points="9 17 4 12 9 7" />
+            <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+          </svg>
+        </a>
         <p class="hint" id="screen-sub"></p>
       </header>
 
@@ -41,31 +47,45 @@
             </label>
             <label>
               거리
+              <!-- 25m 는 뺐다. 대회 종목이 아니라 훈련 구간 단위다. -->
               <select id="distance">
-                <option value="25">25m</option>
                 <option value="50">50m</option>
                 <option value="100" selected>100m</option>
               </select>
             </label>
           </div>
 
-          <div class="row">
-            <label>
-              현재기록
-              <!-- 숫자 키패드에는 콜론이 없다. 숫자만 받아 오른쪽부터 채운다. -->
-              <input id="current" type="text" inputmode="numeric" autocomplete="off" placeholder="12500" />
-              <span class="echo" id="current-echo"></span>
-            </label>
-            <label>
-              목표기록
-              <input id="target" type="text" inputmode="numeric" autocomplete="off" placeholder="12000" />
-              <span class="echo" id="target-echo"></span>
-            </label>
-          </div>
-          <p class="hint">
-            기록은 <strong>숫자만</strong> 누르세요. 뒤에서부터 1/100초 · 초 · 분으로 채워집니다 —
-            <code>12345</code> → 1:23.45, <code>2345</code> → 23.45
-          </p>
+          <!-- 기록은 분·초 칸을 나눠 받는다. 100m 면 분 칸이 나오고 50m 면 사라진다 —
+               거리가 정해져 있으니 자리수를 앱이 안다. -->
+          <label class="time-field">
+            현재기록
+            <div class="time-row" id="current-row">
+              <span class="unit minutes">
+                <input id="current-min" type="text" inputmode="numeric" autocomplete="off" placeholder="1" />
+                <i>분</i>
+              </span>
+              <span class="unit">
+                <input id="current-sec" type="text" inputmode="decimal" autocomplete="off" placeholder="25.00" />
+                <i>초</i>
+              </span>
+            </div>
+            <span class="echo" id="current-echo"></span>
+          </label>
+
+          <label class="time-field">
+            목표기록
+            <div class="time-row" id="target-row">
+              <span class="unit minutes">
+                <input id="target-min" type="text" inputmode="numeric" autocomplete="off" placeholder="1" />
+                <i>분</i>
+              </span>
+              <span class="unit">
+                <input id="target-sec" type="text" inputmode="decimal" autocomplete="off" placeholder="20.00" />
+                <i>초</i>
+              </span>
+            </div>
+            <span class="echo" id="target-echo"></span>
+          </label>
 
           <div class="row">
             <label>
@@ -174,7 +194,8 @@
         <section id="records-result" aria-live="polite"></section>
       </section>
 
-      <footer>
+      <!-- 시작 화면에서는 감춘다. 기능이 없는 화면이고, 바로 다음 화면부터 계속 보인다. -->
+      <footer id="disclaimer">
         <p>
           이 도구는 훈련 참고용입니다. 심혈관 질환·당뇨·관절 부상 이력이 있거나 통증이 있으면
           의료 전문가와 상의한 뒤 훈련하세요. 제시된 강도와 식단은 개인의 건강 상태를

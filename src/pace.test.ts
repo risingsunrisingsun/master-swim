@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  composeTimeInput,
   DIVE_ADVANTAGE_CS,
   formatTime,
   improvementPercent,
@@ -7,6 +8,7 @@ import {
   parseTimeInput,
   racePace25,
   splitTargets,
+  splitTimeInput,
 } from './pace'
 
 describe('parseTime', () => {
@@ -54,6 +56,59 @@ describe('parseTimeInput · 숫자 키패드에는 콜론이 없다', () => {
   test('formatTime 과 왕복한다', () => {
     expect(formatTime(parseTimeInput('12345')!)).toBe('1:23.45')
     expect(formatTime(parseTimeInput('2345')!)).toBe('23.45')
+  })
+})
+
+describe('composeTimeInput · 분 칸과 초 칸을 나눠 받는다', () => {
+  test('100m — 분과 초를 합친다', () => {
+    expect(composeTimeInput('1', '23.45')).toBe(8345)
+    expect(composeTimeInput('2', '05.00')).toBe(12500)
+  })
+
+  test('50m — 분 칸이 비면 0분으로 본다', () => {
+    expect(composeTimeInput('', '28.45')).toBe(2845)
+    expect(composeTimeInput('', '28')).toBe(2800)
+  })
+
+  // 50m 를 1분 넘겨 도는 회원이 많다. 초 칸 하나만 주고 60초에서 막으면 못 넣는다.
+  test('분이 0이면 60초 이상도 받는다', () => {
+    expect(composeTimeInput('', '65.30')).toBe(6530)
+    expect(formatTime(composeTimeInput('', '65.30')!)).toBe('1:05.30')
+  })
+
+  test('분이 있는데 초가 60 이상이면 거부한다 — 어느 쪽이 맞는지 알 수 없다', () => {
+    expect(composeTimeInput('1', '65.30')).toBeNull()
+  })
+
+  test('초 칸이 비었거나 숫자가 아니면 null', () => {
+    expect(composeTimeInput('1', '')).toBeNull()
+    expect(composeTimeInput('1', 'abc')).toBeNull()
+    expect(composeTimeInput('x', '23.45')).toBeNull()
+    expect(composeTimeInput('', '0')).toBeNull()
+  })
+})
+
+describe('splitTimeInput · composeTimeInput 의 역', () => {
+  test('분이 있으면 두 칸으로 나눈다', () => {
+    expect(splitTimeInput(8345)).toEqual({ minutes: '1', seconds: '23.45' })
+  })
+
+  test('1분 미만이면 분 칸은 빈다', () => {
+    expect(splitTimeInput(2845)).toEqual({ minutes: '', seconds: '28.45' })
+  })
+
+  // 50m 화면에는 분 칸이 없다. 접어 내리지 않으면 1:05.30 이 5.30 이 된다.
+  test('초만 모드면 분을 초에 접어 넣는다', () => {
+    expect(splitTimeInput(6530, true)).toEqual({ minutes: '', seconds: '65.30' })
+  })
+
+  test('두 함수가 왕복한다', () => {
+    for (const cs of [2845, 6530, 8345, 12500]) {
+      const { minutes, seconds } = splitTimeInput(cs)
+      expect(composeTimeInput(minutes, seconds)).toBe(cs)
+      const flat = splitTimeInput(cs, true)
+      expect(composeTimeInput(flat.minutes, flat.seconds)).toBe(cs)
+    }
   })
 })
 

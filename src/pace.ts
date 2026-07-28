@@ -64,6 +64,51 @@ export function parseTimeInput(input: string): number | null {
   return (minutes * 60 + seconds) * 100 + centis
 }
 
+/**
+ * 분 칸과 초 칸을 따로 받는다.
+ *
+ * 훈련 화면은 목표 거리가 정해져 있으므로 자리수를 미리 안다. 100m 는 분이 필요하고
+ * 50m 는 초만 있으면 된다. 한 칸에 몰아넣고 오른쪽부터 채우는 방식(`parseTimeInput`)
+ * 보다 칸을 나누는 편이 폰에서 오해가 없다.
+ *
+ * 초 칸은 소수점을 그대로 받는다 — 십진 키패드에는 마침표가 있다.
+ * 분 칸이 비었으면 0분으로 본다. **분이 0이면 초가 60 이상이어도 받는다** —
+ * 50m 를 1분 넘겨 도는 회원이 초 칸에 `65.30` 을 치는 것이 자연스럽다.
+ */
+export function composeTimeInput(minutes: string, seconds: string): number | null {
+  if (seconds.trim() === '') return null
+
+  const min = minutes.trim() === '' ? 0 : Number(minutes)
+  const sec = Number(seconds)
+  if (!Number.isFinite(min) || !Number.isFinite(sec)) return null
+  if (min < 0 || sec < 0) return null
+  if (min > 0 && sec >= 60) return null
+
+  const total = Math.round(min * 6000 + sec * 100)
+  return total > 0 ? total : null
+}
+
+/**
+ * centisecond 를 분·초 두 칸에 되돌려 넣을 값으로 쪼갠다. `composeTimeInput` 의 역.
+ *
+ * `secondsOnly` 면 분을 초에 접어 넣는다 — 50m 화면에는 분 칸이 없으므로
+ * 1:05.30 을 `65.30` 으로 내려야 값이 보존된다.
+ */
+export function splitTimeInput(
+  cs: number,
+  secondsOnly = false,
+): { minutes: string; seconds: string } {
+  const rounded = Math.round(cs)
+  if (secondsOnly) return { minutes: '', seconds: (rounded / 100).toFixed(2) }
+
+  const minutes = Math.floor(rounded / 6000)
+  const rest = rounded - minutes * 6000
+  return {
+    minutes: minutes > 0 ? String(minutes) : '',
+    seconds: (rest / 100).toFixed(2),
+  }
+}
+
 /** centisecond 를 "1:23.45" 로. 1분 미만이면 "23.45". */
 export function formatTime(cs: number): string {
   const rounded = Math.round(cs)

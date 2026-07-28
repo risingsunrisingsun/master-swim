@@ -32,6 +32,14 @@
   box-sizing: border-box;
 }
 
+/*
+ * `header` 에 display 를 주는 순간 브라우저 기본값인 `[hidden] { display: none }`
+ * 을 이겨버린다. 그래서 시작 화면에서 상단 바가 같이 보였다. 작성자 규칙으로 되돌린다.
+ */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -74,13 +82,30 @@ header h1 {
   letter-spacing: -0.01em;
 }
 
+/* 뒤로는 오른쪽 위. 글자 대신 화살표 하나 — 폭을 먹지 않고 엄지가 닿는다. */
 .back {
-  grid-column: 1;
-  justify-self: start;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.9rem;
-  color: var(--muted);
+  grid-column: 3;
+  justify-self: end;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 999px;
+  color: var(--accent);
   text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.back svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.back:active {
+  background: var(--accent-soft);
 }
 
 #screen-sub {
@@ -90,20 +115,41 @@ header h1 {
 }
 
 /* --- 시작 화면 -------------------------------------------------------- */
-/* 게임 타이틀처럼 로고 한 장과 ENTER 하나만 둔다. */
+/*
+ * 게임 타이틀처럼 로고 한 장과 ENTER 하나만 둔다.
+ *
+ * 로고 PNG 의 배경이 흰색이던 동안에는 회색 바탕 위에 흰 사각형이 떠 보였다.
+ * `make-icons.ps1` 이 배경을 투명하게 만들고(로고 잉크만 남는다), 화면은 로고 뒤에
+ * 팀 파랑에서 번지는 부드러운 원을 깔아 사각형 경계 자체를 없앤다.
+ */
 
 .splash {
   display: grid;
   place-content: center;
   justify-items: center;
   gap: 1.75rem;
-  min-height: 78vh;
+  min-height: 88vh;
+  padding: 1rem;
+  /* main 의 좌우 여백을 뚫고 화면 끝까지 번지게 한다. */
+  margin: 0 -1rem;
   text-align: center;
+  /*
+   * 원형 그라디언트 하나만 쓴다. 사방으로 투명하게 사라지므로 화면이 넓어져도 경계선이
+   * 생기지 않는다 — 위아래로 색을 깔면 그 자리에 또 사각형이 보인다.
+   */
+  background: radial-gradient(
+    58% 34% at 50% 36%,
+    rgba(8, 104, 232, 0.14) 0%,
+    rgba(8, 104, 232, 0.05) 45%,
+    rgba(8, 104, 232, 0) 72%
+  );
 }
 
 .splash img {
-  width: min(62vw, 15rem);
+  width: min(66vw, 16rem);
   height: auto;
+  /* 잉크만 남은 로고라 그림자가 글자 모양을 따라간다 — 바탕에서 살짝 떠 보인다. */
+  filter: drop-shadow(0 4px 9px rgba(8, 104, 232, 0.16));
 }
 
 .splash .tagline {
@@ -172,6 +218,27 @@ header h1 {
 .tile span {
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+/* 카페 링크. 앱 밖으로 나가는 유일한 버튼이라 타일과 다르게 생겨야 한다. */
+.tile.outbound {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  margin-top: 0.5rem;
+  background: var(--accent-soft);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.tile.outbound strong {
+  font-size: 0.95rem;
+}
+
+.tile.outbound .go {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  font-size: 1.1rem;
+  color: var(--accent);
 }
 
 /* --- 폼 --------------------------------------------------------------- */
@@ -252,6 +319,47 @@ select:focus-visible,
 input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+/* --- 기록 입력 (분 · 초) ---------------------------------------------- */
+/* 거리에 따라 분 칸이 붙었다 떨어진다. 50m 면 `.time-row.sec-only` 가 붙어 사라진다. */
+
+.time-row {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.time-row.sec-only {
+  grid-template-columns: 1fr;
+}
+
+.time-row.sec-only .minutes {
+  display: none;
+}
+
+.unit {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+/* 단위 글자는 칸 안 오른쪽에 앉힌다 — 줄을 더 쓰지 않는다. */
+.unit i {
+  position: absolute;
+  right: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-style: normal;
+  font-size: 0.85rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.unit input {
+  padding-right: 2rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .echo {
@@ -518,6 +626,50 @@ button:focus-visible {
   background: var(--surface-2);
   box-shadow: none;
   border-style: dashed;
+}
+
+/* 접힌 상태가 기본이라 요약줄 자체가 버튼처럼 보여야 한다. */
+details.diet {
+  padding: 0;
+}
+
+details.diet summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 사파리는 ::marker 대신 이쪽을 쓴다. */
+details.diet summary::-webkit-details-marker {
+  display: none;
+}
+
+details.diet summary::after {
+  content: '펼치기 ▾';
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--accent);
+}
+
+details.diet[open] summary::after {
+  content: '접기 ▴';
+}
+
+details.diet > *:not(summary) {
+  margin-left: 0.9rem;
+  margin-right: 0.9rem;
+}
+
+details.diet > *:last-child {
+  margin-bottom: 0.9rem;
 }
 
 .meals {

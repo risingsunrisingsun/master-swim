@@ -48,6 +48,9 @@ export const SPLASH_HTML = `<div class="splash">
     <p class="enter-hint">눌러서 시작하세요</p>
   </div>`
 
+/** 팀 훈련일정이 사는 곳. 앱은 개인 처방만 하고 일정은 카페가 갖는다(CONTEXT.md · 범위). */
+export const CAFE_URL = 'https://cafe.naver.com/nineteenswim'
+
 export const HOME_HTML = `<nav class="home">
     <a class="tile" href="#/training">
       <strong>목표 기록 훈련법</strong>
@@ -56,6 +59,11 @@ export const HOME_HTML = `<nav class="home">
     <a class="tile" href="#/records">
       <strong>개인기록 추이</strong>
       <span>영법별 기록을 남기고 변화를 봅니다</span>
+    </a>
+    <a class="tile outbound" href="${CAFE_URL}" target="_blank" rel="noopener noreferrer">
+      <strong>나인틴 훈련일정 확인</strong>
+      <span>네이버 카페로 이동합니다</span>
+      <span class="go" aria-hidden="true">↗</span>
     </a>
   </nav>`
 
@@ -78,7 +86,14 @@ function sessionItemsHtml(session: PlannedSession): string {
     .join('')
 }
 
-function dietHtml(diet: DailyDiet): string {
+/**
+ * 식단은 접어 둔다.
+ *
+ * 하루 화면의 주인공은 그날의 세트다. 식단은 여섯 식품군 × 세 끼라 펼치면 세트를
+ * 화면 밖으로 밀어낸다. 요일을 넘겨도 편 상태가 유지되도록 `open` 을 밖에서 받는다 —
+ * 이 화면은 입력 한 글자마다 통째로 다시 그려진다.
+ */
+function dietHtml(diet: DailyDiet, open: boolean): string {
   const rows = diet.meals
     .map((meal) => {
       const items = meal.items
@@ -96,8 +111,11 @@ function dietHtml(diet: DailyDiet): string {
     })
     .join('')
 
-  return `<section class="diet">
-      <h3>${diet.training ? '훈련일' : '휴식일'} 식단 <span class="meters">${kcal(diet.energy.total)}</span></h3>
+  return `<details class="diet" id="diet"${open ? ' open' : ''}>
+      <summary>
+        <span>${diet.training ? '훈련일' : '휴식일'} 식단</span>
+        <span class="meters">${kcal(diet.energy.total)}</span>
+      </summary>
       <p class="hint">
         기초대사량 ${kcal(diet.energy.bmr)} · 일상활동 포함 ${kcal(diet.energy.baseline)}
         ${diet.training ? ` · 수영 ${kcal(diet.energy.swim)}` : ''} · 단백질 목표 ${Math.round(diet.proteinTargetG)}g
@@ -107,7 +125,7 @@ function dietHtml(diet: DailyDiet): string {
         한국인 영양소 섭취기준(KDRIs) 식사구성안의 식품군 1회 분량과 대표식품,
         기초대사량은 Mifflin-St Jeor 식을 씁니다. 질환이 있으면 전문가와 상의하세요.
       </p>
-    </section>`
+    </details>`
 }
 
 export const NEEDS_BODY_HTML = `<section class="diet locked">
@@ -165,6 +183,7 @@ export function dayHtml(
   day: WeekDay,
   dayCount: number,
   logs: readonly SetLog[] = [],
+  dietOpen = false,
   today = new Date().toISOString().slice(0, 10),
 ): string {
   const session = day.session
@@ -187,6 +206,7 @@ export function dayHtml(
           meters: session?.meters ?? 0,
           met: session ? SESSION_MET[session.focus] : 0,
         }),
+        dietOpen,
       )
     : NEEDS_BODY_HTML
 
@@ -234,6 +254,7 @@ export function trainingHtml(
   days: readonly WeekDay[],
   dayIndex: number,
   logs: readonly SetLog[] = [],
+  dietOpen = false,
 ): string {
   const { event, targetCs, currentCs } = profile.goal
   const pace = racePace25(targetCs, event.distance)
@@ -255,7 +276,7 @@ export function trainingHtml(
     ${gradingHtml(grading)}
 
     <h2>이번 주 <span class="hint">계획 ${meters(planned)} / 입력 ${meters(declared)}</span></h2>
-    ${dayHtml(profile, days[dayIndex]!, days.length, logs)}
+    ${dayHtml(profile, days[dayIndex]!, days.length, logs, dietOpen)}
 
     ${splitsHtml(targetCs, event.distance)}`
 }
