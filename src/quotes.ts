@@ -170,18 +170,25 @@ export const QUOTES: readonly Quote[] = [
     photo: { by: 'KOCIS · 김선주', license: 'CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:Hangzhou_AsianGames_Team_Korea_05_-_Kim_Woo-min_(cropped).jpg' },
   },
   {
-    // 널리 도는 「신은 넘을 수 없는 시련은 주지 않는다」 는 넣지 않았다. 일본에서
-    // 오래 쓰인 관용구이고, 본인의 말로 보도된 1차 출처를 찾지 못했다. 대신 백혈병
-    // 공표 석 달 뒤 본인 성명에서 나온 문장을 쓴다 — 영어 보도 두 곳이 같은 문장을 싣는다.
+    // 회원이 고른 문장이다. 출처는 도쿄도 선수 인터뷰 페이지인데, 이 문장은 **기사
+    // 제목**이지 본인이 그대로 한 말이 아니다(「悔いのない水泳人生のために、今日も泳ぎ切る」).
+    // 그래서 `said` 에 '기사 제목'이라고 적어 화면이 본인 발언인 척하지 않게 했다.
+    //
+    // 같은 인터뷰 본문에 본인 발언이 있다:
+    //   「悔いのない水泳人生を最後まで送りたいと思っています」
+    //   — 후회 없는 수영 인생을 끝까지 보내고 싶습니다.
+    // 축약 없이 본인 말로 가고 싶으면 이쪽으로 바꾸고 `said` 를 '2024년 도쿄도 인터뷰'로.
+    //
+    // 널리 도는 「신은 넘을 수 없는 시련은 주지 않는다」 는 쓰지 않는다 — 일본에서
+    // 오래 쓰인 관용구이고 본인의 말로 보도된 1차 출처가 없다.
     kind: 'athlete',
     id: 'ikee',
     name: '이케에 리카코',
     note: '일본 · 접영/자유형 단거리',
-    text: '지지 않겠다고, 병을 이겨낼 수 있을 때까지 견디겠다고 스스로에게 약속합니다.',
-    original:
-      'I promise myself I will not be defeated and will endure until I am able to overcome my illness.',
-    said: '2019년 5월 본인 성명 (백혈병 투병 중)',
-    source: 'https://www.olympics.com/en/news/rikako-ikee-update-cancer-leukaemia-emotional-statement',
+    text: '후회 없는 수영 인생을 위해, 오늘도 마지막까지 헤엄칠 것이다.',
+    original: '悔いのない水泳人生のために、今日も泳ぎ切る',
+    said: '2024년 도쿄도 인터뷰 · 기사 제목',
+    source: 'https://www.sports-tokyo-info.metro.tokyo.lg.jp/paris2024-tokyo-athlete/interview/1367/',
     photo: { by: '江戸村のとくぞう', license: 'CC BY-SA 4.0', source: 'https://commons.wikimedia.org/wiki/File:Rikako_Ikee_20230408a.jpg' },
   },
   {
