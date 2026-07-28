@@ -59,6 +59,15 @@ export const CAFE_URL = 'https://cafe.naver.com/nineteenswim'
  * 같이 걸어 둔다. 지어낸 문장이 아니라는 걸 화면에서 확인할 수 있어야 한다(`quotes.ts`).
  */
 export function quoteHtml(quote: Quote): string {
+  // 지은이 없는 문구는 카드가 다르다 — 이름도 사진도 출처도 놓을 자리가 없다.
+  // 영어를 크게 띄우는 이유는 문구의 맛이 영어 어순에 있기 때문이다.
+  if (quote.kind === 'saying') {
+    return `<figure class="quote saying">
+      <blockquote>${escapeHtml(quote.text)}</blockquote>
+      <figcaption>${escapeHtml(quote.korean)}</figcaption>
+    </figure>`
+  }
+
   // 사진이 없으면 이름 첫 글자를 원 안에 넣는다. 빈 동그라미보다 사람처럼 읽히고,
   // 아무 사진이나 채워 넣지 않았다는 뜻이 그대로 보인다.
   const avatar = quote.photo

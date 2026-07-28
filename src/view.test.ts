@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { grade } from './grading'
 import { parseTime } from './pace'
 import { weekDays, weeklyPlan } from './plan'
-import { QUOTES } from './quotes'
+import { type AthleteQuote, QUOTES } from './quotes'
 import type { Body, Profile, RecordEntry } from './types'
 import {
   CAFE_URL,
@@ -19,6 +19,8 @@ import {
 } from './view'
 
 const body: Body = { heightCm: 172, weightKg: 68 }
+
+const athleteQuotes = QUOTES.filter((quote): quote is AthleteQuote => quote.kind === 'athlete')
 
 const profile: Profile = {
   ageGroup: '45-49',
@@ -54,7 +56,7 @@ describe('시작 화면과 메뉴', () => {
   })
 
   test('어록 카드에 문장·이름·출처·사진 저작자가 모두 들어간다', () => {
-    const quote = QUOTES.find((q) => q.photo && q.source)!
+    const quote = athleteQuotes.find((q) => q.photo && q.source)!
     const html = quoteHtml(quote)
     expect(html).toContain(escapeHtml(quote.text))
     expect(html).toContain(quote.name)
@@ -66,7 +68,7 @@ describe('시작 화면과 메뉴', () => {
   })
 
   test('사진이 없으면 이름 첫 글자를 넣고 사진 표시는 빼낸다', () => {
-    const quote = QUOTES.find((q) => q.photo === undefined)!
+    const quote = athleteQuotes.find((q) => q.photo === undefined)!
     const html = quoteHtml(quote)
     expect(html).toContain('quote-photo initial')
     expect(html).toContain(`>${[...quote.name][0]}<`)
@@ -78,18 +80,31 @@ describe('시작 화면과 메뉴', () => {
 
   // 확인한 문장과 그렇지 않은 문장이 화면에서 구별돼야 한다(ADR-0009).
   test('출처가 없으면 링크 대신 출처 미확인이라고 적는다', () => {
-    const quote = QUOTES.find((q) => q.source === undefined)!
+    const quote = athleteQuotes.find((q) => q.source === undefined)!
     const html = quoteHtml(quote)
     expect(html).toContain('출처 미확인')
     // 사진 라이선스 링크는 남지만 어록 출처 링크는 없다.
     expect(html).not.toContain(`>${quote.said}</a>`)
   })
 
+  // 지은이가 없으므로 이름·사진·출처를 놓을 자리가 아예 없다.
+  test('지은이 없는 문구는 영어와 한국어만 있고 귀속 표시가 없다', () => {
+    const saying = QUOTES.find((q) => q.kind === 'saying')!
+    const html = quoteHtml(saying)
+    expect(html).toContain('quote saying')
+    expect(html).toContain(escapeHtml(saying.text))
+    expect(html).not.toContain('quote-source')
+    expect(html).not.toContain('출처 미확인')
+    expect(html).not.toContain('.jpg')
+  })
+
   test('어록 카드의 바깥 링크는 opener 를 넘기지 않는다', () => {
-    expect(quoteHtml(QUOTES[0]!)).not.toContain('target="_blank" rel="noopener"')
-    const links = quoteHtml(QUOTES[0]!).match(/target="_blank"/g) ?? []
-    const safe = quoteHtml(QUOTES[0]!).match(/rel="noopener noreferrer"/g) ?? []
-    expect(safe.length).toBe(links.length)
+    for (const quote of QUOTES) {
+      const html = quoteHtml(quote)
+      const links = html.match(/target="_blank"/g) ?? []
+      const safe = html.match(/rel="noopener noreferrer"/g) ?? []
+      expect(safe.length).toBe(links.length)
+    }
   })
 
   test('메뉴 맨 아래에 팀 카페로 나가는 링크가 있다', () => {

@@ -1,12 +1,16 @@
 /**
- * 선수 어록. 메뉴 화면 아래 빈자리에 접속할 때마다 하나씩 뜬다.
+ * 메뉴 화면 아래 빈자리에 접속할 때마다 하나씩 뜨는 카드.
  *
- * 두 가지를 지킨다.
+ * 두 종류가 섞여 있다. **선수의 말**(`kind: 'athlete'`)은 누가 했는지가 카드의
+ * 절반이라 이름·출처·사진이 따라붙는다. **지은이 없는 문구**(`kind: 'saying'`)는
+ * 귀속시킬 사람이 없으므로 그런 것이 아예 없다.
+ *
+ * 선수의 말에 대해 두 가지를 지킨다.
  *
  * **어록은 지어내지 않는다.** 실존 인물이 하지 않은 말을 그 사람 이름으로 띄우는 것은
- * 오귀속이다. 여기 있는 문장은 전부 1차에 가까운 출처(본인 인터뷰 기사·연설 보도)에서
- * 원문을 확인한 것이고, `source` 에 그 주소가 있다. BrainyQuote·Goodreads 같은 인용구
- * 모음 사이트는 출처로 쓰지 않았다 — 오귀속이 흔하다.
+ * 오귀속이다. `source` 가 있으면 그 주소에서 원문을 확인한 것이고, **없으면 확인하지
+ * 못했다는 뜻이며 화면이 '출처 미확인'이라고 밝힌다.** BrainyQuote·Goodreads 같은
+ * 인용구 모음 사이트는 출처로 쓰지 않는다 — 1차 출처가 없고 오귀속이 흔하다.
  *
  * **사진은 라이선스를 확인한 것만 쓴다.** 전부 위키미디어 공용에서 받았고 파일마다
  * 촬영자와 라이선스가 명시돼 있다. CC BY 계열은 저작자 표시가 조건이므로
@@ -15,10 +19,10 @@
  *
  * 사진 파일은 `web/quotes/<id>.jpg` 다. 원본과 잘라내기 좌표는
  * `assets/quotes/` 와 `scripts/make-quote-photos.ps1` 에 있다.
+ * `photo` 를 빼면 화면이 이름 첫 글자를 원 안에 넣는다 — 서머 매킨토시와 에릭
+ * 무삼바니가 그렇다. 없는 사진을 아무거나 채워 넣는 것보다 비워 두는 편이 정직하다.
  *
- * **사진은 없어도 된다.** 자유 라이선스 사진이 없는 선수도 있어서(예 — 서머 매킨토시)
- * `photo` 를 빼면 화면이 이름 첫 글자를 원 안에 넣는다. 문장의 출처는 여전히 필수다.
- * 없는 사진을 아무거나 채워 넣는 것보다 비워 두는 편이 정직하다.
+ * 카드 전부를 한 화면에서 보려면 `bun scripts/preview-quotes.ts`.
  */
 
 /** 자유 라이선스 사진이 있을 때만 붙는다. 세 값이 함께 가야 저작자 표시가 성립한다. */
@@ -30,7 +34,13 @@ export interface QuotePhoto {
   readonly source: string
 }
 
-export interface Quote {
+/**
+ * 선수의 말.
+ *
+ * 누가 했는지가 카드의 절반이므로 이름·국적·출처가 함께 간다.
+ */
+export interface AthleteQuote {
+  readonly kind: 'athlete'
   /** 사진 파일 이름과 같다. `web/quotes/<id>.jpg` */
   readonly id: string
   /** 화면에 뜨는 이름 */
@@ -55,8 +65,27 @@ export interface Quote {
   readonly photo?: QuotePhoto
 }
 
+/**
+ * 수영장에서 도는 문구.
+ *
+ * 지은이가 없으므로 **출처도 사진도 이름도 없다** — 없는 것이 아니라 있을 자리가
+ * 없는 것이다. 실존 인물에게 귀속시키지 않으니 ADR-0009 의 검증 문제도 생기지 않는다.
+ * 카드도 다르게 생겼다(`view.ts`).
+ */
+export interface Saying {
+  readonly kind: 'saying'
+  readonly id: string
+  /** 영어 원문. 이쪽이 크게 뜬다 — 문구의 맛이 영어 어순에 있다. */
+  readonly text: string
+  /** 한국어 옮김. 영어 아래 작게 붙는다. */
+  readonly korean: string
+}
+
+export type Quote = AthleteQuote | Saying
+
 export const QUOTES: readonly Quote[] = [
   {
+    kind: 'athlete',
     id: 'phelps',
     name: '마이클 펠프스',
     note: '미국 · 접영/개인혼영',
@@ -68,6 +97,7 @@ export const QUOTES: readonly Quote[] = [
     photo: { by: 'Agência Brasil Fotografias', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:Michael_Phelps_Rio_Olympics_2016.jpg' },
   },
   {
+    kind: 'athlete',
     id: 'ledecky',
     name: '케이티 러데키',
     note: '미국 · 자유형 장거리',
@@ -80,6 +110,7 @@ export const QUOTES: readonly Quote[] = [
     photo: { by: 'Mledecky', license: 'CC0', source: 'https://commons.wikimedia.org/wiki/File:Katie_Ledecky_at_the_2023_Golden_Goggle_Awards.jpg' },
   },
   {
+    kind: 'athlete',
     id: 'dressel',
     name: '케일럽 드레슬',
     note: '미국 · 자유형/접영 단거리',
@@ -91,6 +122,7 @@ export const QUOTES: readonly Quote[] = [
     photo: { by: 'JD Lasica', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:Caeleb_Dressel_before_winning_100_fly_(42769914221)_(cropped).jpg' },
   },
   {
+    kind: 'athlete',
     id: 'thorpe',
     name: '이언 소프',
     note: '호주 · 자유형',
@@ -102,6 +134,7 @@ export const QUOTES: readonly Quote[] = [
     photo: { by: 'Doha Stadium Plus Qatar', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:Ian_Thorpe_2012.jpg' },
   },
   {
+    kind: 'athlete',
     id: 'sjostrom',
     name: '사라 셰스트룀',
     note: '스웨덴 · 접영/자유형 단거리',
@@ -113,6 +146,7 @@ export const QUOTES: readonly Quote[] = [
     photo: { by: 'Larske', license: 'CC BY-SA 4.0', source: 'https://commons.wikimedia.org/wiki/File:Sarah_Sjöström_2013_(cropped).jpg' },
   },
   {
+    kind: 'athlete',
     id: 'hwang',
     name: '황선우',
     note: '대한민국 · 자유형',
@@ -122,6 +156,7 @@ export const QUOTES: readonly Quote[] = [
     photo: { by: 'OSEN SPORTS', license: 'CC BY 3.0', source: 'https://commons.wikimedia.org/wiki/File:황선우_수영_선수.jpg' },
   },
   {
+    kind: 'athlete',
     id: 'kim',
     name: '김우민',
     note: '대한민국 · 자유형 중장거리',
@@ -134,6 +169,7 @@ export const QUOTES: readonly Quote[] = [
     // 널리 도는 「신은 넘을 수 없는 시련은 주지 않는다」 는 넣지 않았다. 일본에서
     // 오래 쓰인 관용구이고, 본인의 말로 보도된 1차 출처를 찾지 못했다. 대신 백혈병
     // 공표 석 달 뒤 본인 성명에서 나온 문장을 쓴다 — 영어 보도 두 곳이 같은 문장을 싣는다.
+    kind: 'athlete',
     id: 'ikee',
     name: '이케에 리카코',
     note: '일본 · 접영/자유형 단거리',
@@ -147,6 +183,7 @@ export const QUOTES: readonly Quote[] = [
   {
     // 사진이 없다. 위키미디어 공용에 자유 라이선스 사진이 한 장도 없고, 돌아다니는
     // 사진은 전부 통신사 소유다. 화면은 이름 첫 글자를 원 안에 넣는다.
+    kind: 'athlete',
     id: 'mcintosh',
     name: '서머 매킨토시',
     note: '캐나다 · 개인혼영/접영',
@@ -156,6 +193,51 @@ export const QUOTES: readonly Quote[] = [
     said: 'Olympics.com 인터뷰',
     source: 'https://www.olympics.com/en/news/summer-mcintosh-2026-pan-pacific-championships-training',
   },
+  {
+    // 매킨토시와 같은 이유로 사진이 없다. 시드니 2000 의 그 유명한 사진은 통신사
+    // 것이고 위키미디어 공용에는 이 선수 파일이 한 장도 없다.
+    //
+    // 이 카드가 이 앱에 가장 어울린다 — 13m 짜리 호텔 수영장에서 주 3시간 훈련하고
+    // 올림픽에 선 사람의 말이다.
+    kind: 'athlete',
+    id: 'moussambani',
+    name: '에릭 무삼바니',
+    note: '적도기니 · 자유형 · 시드니 2000',
+    text: '학교를 마치고 수영을 시작했습니다. 수영장이 없었어요. 아무것도 없었죠. 그래서 길이가 13미터쯤 되는 호텔 개인 수영장에 가서 훈련했습니다.',
+    original:
+      'I started swimming when I left school. We didn’t have a swimming pool. We didn’t have anything, and I went to train at a private hotel pool that was about 13 metres long I think.',
+    said: 'Olympics.com 인터뷰',
+    source: 'https://www.olympics.com/en/news/eric-moussambani-sydney-2000-changed-my-life',
+  },
+
+  // ---------------------------------------------------------------------
+  // 지은이 없는 문구. 실존 인물에게 귀속시키지 않으므로 출처도 사진도 없다.
+  // 카드가 다르게 생겼다(`view.ts` · `.quote.saying`).
+  // ---------------------------------------------------------------------
+  {
+    kind: 'saying',
+    id: 'calling',
+    text: 'The water is calling, and I must swim',
+    korean: '물이 부른다. 나는 가야 한다.',
+  },
+  {
+    kind: 'saying',
+    id: 'meditation',
+    text: 'Swimming is simply moving meditation',
+    korean: '수영은 그저 움직이는 명상이다.',
+  },
+  {
+    kind: 'saying',
+    id: 'live-love-swim',
+    text: 'Live, Love, Swim',
+    korean: '살고, 사랑하고, 헤엄쳐라.',
+  },
+  {
+    kind: 'saying',
+    id: 'chlorine',
+    text: 'Chlorine is my perfume',
+    korean: '염소 냄새가 내 향수다.',
+  },
 
   // ---------------------------------------------------------------------
   // 아래 셋은 회원이 알려준 문장이다. 사진은 라이선스를 확인했지만 **문장의
@@ -163,6 +245,7 @@ export const QUOTES: readonly Quote[] = [
   // 출처가 나오면 `source` 만 채우면 표시가 바뀐다.
   // ---------------------------------------------------------------------
   {
+    kind: 'athlete',
     id: 'park',
     name: '박태환',
     note: '대한민국 · 자유형 중장거리',
@@ -171,6 +254,7 @@ export const QUOTES: readonly Quote[] = [
     photo: { by: 'JD Lasica', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:400_meter_freestyle_(6404091897)_Park.jpg' },
   },
   {
+    kind: 'athlete',
     id: 'milak',
     name: '크리스토프 밀라크',
     note: '헝가리 · 접영',
@@ -180,6 +264,7 @@ export const QUOTES: readonly Quote[] = [
     photo: { by: 'Martin Rulsch', license: 'CC BY-SA 4.0', source: "https://commons.wikimedia.org/wiki/File:2018-10-07_Swimming_Boys'_400_m_Freestyle_Final_at_2018_Summer_Youth_Olympics_(Martin_Rulsch)_45.jpg" },
   },
   {
+    kind: 'athlete',
     id: 'lochte',
     name: '라이언 로크티',
     note: '미국 · 개인혼영/배영',
