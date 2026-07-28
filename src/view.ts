@@ -10,6 +10,7 @@ import { levelBoundaries, type Grading } from './grading'
 import { verdict, type SetLog } from './log'
 import { dailyDiet, GROUP_LABEL, REPRESENTATIVE, type DailyDiet } from './nutrition'
 import { formatTime, improvementPercent, racePace25, splitTargets } from './pace'
+import type { Quote } from './quotes'
 import { SESSION_MET, weeklyMeters, type PlannedSession, type WeekDay } from './plan'
 import type { AgeGroup, Distance, Profile, RaceEvent, RecordEntry, Sex } from './types'
 import { LEVEL_LABEL, STROKE_LABEL } from './types'
@@ -50,6 +51,35 @@ export const SPLASH_HTML = `<div class="splash">
 
 /** 팀 훈련일정이 사는 곳. 앱은 개인 처방만 하고 일정은 카페가 갖는다(CONTEXT.md · 범위). */
 export const CAFE_URL = 'https://cafe.naver.com/nineteenswim'
+
+/**
+ * 메뉴 아래 빈자리에 어록 하나.
+ *
+ * 사진 저작자와 라이선스를 **함께 띄운다** — CC BY 계열의 조건이고, 어록의 출처도
+ * 같이 걸어 둔다. 지어낸 문장이 아니라는 걸 화면에서 확인할 수 있어야 한다(`quotes.ts`).
+ */
+export function quoteHtml(quote: Quote): string {
+  return `<figure class="quote">
+      <img
+        class="quote-photo"
+        src="./quotes/${escapeHtml(quote.id)}.jpg"
+        alt="${escapeHtml(quote.name)}"
+        width="200"
+        height="200"
+        loading="lazy"
+      />
+      <blockquote>${escapeHtml(quote.text)}</blockquote>
+      <figcaption>
+        <strong>${escapeHtml(quote.name)}</strong>
+        <span>${escapeHtml(quote.note)}</span>
+      </figcaption>
+      <p class="quote-source">
+        <a href="${escapeHtml(quote.source)}" target="_blank" rel="noopener noreferrer">${escapeHtml(quote.said)}</a>
+        · 사진 ${escapeHtml(quote.photoBy)}
+        (<a href="${escapeHtml(quote.photoSource)}" target="_blank" rel="noopener noreferrer">${escapeHtml(quote.photoLicense)}</a>)
+      </p>
+    </figure>`
+}
 
 export const HOME_HTML = `<nav class="home">
     <a class="tile" href="#/training">

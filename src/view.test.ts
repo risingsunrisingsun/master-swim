@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { grade } from './grading'
 import { parseTime } from './pace'
 import { weekDays, weeklyPlan } from './plan'
+import { QUOTES } from './quotes'
 import type { Body, Profile, RecordEntry } from './types'
 import {
   CAFE_URL,
@@ -10,6 +11,7 @@ import {
   gradingHtml,
   HOME_HTML,
   NEEDS_BODY_HTML,
+  quoteHtml,
   recordsHtml,
   SPLASH_HTML,
   splitsHtml,
@@ -49,6 +51,24 @@ describe('시작 화면과 메뉴', () => {
   test('메뉴에 두 기능으로 가는 링크가 있다', () => {
     expect(HOME_HTML).toContain('#/training')
     expect(HOME_HTML).toContain('#/records')
+  })
+
+  test('어록 카드에 문장·이름·출처·사진 저작자가 모두 들어간다', () => {
+    const html = quoteHtml(QUOTES[0]!)
+    expect(html).toContain(escapeHtml(QUOTES[0]!.text))
+    expect(html).toContain(QUOTES[0]!.name)
+    expect(html).toContain(`./quotes/${QUOTES[0]!.id}.jpg`)
+    // CC BY 계열의 조건이라 화면에서 빠지면 안 된다.
+    expect(html).toContain(QUOTES[0]!.photoBy)
+    expect(html).toContain(QUOTES[0]!.photoLicense)
+    expect(html).toContain(QUOTES[0]!.source)
+  })
+
+  test('어록 카드의 바깥 링크는 opener 를 넘기지 않는다', () => {
+    expect(quoteHtml(QUOTES[0]!)).not.toContain('target="_blank" rel="noopener"')
+    const links = quoteHtml(QUOTES[0]!).match(/target="_blank"/g) ?? []
+    const safe = quoteHtml(QUOTES[0]!).match(/rel="noopener noreferrer"/g) ?? []
+    expect(safe.length).toBe(links.length)
   })
 
   test('메뉴 맨 아래에 팀 카페로 나가는 링크가 있다', () => {

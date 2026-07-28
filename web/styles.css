@@ -887,3 +887,68 @@ footer {
 footer p {
   margin: 0;
 }
+
+/* --- 어록 ------------------------------------------------------------- */
+/*
+ * 메뉴 화면 맨 아래. 사진은 원형으로 깎아 카드가 아니라 사람처럼 보이게 한다.
+ * 저작자·라이선스 줄은 CC BY 계열의 조건이므로 없애면 안 된다(`quotes.ts`).
+ */
+
+.quote {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.9rem;
+  margin: 1.75rem 0 0;
+  padding: 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.quote-photo {
+  grid-row: 1 / span 2;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--accent-soft);
+}
+
+.quote blockquote {
+  grid-column: 2;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  /* 따옴표는 글자로 넣지 않는다 — 번역문에 이미 문장부호가 있다. */
+  color: var(--text);
+}
+
+.quote figcaption {
+  grid-column: 2;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.quote figcaption strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.quote figcaption span::before {
+  content: ' · ';
+}
+
+.quote-source {
+  grid-column: 1 / -1;
+  margin: 0.7rem 0 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.quote-source a {
+  color: var(--muted);
+}

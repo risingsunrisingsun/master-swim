@@ -7,9 +7,17 @@
 import { grade } from './grading'
 import { composeTimeInput, formatTime, parseTimeInput, splitTimeInput } from './pace'
 import { weekDays, weeklyPlan } from './plan'
+import { pickQuote } from './quotes'
 import { addLog, addRecord, load, removeRecord, saveProfile } from './storage'
 import type { AgeGroup, Distance, Profile, RaceEvent, Sex, Stroke } from './types'
-import { HOME_HTML, NEEDS_INPUT_HTML, recordsHtml, SPLASH_HTML, trainingHtml } from './view'
+import {
+  HOME_HTML,
+  NEEDS_INPUT_HTML,
+  quoteHtml,
+  recordsHtml,
+  SPLASH_HTML,
+  trainingHtml,
+} from './view'
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
@@ -292,6 +300,7 @@ const ROUTES = {
 
 const topbar = $<HTMLElement>('topbar')
 const disclaimer = $<HTMLElement>('disclaimer')
+const quote = $<HTMLElement>('screen-quote')
 
 function route(): void {
   const match = ROUTES[location.hash as keyof typeof ROUTES]
@@ -304,12 +313,15 @@ function route(): void {
     screens.splash.hidden = false
     topbar.hidden = true
     disclaimer.hidden = true
+    quote.hidden = true
     return
   }
 
   screens[match.screen].hidden = false
   topbar.hidden = false
   disclaimer.hidden = false
+  // 어록은 메뉴에서만. 훈련·기록 화면은 이미 길다.
+  quote.hidden = match.screen !== 'home'
   backLink.hidden = !match.back
   title.textContent = match.title
   subtitle.textContent = match.sub
@@ -358,6 +370,8 @@ function restore(): void {
 
 screens.splash.innerHTML = SPLASH_HTML
 screens.home.innerHTML = HOME_HTML
+// 접속할 때마다 하나. 화면을 오갈 때는 바뀌지 않는다 — 읽던 문장이 사라지면 성가시다.
+quote.innerHTML = quoteHtml(pickQuote())
 
 const goHome = (): void => {
   location.hash = '#/home'

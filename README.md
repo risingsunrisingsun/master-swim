@@ -30,6 +30,7 @@ GitHub Pages 로 배포한다.
 | `src/nutrition.ts` | 식단. KDRIs 식사구성안 위에서만 계산 (ADR-0005) |
 | `src/distributions.ts` | 국내 마스터즈 기록 분포. 그래프에서 읽은 히스토그램 원본 |
 | `src/benchmark.ts` | 기록 위치. 분포가 있으면 실제 백분위, 없으면 등급 구간 (ADR-0006) |
+| `src/quotes.ts` | 선수 어록. 출처와 사진 라이선스가 문장마다 붙어 있다 (ADR-0009) |
 | `src/chart.ts` | 기록 추이 SVG. 라이브러리 없음, 계열 하나, y축 뒤집힘 |
 | `src/view.ts` | HTML 생성. 순수 함수라 브라우저 없이 테스트된다 |
 | `src/types.ts` | 종목·거리·등급의 정의 |
@@ -71,6 +72,20 @@ powershell -ExecutionPolicy Bypass -File scripts\make-icons.ps1
 `alpha = 255 − min(R,G,B)` 로 잉크 진하기를 얻고 흰색과 합성되기 전 색으로 되돌린다.
 흰 배경을 그대로 두면 시작 화면의 회색 바탕 위에 흰 사각형이 떠 보인다.
 아이콘 네 개는 흰 배경을 유지한다 — 마스커블 아이콘은 배경이 차 있어야 한다.
+
+## 어록 사진
+
+`web/quotes/*.jpg` 는 위키미디어 공용에서 받은 자유 라이선스 사진을 200px 정사각형으로
+자른 것이다. 원본은 `assets/quotes/`, 잘라내기 좌표는 스크립트 안에 파일별로 들어 있다
+(얼굴 위치가 달라 자동으로 맞출 수 없다):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\make-quote-photos.ps1
+```
+
+**저작자와 라이선스는 화면에 반드시 함께 뜬다** — CC BY 계열의 조건이다.
+값은 `src/quotes.ts` 에 있고 `quotes.test.ts` 가 비어 있는지 검사한다.
+어록을 추가하려면 출처가 확인되는 문장과 자유 라이선스 사진이 **둘 다** 필요하다(ADR-0009).
 
 ## 배포 전 확인
 
