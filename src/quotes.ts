@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 메뉴 화면 아래 빈자리에 접속할 때마다 하나씩 뜨는 카드.
  *
  * 두 종류가 섞여 있다. **선수의 말**(`kind: 'athlete'`)은 누가 했는지가 카드의
@@ -19,8 +19,9 @@
  *
  * 사진 파일은 `web/quotes/<id>.jpg` 다. 원본과 잘라내기 좌표는
  * `assets/quotes/` 와 `scripts/make-quote-photos.ps1` 에 있다.
- * `photo` 를 빼면 화면이 이름 첫 글자를 원 안에 넣는다 — 서머 매킨토시와 에릭
- * 무삼바니가 그렇다. 없는 사진을 아무거나 채워 넣는 것보다 비워 두는 편이 정직하다.
+ * `photo` 를 빼면 화면이 그 자리에 **팀 마크**(`web/mark.png`)를 넣는다 — 서머
+ * 매킨토시와 에릭 무삼바니가 그렇다. 두 선수는 위키미디어 공용에도 Openverse 에도
+ * 자유 라이선스 사진이 없다. 남의 사진을 아무거나 채우는 대신 우리 로고를 쓴다.
  *
  * 카드 전부를 한 화면에서 보려면 `bun scripts/preview-quotes.ts`.
  */
@@ -61,7 +62,7 @@ export interface AthleteQuote {
    * 없는 출처를 그럴듯한 링크로 채우느니 비어 있다고 적는 편이 낫다.
    */
   readonly source?: string
-  /** 없으면 화면이 이름 첫 글자를 원 안에 넣는다. */
+  /** 없으면 화면이 그 자리에 팀 마크(`web/mark.png`)를 넣는다. */
   readonly photo?: QuotePhoto
 }
 
@@ -184,8 +185,8 @@ export const QUOTES: readonly Quote[] = [
     photo: { by: '江戸村のとくぞう', license: 'CC BY-SA 4.0', source: 'https://commons.wikimedia.org/wiki/File:Rikako_Ikee_20230408a.jpg' },
   },
   {
-    // 사진이 없다. 위키미디어 공용에 자유 라이선스 사진이 한 장도 없고, 돌아다니는
-    // 사진은 전부 통신사 소유다. 화면은 이름 첫 글자를 원 안에 넣는다.
+    // 사진이 없다. 위키미디어 공용에도 Openverse 에도 이 선수의 자유 라이선스 사진이
+    // 없다. 회원이 준 파일은 통신사 사진이었다. 화면은 팀 마크로 대신한다.
     kind: 'athlete',
     id: 'mcintosh',
     name: '서머 매킨토시',
@@ -221,25 +222,25 @@ export const QUOTES: readonly Quote[] = [
     kind: 'saying',
     id: 'calling',
     text: 'The water is calling, and I must swim',
-    korean: '물이 부른다. 나는 가야 한다.',
+    korean: '물은 나를 부르고 나는 수영하고 있네',
   },
   {
     kind: 'saying',
     id: 'meditation',
     text: 'Swimming is simply moving meditation',
-    korean: '수영은 그저 움직이는 명상이다.',
+    korean: '수영은 움직이면서 하는 명상이다',
   },
   {
     kind: 'saying',
     id: 'live-love-swim',
     text: 'Live, Love, Swim',
-    korean: '살고, 사랑하고, 헤엄쳐라.',
+    korean: '살아라. 사랑하라. 수영하라',
   },
   {
     kind: 'saying',
     id: 'chlorine',
     text: 'Chlorine is my perfume',
-    korean: '염소 냄새가 내 향수다.',
+    korean: '락스 냄새는 내 향수',
   },
 
   // ---------------------------------------------------------------------

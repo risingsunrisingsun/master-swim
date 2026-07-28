@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 앱 셸 캐시.
  *
  * 수영장에는 와이파이가 없다. 첫 방문 이후로는 네트워크 없이 떠야 한다.
@@ -10,7 +10,7 @@
 const sw = globalThis as unknown as ServiceWorkerGlobalScope
 
 /** 배포할 때마다 올린다. 값이 바뀌면 옛 캐시가 정리된다. */
-const CACHE = 'masters-swim-v10'
+const CACHE = 'masters-swim-v11'
 
 const SHELL = [
   './',
@@ -23,6 +23,8 @@ const SHELL = [
   './icon-maskable-512.png',
   './apple-touch-icon.png',
   './logo.png',
+  // 사진이 없는 카드가 쓰는 팀 마크. 없으면 그 카드가 오프라인에서 빈칸이 된다.
+  './mark.png',
   // 어록 사진. 접속할 때마다 무작위로 뽑히므로 전부 있어야 오프라인에서 빈칸이 안 뜬다.
   // 여덟 장 합쳐 60KB 남짓이다. `src/quotes.ts` 에서 `photo` 가 있는 항목과 짝이 맞아야
   // 한다 — 사진이 없는 선수는 여기에도 없다(화면이 이름 첫 글자를 그린다).

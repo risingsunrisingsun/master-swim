@@ -93,4 +93,44 @@ $logo.Save("$OutDir\logo.png", [System.Drawing.Imaging.ImageFormat]::Png)
 $logo.Dispose()
 '  logo.png                     558x408  (워드마크 포함 · 배경 투명)'
 
+# 어록 카드에서 사진 자리를 메우는 마크. 원 안에 들어가므로 정사각형이고
+# 배경이 투명해야 한다 — 아이콘(흰 배경)을 그대로 쓰면 원 안에 흰 사각형이 뜬다.
+# 워드마크는 빼고 "19 + 물결"만 쓴다. 56px 원에서 NINETEEN 은 읽히지 않는다.
+$mark = New-Object System.Drawing.Bitmap 200, 200, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+$mg = [System.Drawing.Graphics]::FromImage($mark)
+$mg.SmoothingMode = 'AntiAlias'
+$mg.InterpolationMode = 'HighQualityBicubic'
+$mg.PixelOffsetMode = 'HighQuality'
+$mg.Clear([System.Drawing.Color]::White)
+# 마크가 2.2:1 로 납작하다. 폭을 78% 로 맞추면 원 안에서 좌우가 꽉 차 보인다.
+$mw = 200 * 0.78
+$mh = $mw * $CropH / $CropW
+$mg.DrawImage($src, (New-Object System.Drawing.RectangleF ((200 - $mw) / 2), ((200 - $mh) / 2), $mw, $mh), $crop, [System.Drawing.GraphicsUnit]::Pixel)
+$mg.Dispose()
+
+# logo.png 와 같은 방식으로 흰 배경을 알파로 바꾼다.
+$mrect = New-Object System.Drawing.Rectangle 0, 0, 200, 200
+$mdata = $mark.LockBits($mrect, [System.Drawing.Imaging.ImageLockMode]::ReadWrite, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+$mbytes = New-Object byte[] ($mdata.Stride * 200)
+[System.Runtime.InteropServices.Marshal]::Copy($mdata.Scan0, $mbytes, 0, $mbytes.Length)
+for ($i = 0; $i -lt $mbytes.Length; $i += 4) {
+  $b = $mbytes[$i]; $g = $mbytes[$i + 1]; $r = $mbytes[$i + 2]
+  $alpha = 255 - [math]::Min($r, [math]::Min($g, $b))
+  if ($alpha -le 2) {
+    $mbytes[$i] = 0; $mbytes[$i + 1] = 0; $mbytes[$i + 2] = 0; $mbytes[$i + 3] = 0
+  } else {
+    $white = 255 - $alpha
+    $mbytes[$i]     = [byte][math]::Max(0, [math]::Min(255, [math]::Round(($b - $white) * 255 / $alpha)))
+    $mbytes[$i + 1] = [byte][math]::Max(0, [math]::Min(255, [math]::Round(($g - $white) * 255 / $alpha)))
+    $mbytes[$i + 2] = [byte][math]::Max(0, [math]::Min(255, [math]::Round(($r - $white) * 255 / $alpha)))
+    $mbytes[$i + 3] = [byte]$alpha
+  }
+}
+[System.Runtime.InteropServices.Marshal]::Copy($mbytes, 0, $mdata.Scan0, $mbytes.Length)
+$mark.UnlockBits($mdata)
+
+$mark.Save("$OutDir\mark.png", [System.Drawing.Imaging.ImageFormat]::Png)
+$mark.Dispose()
+'  mark.png                     200x200  (어록 카드용 · 배경 투명)'
+
 $src.Dispose()

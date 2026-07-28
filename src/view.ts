@@ -58,18 +58,32 @@ export const CAFE_URL = 'https://cafe.naver.com/nineteenswim'
  * 사진 저작자와 라이선스를 **함께 띄운다** — CC BY 계열의 조건이고, 어록의 출처도
  * 같이 걸어 둔다. 지어낸 문장이 아니라는 걸 화면에서 확인할 수 있어야 한다(`quotes.ts`).
  */
+/**
+ * 사진 자리를 메우는 팀 마크.
+ *
+ * 자유 라이선스 사진이 없는 선수(매킨토시 · 무삼바니)와 지은이 없는 문구가 이걸 쓴다.
+ * 없는 사진을 아무거나 채우지 않으면서도 카드가 비어 보이지 않게 하는 자리다.
+ */
+const MARK_IMG = `<img
+    class="quote-photo mark"
+    src="./mark.png"
+    alt=""
+    width="200"
+    height="200"
+    loading="lazy"
+  />`
+
 export function quoteHtml(quote: Quote): string {
   // 지은이 없는 문구는 카드가 다르다 — 이름도 사진도 출처도 놓을 자리가 없다.
   // 영어를 크게 띄우는 이유는 문구의 맛이 영어 어순에 있기 때문이다.
   if (quote.kind === 'saying') {
     return `<figure class="quote saying">
+      ${MARK_IMG}
       <blockquote>${escapeHtml(quote.text)}</blockquote>
       <figcaption>${escapeHtml(quote.korean)}</figcaption>
     </figure>`
   }
 
-  // 사진이 없으면 이름 첫 글자를 원 안에 넣는다. 빈 동그라미보다 사람처럼 읽히고,
-  // 아무 사진이나 채워 넣지 않았다는 뜻이 그대로 보인다.
   const avatar = quote.photo
     ? `<img
         class="quote-photo"
@@ -79,7 +93,7 @@ export function quoteHtml(quote: Quote): string {
         height="200"
         loading="lazy"
       />`
-    : `<span class="quote-photo initial" aria-hidden="true">${escapeHtml([...quote.name][0] ?? '?')}</span>`
+    : MARK_IMG
 
   const credit = quote.photo
     ? ` · 사진 ${escapeHtml(quote.photo.by)}

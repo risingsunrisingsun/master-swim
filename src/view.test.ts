@@ -67,12 +67,13 @@ describe('시작 화면과 메뉴', () => {
     expect(html).toContain(quote.source!)
   })
 
-  test('사진이 없으면 이름 첫 글자를 넣고 사진 표시는 빼낸다', () => {
+  test('사진이 없으면 팀 마크를 넣고 사진 표시는 빼낸다', () => {
     const quote = athleteQuotes.find((q) => q.photo === undefined)!
     const html = quoteHtml(quote)
-    expect(html).toContain('quote-photo initial')
-    expect(html).toContain(`>${[...quote.name][0]}<`)
+    expect(html).toContain('quote-photo mark')
+    expect(html).toContain('./mark.png')
     expect(html).not.toContain('.jpg')
+    // 팀 마크는 남의 사진이 아니므로 저작자 표시가 붙지 않는다.
     expect(html).not.toContain('사진 ')
     // 문장의 출처는 사진이 없어도 그대로 뜬다.
     expect(html).toContain(quote.source!)
@@ -88,14 +89,22 @@ describe('시작 화면과 메뉴', () => {
   })
 
   // 지은이가 없으므로 이름·사진·출처를 놓을 자리가 아예 없다.
-  test('지은이 없는 문구는 영어와 한국어만 있고 귀속 표시가 없다', () => {
+  test('지은이 없는 문구는 팀 마크와 두 줄만 있고 귀속 표시가 없다', () => {
     const saying = QUOTES.find((q) => q.kind === 'saying')!
     const html = quoteHtml(saying)
     expect(html).toContain('quote saying')
     expect(html).toContain(escapeHtml(saying.text))
+    expect(html).toContain('./mark.png')
     expect(html).not.toContain('quote-source')
     expect(html).not.toContain('출처 미확인')
     expect(html).not.toContain('.jpg')
+  })
+
+  // 사진이 없는 카드는 팀 마크를 쓴다. 오프라인에서 빈칸이 되지 않으려면
+  // 서비스워커가 이 파일도 캐시해야 한다.
+  test('팀 마크가 서비스워커 셸에 들어 있다', async () => {
+    expect(await Bun.file('src/sw.ts').text()).toContain('./mark.png')
+    expect(await Bun.file('web/mark.png').exists()).toBe(true)
   })
 
   test('어록 카드의 바깥 링크는 opener 를 넘기지 않는다', () => {
