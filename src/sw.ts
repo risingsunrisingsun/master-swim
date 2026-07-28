@@ -10,7 +10,7 @@
 const sw = globalThis as unknown as ServiceWorkerGlobalScope
 
 /** 배포할 때마다 올린다. 값이 바뀌면 옛 캐시가 정리된다. */
-const CACHE = 'masters-swim-v7'
+const CACHE = 'masters-swim-v9'
 
 const SHELL = [
   './',
@@ -24,7 +24,8 @@ const SHELL = [
   './apple-touch-icon.png',
   './logo.png',
   // 어록 사진. 접속할 때마다 무작위로 뽑히므로 전부 있어야 오프라인에서 빈칸이 안 뜬다.
-  // 여덟 장 합쳐 60KB 남짓이다. `src/quotes.ts` 의 목록과 짝이 맞아야 한다.
+  // 여덟 장 합쳐 60KB 남짓이다. `src/quotes.ts` 에서 `photo` 가 있는 항목과 짝이 맞아야
+  // 한다 — 사진이 없는 선수는 여기에도 없다(화면이 이름 첫 글자를 그린다).
   './quotes/phelps.jpg',
   './quotes/ledecky.jpg',
   './quotes/dressel.jpg',
@@ -32,6 +33,10 @@ const SHELL = [
   './quotes/sjostrom.jpg',
   './quotes/hwang.jpg',
   './quotes/kim.jpg',
+  './quotes/ikee.jpg',
+  './quotes/park.jpg',
+  './quotes/milak.jpg',
+  './quotes/lochte.jpg',
 ]
 
 sw.addEventListener('install', (event) => {

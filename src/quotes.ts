@@ -10,17 +10,25 @@
  *
  * **사진은 라이선스를 확인한 것만 쓴다.** 전부 위키미디어 공용에서 받았고 파일마다
  * 촬영자와 라이선스가 명시돼 있다. CC BY 계열은 저작자 표시가 조건이므로
- * `photoBy`·`photoLicense` 를 화면에 **반드시 함께 띄운다**(`view.ts`).
+ * `photo.by`·`photo.license` 를 화면에 **반드시 함께 띄운다**(`view.ts`).
  * 구글 이미지 검색의 '사용 권한' 필터는 라이선스를 보증하지 않아 쓰지 않았다.
  *
  * 사진 파일은 `web/quotes/<id>.jpg` 다. 원본과 잘라내기 좌표는
  * `assets/quotes/` 와 `scripts/make-quote-photos.ps1` 에 있다.
  *
- * 추가하려면: 출처가 확인되는 문장 + 자유 라이선스 사진이 **둘 다** 있어야 한다.
- * 하나만 있으면 넣지 않는다. (예 — 이케에 리카코는 사진은 받아 뒀지만
- * 백혈병 공표 당시 발언의 원문을 1차 출처에서 확인하지 못해 `assets/quotes-pending/`
- * 에 두고 넣지 않았다.)
+ * **사진은 없어도 된다.** 자유 라이선스 사진이 없는 선수도 있어서(예 — 서머 매킨토시)
+ * `photo` 를 빼면 화면이 이름 첫 글자를 원 안에 넣는다. 문장의 출처는 여전히 필수다.
+ * 없는 사진을 아무거나 채워 넣는 것보다 비워 두는 편이 정직하다.
  */
+
+/** 자유 라이선스 사진이 있을 때만 붙는다. 세 값이 함께 가야 저작자 표시가 성립한다. */
+export interface QuotePhoto {
+  /** 저작자. CC BY 계열의 조건이므로 화면에 그대로 뜬다. */
+  readonly by: string
+  readonly license: string
+  /** 위키미디어 공용 파일 페이지 — 라이선스 원문을 확인할 수 있는 곳 */
+  readonly source: string
+}
 
 export interface Quote {
   /** 사진 파일 이름과 같다. `web/quotes/<id>.jpg` */
@@ -35,12 +43,16 @@ export interface Quote {
   readonly original?: string
   /** 어디서 한 말인지 */
   readonly said: string
-  readonly source: string
-  /** 사진 저작자와 라이선스. CC BY 계열의 조건이므로 화면에 함께 뜬다. */
-  readonly photoBy: string
-  readonly photoLicense: string
-  /** 위키미디어 공용 파일 페이지 — 라이선스 원문을 확인할 수 있는 곳 */
-  readonly photoSource: string
+  /**
+   * 원문을 확인한 곳.
+   *
+   * **없으면 1차 출처를 확인하지 못했다는 뜻이고, 화면이 '출처 미확인'이라고 밝힌다.**
+   * 회원이 알려준 문장 중 검색으로 원문이 나오지 않은 것들이 여기 해당한다.
+   * 없는 출처를 그럴듯한 링크로 채우느니 비어 있다고 적는 편이 낫다.
+   */
+  readonly source?: string
+  /** 없으면 화면이 이름 첫 글자를 원 안에 넣는다. */
+  readonly photo?: QuotePhoto
 }
 
 export const QUOTES: readonly Quote[] = [
@@ -53,9 +65,7 @@ export const QUOTES: readonly Quote[] = [
     said: '2021년 온라인 행사',
     source:
       'https://www.olympics.com/en/news/michael-phelps-don-t-be-afraid-to-dream-as-big-as-you-possibly-can',
-    photoBy: 'Agência Brasil Fotografias',
-    photoLicense: 'CC BY 2.0',
-    photoSource: 'https://commons.wikimedia.org/wiki/File:Michael_Phelps_Rio_Olympics_2016.jpg',
+    photo: { by: 'Agência Brasil Fotografias', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:Michael_Phelps_Rio_Olympics_2016.jpg' },
   },
   {
     id: 'ledecky',
@@ -67,10 +77,7 @@ export const QUOTES: readonly Quote[] = [
     said: '스탠퍼드대 졸업식 연설',
     source:
       'https://www.olympics.com/en/news/katie-ledecky-gen-z-set-goals-but-you-dont-have-to-achieve-them',
-    photoBy: 'Mledecky',
-    photoLicense: 'CC0',
-    photoSource:
-      'https://commons.wikimedia.org/wiki/File:Katie_Ledecky_at_the_2023_Golden_Goggle_Awards.jpg',
+    photo: { by: 'Mledecky', license: 'CC0', source: 'https://commons.wikimedia.org/wiki/File:Katie_Ledecky_at_the_2023_Golden_Goggle_Awards.jpg' },
   },
   {
     id: 'dressel',
@@ -81,10 +88,7 @@ export const QUOTES: readonly Quote[] = [
     said: 'Olympics.com 단독 인터뷰',
     source:
       'https://www.olympics.com/en/news/caeleb-dressel-exclusive-critic-mentality-joy-chaos-parenthood-swimming-interview',
-    photoBy: 'JD Lasica',
-    photoLicense: 'CC BY 2.0',
-    photoSource:
-      'https://commons.wikimedia.org/wiki/File:Caeleb_Dressel_before_winning_100_fly_(42769914221)_(cropped).jpg',
+    photo: { by: 'JD Lasica', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:Caeleb_Dressel_before_winning_100_fly_(42769914221)_(cropped).jpg' },
   },
   {
     id: 'thorpe',
@@ -95,9 +99,7 @@ export const QUOTES: readonly Quote[] = [
     said: '2000년 시드니 올림픽 직후 인터뷰',
     source:
       'https://www.swimmingworldmagazine.com/news/olympic-quotes-from-australian-superstar-ian-thorpe/',
-    photoBy: 'Doha Stadium Plus Qatar',
-    photoLicense: 'CC BY 2.0',
-    photoSource: 'https://commons.wikimedia.org/wiki/File:Ian_Thorpe_2012.jpg',
+    photo: { by: 'Doha Stadium Plus Qatar', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:Ian_Thorpe_2012.jpg' },
   },
   {
     id: 'sjostrom',
@@ -108,9 +110,7 @@ export const QUOTES: readonly Quote[] = [
       'I just like to compare myself to myself. I just want to be better than what I was before.',
     said: 'Olympics.com 인터뷰',
     source: 'https://www.olympics.com/en/news/sarah-sjostrom-challenge-mentality-domination',
-    photoBy: 'Larske',
-    photoLicense: 'CC BY-SA 4.0',
-    photoSource: 'https://commons.wikimedia.org/wiki/File:Sarah_Sjöström_2013_(cropped).jpg',
+    photo: { by: 'Larske', license: 'CC BY-SA 4.0', source: 'https://commons.wikimedia.org/wiki/File:Sarah_Sjöström_2013_(cropped).jpg' },
   },
   {
     id: 'hwang',
@@ -119,9 +119,7 @@ export const QUOTES: readonly Quote[] = [
     text: '나는 옆 레인의 누군가를 이겨야겠다는 생각보다 항상 내 기록을 깨려고 노력했다.',
     said: '2022년 일간스포츠 인터뷰',
     source: 'https://isplus.com/article/view/isp202209260026',
-    photoBy: 'OSEN SPORTS',
-    photoLicense: 'CC BY 3.0',
-    photoSource: 'https://commons.wikimedia.org/wiki/File:황선우_수영_선수.jpg',
+    photo: { by: 'OSEN SPORTS', license: 'CC BY 3.0', source: 'https://commons.wikimedia.org/wiki/File:황선우_수영_선수.jpg' },
   },
   {
     id: 'kim',
@@ -130,10 +128,65 @@ export const QUOTES: readonly Quote[] = [
     text: '포기하지 않고 매 순간 노력하면 다 이뤄낼 수 있다.',
     said: '2024년 파리올림픽 동메달 뒤',
     source: 'https://www.khan.co.kr/article/202408052000001',
-    photoBy: 'KOCIS · 김선주',
-    photoLicense: 'CC BY-SA 2.0',
-    photoSource:
-      'https://commons.wikimedia.org/wiki/File:Hangzhou_AsianGames_Team_Korea_05_-_Kim_Woo-min_(cropped).jpg',
+    photo: { by: 'KOCIS · 김선주', license: 'CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:Hangzhou_AsianGames_Team_Korea_05_-_Kim_Woo-min_(cropped).jpg' },
+  },
+  {
+    // 널리 도는 「신은 넘을 수 없는 시련은 주지 않는다」 는 넣지 않았다. 일본에서
+    // 오래 쓰인 관용구이고, 본인의 말로 보도된 1차 출처를 찾지 못했다. 대신 백혈병
+    // 공표 석 달 뒤 본인 성명에서 나온 문장을 쓴다 — 영어 보도 두 곳이 같은 문장을 싣는다.
+    id: 'ikee',
+    name: '이케에 리카코',
+    note: '일본 · 접영/자유형 단거리',
+    text: '지지 않겠다고, 병을 이겨낼 수 있을 때까지 견디겠다고 스스로에게 약속합니다.',
+    original:
+      'I promise myself I will not be defeated and will endure until I am able to overcome my illness.',
+    said: '2019년 5월 본인 성명 (백혈병 투병 중)',
+    source: 'https://www.olympics.com/en/news/rikako-ikee-update-cancer-leukaemia-emotional-statement',
+    photo: { by: '江戸村のとくぞう', license: 'CC BY-SA 4.0', source: 'https://commons.wikimedia.org/wiki/File:Rikako_Ikee_20230408a.jpg' },
+  },
+  {
+    // 사진이 없다. 위키미디어 공용에 자유 라이선스 사진이 한 장도 없고, 돌아다니는
+    // 사진은 전부 통신사 소유다. 화면은 이름 첫 글자를 원 안에 넣는다.
+    id: 'mcintosh',
+    name: '서머 매킨토시',
+    note: '캐나다 · 개인혼영/접영',
+    text: '나는 늘 나를 더 낫게 만들 방법을 생각합니다. 내가 어떻게 해볼 수 있는 건 그것뿐이니까요.',
+    original:
+      'I always [am] just thinking about ways I can improve myself, because that\'s all I can really control.',
+    said: 'Olympics.com 인터뷰',
+    source: 'https://www.olympics.com/en/news/summer-mcintosh-2026-pan-pacific-championships-training',
+  },
+
+  // ---------------------------------------------------------------------
+  // 아래 셋은 회원이 알려준 문장이다. 사진은 라이선스를 확인했지만 **문장의
+  // 1차 출처를 찾지 못했다** — `source` 가 비어 있고 화면이 '출처 미확인'이라고 밝힌다.
+  // 출처가 나오면 `source` 만 채우면 표시가 바뀐다.
+  // ---------------------------------------------------------------------
+  {
+    id: 'park',
+    name: '박태환',
+    note: '대한민국 · 자유형 중장거리',
+    text: '다시 수영이 재밌어졌다.',
+    said: '회원 제공',
+    photo: { by: 'JD Lasica', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:400_meter_freestyle_(6404091897)_Park.jpg' },
+  },
+  {
+    id: 'milak',
+    name: '크리스토프 밀라크',
+    note: '헝가리 · 접영',
+    text: '나는 메달을 위해 헤엄친 게 아니라 기록을 위해 헤엄쳤다.',
+    original: "I didn't swim for the medal, but for the time.",
+    said: '회원 제공',
+    photo: { by: 'Martin Rulsch', license: 'CC BY-SA 4.0', source: "https://commons.wikimedia.org/wiki/File:2018-10-07_Swimming_Boys'_400_m_Freestyle_Final_at_2018_Summer_Youth_Olympics_(Martin_Rulsch)_45.jpg" },
+  },
+  {
+    id: 'lochte',
+    name: '라이언 로크티',
+    note: '미국 · 개인혼영/배영',
+    text: '내 신조는 이렇다 — 밤에 사내였으면 아침에도 사내여야 한다.',
+    original: "My philosophy is if you're a man at night, you gotta be a man in the morning.",
+    said: '회원 제공',
+    photo: { by: 'JD Lasica', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:Ryan_Lochte_before_race_(42052324064)_(cropped)_(cropped).jpg' },
   },
 ]
 

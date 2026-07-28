@@ -20,6 +20,9 @@ $frames = @{
   hwang    = @{ X = 0.48; Y = 0.34; Zoom = 0.64 }
   kim      = @{ X = 0.50; Y = 0.30; Zoom = 0.62 }
   ikee     = @{ X = 0.56; Y = 0.26; Zoom = 0.40 }
+  park     = @{ X = 0.555; Y = 0.28; Zoom = 0.27 }
+  milak    = @{ X = 0.475; Y = 0.23; Zoom = 0.32 }
+  lochte   = @{ X = 0.55; Y = 0.37; Zoom = 0.78 }
 }
 
 New-Item -ItemType Directory -Force $OutDir | Out-Null

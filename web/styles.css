@@ -915,6 +915,16 @@ footer p {
   border: 2px solid var(--accent-soft);
 }
 
+/* 자유 라이선스 사진이 없는 선수. 이름 첫 글자를 넣는다(`quotes.ts`). */
+.quote-photo.initial {
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
 .quote blockquote {
   grid-column: 2;
   margin: 0;
@@ -951,4 +961,12 @@ footer p {
 
 .quote-source a {
   color: var(--muted);
+}
+
+/* 1차 출처를 확인하지 못한 문장. 확인한 것과 눈으로 구별돼야 한다(ADR-0009). */
+.unverified {
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
 }

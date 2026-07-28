@@ -59,25 +59,38 @@ export const CAFE_URL = 'https://cafe.naver.com/nineteenswim'
  * 같이 걸어 둔다. 지어낸 문장이 아니라는 걸 화면에서 확인할 수 있어야 한다(`quotes.ts`).
  */
 export function quoteHtml(quote: Quote): string {
-  return `<figure class="quote">
-      <img
+  // 사진이 없으면 이름 첫 글자를 원 안에 넣는다. 빈 동그라미보다 사람처럼 읽히고,
+  // 아무 사진이나 채워 넣지 않았다는 뜻이 그대로 보인다.
+  const avatar = quote.photo
+    ? `<img
         class="quote-photo"
         src="./quotes/${escapeHtml(quote.id)}.jpg"
         alt="${escapeHtml(quote.name)}"
         width="200"
         height="200"
         loading="lazy"
-      />
+      />`
+    : `<span class="quote-photo initial" aria-hidden="true">${escapeHtml([...quote.name][0] ?? '?')}</span>`
+
+  const credit = quote.photo
+    ? ` · 사진 ${escapeHtml(quote.photo.by)}
+        (<a href="${escapeHtml(quote.photo.source)}" target="_blank" rel="noopener noreferrer">${escapeHtml(quote.photo.license)}</a>)`
+    : ''
+
+  // 출처가 없으면 링크 대신 그렇게 적는다. 확인한 문장과 그렇지 않은 문장이
+  // 화면에서 구별돼야 한다(ADR-0009).
+  const said = quote.source
+    ? `<a href="${escapeHtml(quote.source)}" target="_blank" rel="noopener noreferrer">${escapeHtml(quote.said)}</a>`
+    : `${escapeHtml(quote.said)} · <span class="unverified">출처 미확인</span>`
+
+  return `<figure class="quote">
+      ${avatar}
       <blockquote>${escapeHtml(quote.text)}</blockquote>
       <figcaption>
         <strong>${escapeHtml(quote.name)}</strong>
         <span>${escapeHtml(quote.note)}</span>
       </figcaption>
-      <p class="quote-source">
-        <a href="${escapeHtml(quote.source)}" target="_blank" rel="noopener noreferrer">${escapeHtml(quote.said)}</a>
-        · 사진 ${escapeHtml(quote.photoBy)}
-        (<a href="${escapeHtml(quote.photoSource)}" target="_blank" rel="noopener noreferrer">${escapeHtml(quote.photoLicense)}</a>)
-      </p>
+      <p class="quote-source">${said}${credit}</p>
     </figure>`
 }
 

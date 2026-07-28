@@ -54,14 +54,35 @@ describe('시작 화면과 메뉴', () => {
   })
 
   test('어록 카드에 문장·이름·출처·사진 저작자가 모두 들어간다', () => {
-    const html = quoteHtml(QUOTES[0]!)
-    expect(html).toContain(escapeHtml(QUOTES[0]!.text))
-    expect(html).toContain(QUOTES[0]!.name)
-    expect(html).toContain(`./quotes/${QUOTES[0]!.id}.jpg`)
+    const quote = QUOTES.find((q) => q.photo && q.source)!
+    const html = quoteHtml(quote)
+    expect(html).toContain(escapeHtml(quote.text))
+    expect(html).toContain(quote.name)
+    expect(html).toContain(`./quotes/${quote.id}.jpg`)
     // CC BY 계열의 조건이라 화면에서 빠지면 안 된다.
-    expect(html).toContain(QUOTES[0]!.photoBy)
-    expect(html).toContain(QUOTES[0]!.photoLicense)
-    expect(html).toContain(QUOTES[0]!.source)
+    expect(html).toContain(quote.photo!.by)
+    expect(html).toContain(quote.photo!.license)
+    expect(html).toContain(quote.source!)
+  })
+
+  test('사진이 없으면 이름 첫 글자를 넣고 사진 표시는 빼낸다', () => {
+    const quote = QUOTES.find((q) => q.photo === undefined)!
+    const html = quoteHtml(quote)
+    expect(html).toContain('quote-photo initial')
+    expect(html).toContain(`>${[...quote.name][0]}<`)
+    expect(html).not.toContain('.jpg')
+    expect(html).not.toContain('사진 ')
+    // 문장의 출처는 사진이 없어도 그대로 뜬다.
+    expect(html).toContain(quote.source!)
+  })
+
+  // 확인한 문장과 그렇지 않은 문장이 화면에서 구별돼야 한다(ADR-0009).
+  test('출처가 없으면 링크 대신 출처 미확인이라고 적는다', () => {
+    const quote = QUOTES.find((q) => q.source === undefined)!
+    const html = quoteHtml(quote)
+    expect(html).toContain('출처 미확인')
+    // 사진 라이선스 링크는 남지만 어록 출처 링크는 없다.
+    expect(html).not.toContain(`>${quote.said}</a>`)
   })
 
   test('어록 카드의 바깥 링크는 opener 를 넘기지 않는다', () => {
