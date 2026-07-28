@@ -888,6 +888,253 @@ footer p {
   margin: 0;
 }
 
+/* --- 지상훈련 --------------------------------------------------------- */
+
+.picker {
+  margin-bottom: 0.75rem;
+}
+
+.dryland {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.dryland h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  color: var(--accent);
+}
+
+.why {
+  margin: 0 0 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.exercises {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.exercises li {
+  display: grid;
+  gap: 0.15rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--accent-soft);
+}
+
+.exercises strong {
+  font-size: 0.9rem;
+}
+
+/* 유튜브로 나가는 링크 묶음. 채널명을 함께 띄워 회원이 출처를 보고 판단하게 한다. */
+.videos {
+  margin-top: 0.9rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
+}
+
+.videos h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.videos ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.videos li {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.videos a {
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+.channel {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* --- 수영용어 --------------------------------------------------------- */
+
+.term-group h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.terms {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.terms li {
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.term-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.term-head strong {
+  font-size: 0.95rem;
+  color: var(--accent);
+}
+
+.en {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.term-short {
+  margin: 0.3rem 0 0;
+  font-size: 0.88rem;
+}
+
+/* --- 퀴즈 ------------------------------------------------------------- */
+/* <dialog> 를 쓰면 포커스 가둠과 Esc 닫기를 브라우저가 처리한다. */
+
+dialog#quiz {
+  width: min(92vw, 26rem);
+  padding: 1.1rem;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.22);
+}
+
+dialog#quiz::backdrop {
+  background: rgba(16, 24, 40, 0.45);
+}
+
+.quiz-close-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.3rem -0.3rem 0.2rem 0;
+}
+
+.quiz-close-row button {
+  width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  font-size: 0.9rem;
+  background: none;
+  color: var(--muted);
+}
+
+.quiz-progress {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.quiz-prompt {
+  margin: 0.3rem 0 0.9rem;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.quiz-options {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.quiz-option {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  font-weight: 500;
+  text-align: left;
+}
+
+/* 답을 고른 뒤에도 무엇을 골랐는지 남아야 왜 틀렸는지 알 수 있다. */
+.quiz-option:disabled {
+  opacity: 1;
+}
+
+.quiz-option.correct {
+  border-color: var(--good);
+  background: #eaf7ef;
+  color: var(--good);
+  font-weight: 700;
+}
+
+.quiz-option.wrong {
+  border-color: var(--bad);
+  background: #fdf0ed;
+  color: var(--bad);
+}
+
+.quiz-verdict {
+  margin: 0.9rem 0 0.2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.quiz-verdict.ok {
+  color: var(--good);
+}
+
+.quiz-verdict.no {
+  color: var(--bad);
+}
+
+#quiz-next {
+  margin-top: 0.9rem;
+}
+
+.quiz-score {
+  margin: 0.5rem 0 0;
+  text-align: center;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.quiz-end {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+button.ghost {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+}
+
 /* --- 어록 ------------------------------------------------------------- */
 /*
  * 메뉴 화면 맨 아래. 사진은 원형으로 깎아 카드가 아니라 사람처럼 보이게 한다.

@@ -30,6 +30,8 @@ GitHub Pages 로 배포한다.
 | `src/nutrition.ts` | 식단. KDRIs 식사구성안 위에서만 계산 (ADR-0005) |
 | `src/distributions.ts` | 국내 마스터즈 기록 분포. 그래프에서 읽은 히스토그램 원본 |
 | `src/benchmark.ts` | 기록 위치. 분포가 있으면 실제 백분위, 없으면 등급 구간 (ADR-0006) |
+| `src/dryland.ts` | 영법별 지상훈련 세트와 유튜브 링크. 처방 원본은 `methods.ts` |
+| `src/terms.ts` | 수영 용어집과 퀴즈 생성기. 난수를 인자로 받아 테스트된다 |
 | `src/quotes.ts` | 선수 어록. 출처와 사진 라이선스가 문장마다 붙어 있다 (ADR-0009) |
 | `src/chart.ts` | 기록 추이 SVG. 라이브러리 없음, 계열 하나, y축 뒤집힘 |
 | `src/view.ts` | HTML 생성. 순수 함수라 브라우저 없이 테스트된다 |

@@ -3,18 +3,24 @@ import { grade } from './grading'
 import { parseTime } from './pace'
 import { weekDays, weeklyPlan } from './plan'
 import { type AthleteQuote, QUOTES } from './quotes'
+import { buildQuiz, quizVerdict } from './terms'
 import type { Body, Profile, RecordEntry } from './types'
 import {
   CAFE_URL,
   dayHtml,
+  drylandHtml,
   escapeHtml,
   gradingHtml,
   HOME_HTML,
   NEEDS_BODY_HTML,
+  quizAnswerHtml,
+  quizQuestionHtml,
+  quizResultHtml,
   quoteHtml,
   recordsHtml,
   SPLASH_HTML,
   splitsHtml,
+  termsHtml,
   trainingHtml,
 } from './view'
 
@@ -241,6 +247,83 @@ describe('dayHtml', () => {
   test('펼친 상태를 넘기면 열린 채로 그린다 — 요일을 넘겨도 유지된다', () => {
     const html = dayHtml({ ...profile, body }, trainingDay, 7, [], true)
     expect(html).toContain(' open>')
+  })
+})
+
+describe('지상훈련 화면', () => {
+  test('고른 영법의 세트와 공통 세트가 함께 나온다', () => {
+    const html = drylandHtml('breast')
+    expect(html).toContain('평영')
+    expect(html).toContain('어깨를 지킨다')
+    expect(html).not.toContain('접영</h3>')
+  })
+
+  test('영상 링크가 새 탭으로 나가고 채널명이 함께 뜬다', () => {
+    const html = drylandHtml('free')
+    expect(html).toContain('https://www.youtube.com/watch?v=')
+    expect(html).toContain('rel="noopener noreferrer"')
+    expect(html).toContain('class="channel"')
+  })
+
+  // 내용을 보증하지 않는다는 사실이 화면에 있어야 한다.
+  test('영상을 보증하지 않는다는 안내가 있다', () => {
+    expect(drylandHtml('free')).toContain('보증하지 않습니다')
+  })
+
+  test('영법 선택이 지금 보는 영법에 맞춰져 있다', () => {
+    expect(drylandHtml('back')).toContain('<option value="back" selected>')
+  })
+
+  // `why` 는 **굵게** 만 통과시킨다. 꺾쇠가 그대로 나가면 안 된다.
+  test('굵게 표시만 HTML 이 되고 나머지는 이스케이프된다', () => {
+    const html = drylandHtml('free')
+    expect(html).toContain('<strong>')
+    expect(html).not.toContain('<script')
+  })
+})
+
+describe('수영용어 화면', () => {
+  test('분류 제목과 용어가 나온다', () => {
+    const html = termsHtml()
+    expect(html).toContain('스트로크')
+    expect(html).toContain('DPS')
+    expect(html).toContain('플립턴')
+  })
+
+  test('퀴즈 시작 버튼이 있다', () => {
+    expect(termsHtml()).toContain('id="quiz-start"')
+  })
+})
+
+describe('퀴즈 화면', () => {
+  const question = buildQuiz(1, () => 0.5)[0]!
+
+  test('문제와 보기 네 개가 나온다', () => {
+    const html = quizQuestionHtml(question, 0, 10)
+    expect(html).toContain('1 / 10')
+    expect(html).toContain(escapeHtml(question.prompt))
+    expect((html.match(/class="quiz-option"/g) ?? []).length).toBe(question.options.length)
+  })
+
+  test('맞히면 정답, 틀리면 답과 설명이 나온다', () => {
+    const wrong = (question.answer + 1) % question.options.length
+    expect(quizAnswerHtml(question, question.answer, false)).toContain('정답')
+    const html = quizAnswerHtml(question, wrong, false)
+    expect(html).toContain('오답')
+    expect(html).toContain(escapeHtml(question.options[question.answer]!))
+    expect(html).toContain(escapeHtml(question.explain))
+  })
+
+  test('마지막 문제에서는 다음 대신 결과 보기', () => {
+    expect(quizAnswerHtml(question, 0, true)).toContain('결과 보기')
+    expect(quizAnswerHtml(question, 0, false)).toContain('다음 문제')
+  })
+
+  test('결과에 점수와 총평과 다시 풀기가 있다', () => {
+    const html = quizResultHtml(7, 10)
+    expect(html).toContain('7 / 10')
+    expect(html).toContain('id="quiz-again"')
+    expect(html).toContain(escapeHtml(quizVerdict(7, 10)))
   })
 })
 

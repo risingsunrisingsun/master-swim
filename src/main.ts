@@ -9,13 +9,20 @@ import { composeTimeInput, formatTime, parseTimeInput, splitTimeInput } from './
 import { weekDays, weeklyPlan } from './plan'
 import { pickQuote } from './quotes'
 import { addLog, addRecord, load, removeRecord, saveProfile } from './storage'
+import { buildQuiz, type QuizQuestion } from './terms'
 import type { AgeGroup, Distance, Profile, RaceEvent, Sex, Stroke } from './types'
 import {
+  drylandHtml,
   HOME_HTML,
   NEEDS_INPUT_HTML,
+  quizAnswerHtml,
+  QUIZ_LENGTH,
+  quizQuestionHtml,
+  quizResultHtml,
   quoteHtml,
   recordsHtml,
   SPLASH_HTML,
+  termsHtml,
   trainingHtml,
 } from './view'
 
@@ -30,6 +37,8 @@ const screens = {
   home: $<HTMLElement>('screen-home'),
   training: $<HTMLElement>('screen-training'),
   records: $<HTMLElement>('screen-records'),
+  dryland: $<HTMLElement>('screen-dryland'),
+  terms: $<HTMLElement>('screen-terms'),
 }
 
 const inputs = {
@@ -279,6 +288,88 @@ function submitRecord(): void {
 }
 
 // ---------------------------------------------------------------------------
+// 지상훈련
+// ---------------------------------------------------------------------------
+
+/** 지금 보고 있는 영법. 저장된 목표 종목에서 시작해 화면에서 바꿀 수 있다. */
+let drylandStroke: Stroke = 'free'
+
+function renderDryland(): void {
+  screens.dryland.innerHTML = drylandHtml(drylandStroke)
+
+  $<HTMLSelectElement>('dryland-stroke').addEventListener('change', (event) => {
+    drylandStroke = (event.target as HTMLSelectElement).value as Stroke
+    renderDryland()
+    scrollTo({ top: 0 })
+  })
+}
+
+// ---------------------------------------------------------------------------
+// 수영용어와 퀴즈
+// ---------------------------------------------------------------------------
+
+const quizDialog = $<HTMLDialogElement>('quiz')
+const quizBody = $<HTMLElement>('quiz-body')
+
+/** 지금 풀고 있는 한 판. 문제는 열 때 한 번 만들고 끝까지 같은 것을 쓴다. */
+let quiz: QuizQuestion[] = []
+let quizIndex = 0
+let quizCorrect = 0
+
+function showQuizQuestion(): void {
+  const question = quiz[quizIndex]
+  if (!question) return showQuizResult()
+
+  quizBody.innerHTML = quizQuestionHtml(question, quizIndex, quiz.length)
+
+  for (const button of quizBody.querySelectorAll<HTMLButtonElement>('.quiz-option')) {
+    button.addEventListener('click', () => {
+      const picked = Number(button.dataset.index)
+      if (picked === question.answer) quizCorrect++
+      showQuizAnswer(question, picked)
+    })
+  }
+}
+
+function showQuizAnswer(question: QuizQuestion, picked: number): void {
+  const last = quizIndex === quiz.length - 1
+  // 고른 보기와 정답을 그대로 둔 채 아래에 판정을 붙인다 — 무엇을 골랐는지 사라지면
+  // 왜 틀렸는지 알 수 없다.
+  quizBody.innerHTML = quizQuestionHtml(question, quizIndex, quiz.length) + quizAnswerHtml(question, picked, last)
+
+  const options = quizBody.querySelectorAll<HTMLButtonElement>('.quiz-option')
+  options.forEach((button, index) => {
+    button.disabled = true
+    if (index === question.answer) button.classList.add('correct')
+    else if (index === picked) button.classList.add('wrong')
+  })
+
+  $<HTMLButtonElement>('quiz-next').addEventListener('click', () => {
+    quizIndex++
+    showQuizQuestion()
+  })
+}
+
+function showQuizResult(): void {
+  quizBody.innerHTML = quizResultHtml(quizCorrect, quiz.length)
+  $<HTMLButtonElement>('quiz-again').addEventListener('click', startQuiz)
+  $<HTMLButtonElement>('quiz-close').addEventListener('click', () => quizDialog.close())
+}
+
+function startQuiz(): void {
+  quiz = buildQuiz(QUIZ_LENGTH)
+  quizIndex = 0
+  quizCorrect = 0
+  showQuizQuestion()
+  if (!quizDialog.open) quizDialog.showModal()
+}
+
+function renderTerms(): void {
+  screens.terms.innerHTML = termsHtml()
+  $<HTMLButtonElement>('quiz-start').addEventListener('click', startQuiz)
+}
+
+// ---------------------------------------------------------------------------
 // 라우팅
 // ---------------------------------------------------------------------------
 
@@ -294,6 +385,18 @@ const ROUTES = {
     screen: 'records',
     title: '개인기록 추이',
     sub: '영법별 기록 변화와 등급 위치',
+    back: true,
+  },
+  '#/dryland': {
+    screen: 'dryland',
+    title: '지상훈련 세트',
+    sub: '영법별로 뭍에서 만들 것',
+    back: true,
+  },
+  '#/terms': {
+    screen: 'terms',
+    title: '수영용어',
+    sub: '코치 말을 알아듣는 데 필요한 것',
     back: true,
   },
 } as const
@@ -328,6 +431,8 @@ function route(): void {
 
   if (match.screen === 'training') renderTraining()
   else if (match.screen === 'records') renderRecords()
+  else if (match.screen === 'dryland') renderDryland()
+  else if (match.screen === 'terms') renderTerms()
 
   scrollTo({ top: 0 })
 }
@@ -366,6 +471,9 @@ function restore(): void {
 
   recordInputs.stroke.value = profile.goal.event.stroke
   recordInputs.distance.value = String(profile.goal.event.distance)
+
+  // 지상훈련 화면은 목표 종목에서 시작한다. 대부분 그걸 보러 들어온다.
+  drylandStroke = profile.goal.event.stroke
 }
 
 screens.splash.innerHTML = SPLASH_HTML

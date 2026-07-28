@@ -6,13 +6,22 @@
  */
 import { standing, toNextLevel } from './benchmark'
 import { EMPTY_CHART_HTML, recordChart, type ChartBand, type ChartPoint } from './chart'
+import { type DrylandSet, setsFor, videoUrl, type VideoLink } from './dryland'
 import { levelBoundaries, type Grading } from './grading'
 import { verdict, type SetLog } from './log'
 import { dailyDiet, GROUP_LABEL, REPRESENTATIVE, type DailyDiet } from './nutrition'
 import { formatTime, improvementPercent, racePace25, splitTargets } from './pace'
 import type { Quote } from './quotes'
+import {
+  CATEGORY_LABEL,
+  type QuizQuestion,
+  quizVerdict,
+  type Term,
+  type TermCategory,
+  termsByCategory,
+} from './terms'
 import { SESSION_MET, weeklyMeters, type PlannedSession, type WeekDay } from './plan'
-import type { AgeGroup, Distance, Profile, RaceEvent, RecordEntry, Sex } from './types'
+import type { AgeGroup, Distance, Profile, RaceEvent, RecordEntry, Sex, Stroke } from './types'
 import { LEVEL_LABEL, STROKE_LABEL } from './types'
 
 const ENTITIES: Record<string, string> = {
@@ -126,12 +135,172 @@ export const HOME_HTML = `<nav class="home">
       <strong>개인기록 추이</strong>
       <span>영법별 기록을 남기고 변화를 봅니다</span>
     </a>
+    <a class="tile" href="#/dryland">
+      <strong>지상훈련 세트</strong>
+      <span>영법별로 뭍에서 만들 것과 영상</span>
+    </a>
+    <a class="tile" href="#/terms">
+      <strong>수영용어</strong>
+      <span>코치 말을 알아듣는 데 필요한 것 + 퀴즈</span>
+    </a>
     <a class="tile outbound" href="${CAFE_URL}" target="_blank" rel="noopener noreferrer">
       <strong>나인틴 훈련일정 확인</strong>
       <span>네이버 카페로 이동합니다</span>
       <span class="go" aria-hidden="true">↗</span>
     </a>
   </nav>`
+
+// ---------------------------------------------------------------------------
+// 지상훈련
+// ---------------------------------------------------------------------------
+
+function videoListHtml(videos: readonly VideoLink[]): string {
+  if (videos.length === 0) return ''
+
+  const items = videos
+    .map(
+      (video) => `<li>
+          <a href="${escapeHtml(videoUrl(video))}" target="_blank" rel="noopener noreferrer">
+            ${escapeHtml(video.title)}
+          </a>
+          <span class="channel">${escapeHtml(video.channel)}</span>
+        </li>`,
+    )
+    .join('')
+
+  return `<div class="videos">
+      <h4>영상</h4>
+      <ul>${items}</ul>
+    </div>`
+}
+
+function drylandSetHtml(set: DrylandSet): string {
+  const rows = set.exercises
+    .map(
+      (exercise) => `<li>
+          <strong>${escapeHtml(exercise.name)}</strong>
+          <span class="set">${escapeHtml(exercise.prescription)}</span>
+          <span class="hint">${escapeHtml(exercise.cue)}</span>
+        </li>`,
+    )
+    .join('')
+
+  // `why` 는 강조(**)를 쓰는 짧은 글이라 굵게만 통과시킨다.
+  return `<article class="dryland">
+      <h3>${escapeHtml(set.title)}</h3>
+      <p class="why">${bold(set.why)}</p>
+      <ul class="exercises">${rows}</ul>
+      ${videoListHtml(set.videos)}
+    </article>`
+}
+
+/**
+ * `**굵게**` 만 HTML 로 바꾼다.
+ *
+ * 마크다운 전체를 지원하지 않는다 — 이 파일이 다루는 글에 필요한 것은 강조 하나뿐이고,
+ * 파서를 들이면 이스케이프 구멍이 생긴다. **먼저 이스케이프한 뒤** 치환하므로
+ * 본문에 꺾쇠가 들어와도 안전하다.
+ */
+function bold(text: string): string {
+  return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+}
+
+export function drylandHtml(stroke: Stroke): string {
+  const sets = setsFor(stroke)
+  const options = (['free', 'back', 'breast', 'fly', 'im'] as const)
+    .map(
+      (value) =>
+        `<option value="${value}"${value === stroke ? ' selected' : ''}>${STROKE_LABEL[value]}</option>`,
+    )
+    .join('')
+
+  return `<label class="picker">
+      영법
+      <select id="dryland-stroke">${options}</select>
+    </label>
+
+    <p class="hint">
+      주간 플랜에 들어가는 육상 세트는 <strong>등급에 따라 분량이 정해집니다</strong> —
+      여기 적힌 세트·반복은 등급을 나누지 않은 기본값입니다.
+      통증이 있으면 강화가 아니라 진료가 먼저입니다.
+    </p>
+
+    ${sets.map(drylandSetHtml).join('')}
+
+    <p class="hint source">
+      영상은 <strong>실제로 살아 있는지만 확인</strong>했고 내용을 보증하지 않습니다.
+      채널명을 함께 적어두었으니 보고 판단하세요. 링크는 유튜브로 나갑니다.
+    </p>`
+}
+
+// ---------------------------------------------------------------------------
+// 수영용어
+// ---------------------------------------------------------------------------
+
+function termHtml(term: Term): string {
+  return `<li>
+      <div class="term-head">
+        <strong>${escapeHtml(term.term)}</strong>
+        ${term.english ? `<span class="en">${escapeHtml(term.english)}</span>` : ''}
+      </div>
+      <p class="term-short">${escapeHtml(term.short)}</p>
+      ${term.detail ? `<p class="hint">${escapeHtml(term.detail)}</p>` : ''}
+    </li>`
+}
+
+export function termsHtml(): string {
+  const groups = (Object.keys(CATEGORY_LABEL) as TermCategory[])
+    .map((category) => {
+      const items = termsByCategory(category)
+      if (items.length === 0) return ''
+      return `<section class="term-group">
+          <h3>${escapeHtml(CATEGORY_LABEL[category])}</h3>
+          <ul class="terms">${items.map(termHtml).join('')}</ul>
+        </section>`
+    })
+    .join('')
+
+  return `<div class="actions">
+      <button type="button" id="quiz-start">퀴즈 풀기 · ${QUIZ_LENGTH}문제</button>
+    </div>
+    ${groups}`
+}
+
+/** 한 판에 내는 문제 수. 폰에서 한 번에 끝낼 수 있는 길이로 잡았다. */
+export const QUIZ_LENGTH = 10
+
+/** 퀴즈 한 문제. 답을 고르기 전 상태다. */
+export function quizQuestionHtml(question: QuizQuestion, index: number, total: number): string {
+  const options = question.options
+    .map(
+      (option, i) =>
+        `<button type="button" class="quiz-option" data-index="${i}">${escapeHtml(option)}</button>`,
+    )
+    .join('')
+
+  return `<p class="quiz-progress">${index + 1} / ${total}</p>
+    <p class="quiz-prompt">${escapeHtml(question.prompt)}</p>
+    <div class="quiz-options">${options}</div>`
+}
+
+/** 정답 공개 뒤. 맞았든 틀렸든 설명을 보여준다 — 틀린 채 넘어가면 찍기와 같다. */
+export function quizAnswerHtml(question: QuizQuestion, picked: number, last: boolean): string {
+  const correct = picked === question.answer
+  return `<p class="quiz-verdict ${correct ? 'ok' : 'no'}">
+      ${correct ? '정답' : `오답 · 답은 <strong>${escapeHtml(question.options[question.answer]!)}</strong>`}
+    </p>
+    <p class="hint">${escapeHtml(question.explain)}</p>
+    <button type="button" id="quiz-next">${last ? '결과 보기' : '다음 문제'}</button>`
+}
+
+export function quizResultHtml(correct: number, total: number): string {
+  return `<p class="quiz-score">${correct} / ${total}</p>
+    <p class="hint">${escapeHtml(quizVerdict(correct, total))}</p>
+    <div class="quiz-end">
+      <button type="button" id="quiz-again">다시 풀기</button>
+      <button type="button" id="quiz-close" class="ghost">닫기</button>
+    </div>`
+}
 
 // ---------------------------------------------------------------------------
 // 훈련 — 하루씩

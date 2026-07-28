@@ -194,6 +194,12 @@
         <section id="records-result" aria-live="polite"></section>
       </section>
 
+      <!-- 지상훈련 세트 -->
+      <section id="screen-dryland" hidden></section>
+
+      <!-- 수영용어 -->
+      <section id="screen-terms" hidden></section>
+
       <!-- 시작 화면에서는 감춘다. 기능이 없는 화면이고, 바로 다음 화면부터 계속 보인다. -->
       <footer id="disclaimer">
         <p>
@@ -206,6 +212,14 @@
       <!-- 어록. 메뉴 화면 아래 빈자리에만 나오고, 접속할 때마다 하나가 뽑힌다. -->
       <section id="screen-quote" hidden></section>
     </main>
+
+    <!-- 용어 퀴즈. <dialog> 를 쓰면 포커스 가둠과 Esc 닫기를 브라우저가 해준다. -->
+    <dialog id="quiz">
+      <form method="dialog" class="quiz-close-row">
+        <button value="close" aria-label="퀴즈 닫기">✕</button>
+      </form>
+      <div id="quiz-body"></div>
+    </dialog>
 
     <script type="module" src="./main.js"></script>
   </body>
