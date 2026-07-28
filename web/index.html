@@ -180,9 +180,19 @@
             날짜
             <input id="r-date" type="date" />
           </label>
-          <label>
+          <!-- 훈련 화면과 같은 규칙. 100m 면 분 칸이 나오고 25·50m 면 사라진다. -->
+          <label class="time-field">
             기록
-            <input id="r-time" type="text" inputmode="numeric" autocomplete="off" placeholder="12345" />
+            <div class="time-row" id="r-row">
+              <span class="unit minutes">
+                <input id="r-min" type="text" inputmode="numeric" autocomplete="off" placeholder="1" />
+                <i>분</i>
+              </span>
+              <span class="unit">
+                <input id="r-sec" type="text" inputmode="decimal" autocomplete="off" placeholder="25.00" />
+                <i>초</i>
+              </span>
+            </div>
             <span class="echo" id="r-echo"></span>
           </label>
           <div class="actions">

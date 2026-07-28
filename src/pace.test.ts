@@ -5,7 +5,6 @@ import {
   formatTime,
   improvementPercent,
   parseTime,
-  parseTimeInput,
   racePace25,
   splitTargets,
   splitTimeInput,
@@ -20,43 +19,6 @@ describe('parseTime', () => {
   test('60초 이상은 거부', () => expect(parseTime('1:60.00')).toBeNull())
   test('빈 입력', () => expect(parseTime('  ')).toBeNull())
   test('형식 위반', () => expect(parseTime('1분 23초')).toBeNull())
-})
-
-describe('parseTimeInput · 숫자 키패드에는 콜론이 없다', () => {
-  test('오른쪽부터 채운다 — 12345 는 1:23.45', () => {
-    expect(parseTimeInput('12345')).toBe(8345)
-  })
-  test('네 자리는 분이 없다 — 2345 는 23.45', () => {
-    expect(parseTimeInput('2345')).toBe(2345)
-  })
-  test('세 자리 — 130 은 1.30', () => expect(parseTimeInput('130')).toBe(130))
-  test('두 자리 이하는 1/100초로만 채운다', () => {
-    expect(parseTimeInput('45')).toBe(45)
-    expect(parseTimeInput('5')).toBe(5)
-  })
-  test('여섯 자리 — 102345 는 10:23.45', () => {
-    expect(parseTimeInput('102345')).toBe(62345)
-  })
-
-  test('콜론을 칠 수 있는 환경에서는 형식 입력도 받는다', () => {
-    expect(parseTimeInput('1:23.45')).toBe(8345)
-    expect(parseTimeInput('23.45')).toBe(2345)
-  })
-
-  test('숫자 사이 구분자는 무시한다 — 키패드의 마침표가 섞여도 된다', () => {
-    expect(parseTimeInput('1.23.45')).toBe(8345)
-  })
-
-  test('60초 이상은 거부한다', () => expect(parseTimeInput('16045')).toBeNull())
-  test('빈 입력과 과한 자릿수는 거부한다', () => {
-    expect(parseTimeInput('  ')).toBeNull()
-    expect(parseTimeInput('1234567')).toBeNull()
-  })
-
-  test('formatTime 과 왕복한다', () => {
-    expect(formatTime(parseTimeInput('12345')!)).toBe('1:23.45')
-    expect(formatTime(parseTimeInput('2345')!)).toBe('23.45')
-  })
 })
 
 describe('composeTimeInput · 분 칸과 초 칸을 나눠 받는다', () => {

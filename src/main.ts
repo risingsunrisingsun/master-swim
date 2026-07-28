@@ -5,7 +5,7 @@
  * 결과를 붙이고 저장한다. 라우팅은 해시로만 한다 — 정적 호스팅에는 서버 라우터가 없다.
  */
 import { grade } from './grading'
-import { composeTimeInput, formatTime, parseTimeInput, splitTimeInput } from './pace'
+import { composeTimeInput, formatTime, splitTimeInput } from './pace'
 import { weekDays, weeklyPlan } from './plan'
 import { pickQuote } from './quotes'
 import { addLog, addRecord, load, removeRecord, saveProfile } from './storage'
@@ -75,22 +75,49 @@ function refoldTime(min: HTMLInputElement, sec: HTMLInputElement, secondsOnly: b
   sec.value = next.seconds
 }
 
-/** 50m 는 초 칸만, 100m 는 분 칸까지. 거리를 알면 자리수도 안다. */
-function applyDistanceToTimeFields(): void {
-  const secondsOnly = Number(inputs.distance.value) < 100
-  for (const id of ['current-row', 'target-row']) {
-    $<HTMLElement>(id).classList.toggle('sec-only', secondsOnly)
+/** 분·초 두 칸과 그것을 담은 줄. 거리에 따라 분 칸이 붙었다 떨어진다. */
+interface TimeField {
+  readonly rowId: string
+  readonly min: HTMLInputElement
+  readonly sec: HTMLInputElement
+}
+
+/**
+ * 25·50m 는 초 칸만, 100m 는 분 칸까지. 거리를 알면 자리수도 안다.
+ *
+ * 훈련 화면(현재기록·목표기록)과 기록 화면이 같은 규칙을 쓴다. 두 곳에 따로 적으면
+ * 한쪽만 고쳐지는 날이 온다.
+ */
+function applyDistanceToTimeFields(distance: number, fields: readonly TimeField[]): void {
+  const secondsOnly = distance < 100
+  for (const field of fields) {
+    $<HTMLElement>(field.rowId).classList.toggle('sec-only', secondsOnly)
+    refoldTime(field.min, field.sec, secondsOnly)
   }
-  refoldTime(inputs.currentMin, inputs.currentSec, secondsOnly)
-  refoldTime(inputs.targetMin, inputs.targetSec, secondsOnly)
 }
 
 const recordInputs = {
   stroke: $<HTMLSelectElement>('r-stroke'),
   distance: $<HTMLSelectElement>('r-distance'),
   date: $<HTMLInputElement>('r-date'),
-  time: $<HTMLInputElement>('r-time'),
+  min: $<HTMLInputElement>('r-min'),
+  sec: $<HTMLInputElement>('r-sec'),
 }
+
+const trainingTimeFields: readonly TimeField[] = [
+  { rowId: 'current-row', min: inputs.currentMin, sec: inputs.currentSec },
+  { rowId: 'target-row', min: inputs.targetMin, sec: inputs.targetSec },
+]
+
+const recordTimeField: readonly TimeField[] = [
+  { rowId: 'r-row', min: recordInputs.min, sec: recordInputs.sec },
+]
+
+const applyTrainingDistance = (): void =>
+  applyDistanceToTimeFields(Number(inputs.distance.value), trainingTimeFields)
+
+const applyRecordDistance = (): void =>
+  applyDistanceToTimeFields(Number(recordInputs.distance.value), recordTimeField)
 
 const result = $<HTMLElement>('result')
 const recordsResult = $<HTMLElement>('records-result')
@@ -149,22 +176,8 @@ function readProfile(): Profile | null {
 
 /**
  * 입력한 숫자가 어떤 기록으로 읽혔는지 그 자리에서 되돌려준다.
- * 이게 없으면 `12345` 를 친 사람이 1:23.45 로 읽혔는지 확인할 방법이 없다.
+ * 이게 없으면 `85.00` 을 친 사람이 1:25.00 으로 읽혔는지 확인할 방법이 없다.
  */
-function renderEcho(input: HTMLInputElement, echo: HTMLElement): void {
-  const raw = input.value
-  if (raw.trim() === '') {
-    echo.textContent = ''
-    echo.classList.remove('bad')
-    return
-  }
-
-  const parsed = parseTimeInput(raw)
-  echo.textContent = parsed === null ? '읽을 수 없는 숫자' : `→ ${formatTime(parsed)}`
-  echo.classList.toggle('bad', parsed === null)
-}
-
-/** 분·초 두 칸짜리 입력의 되읽기. 훈련 화면 전용이다. */
 function renderPairEcho(min: HTMLInputElement, sec: HTMLInputElement, echo: HTMLElement): void {
   if (min.value.trim() === '' && sec.value.trim() === '') {
     echo.textContent = ''
@@ -251,7 +264,7 @@ function selectedEvent(): RaceEvent {
 }
 
 function renderRecords(): void {
-  renderEcho(recordInputs.time, $<HTMLElement>('r-echo'))
+  renderPairEcho(recordInputs.min, recordInputs.sec, $<HTMLElement>('r-echo'))
 
   const { profile, records } = load()
   const sex = (profile?.sex ?? inputs.sex.value) as Sex
@@ -273,7 +286,7 @@ function renderRecords(): void {
 }
 
 function submitRecord(): void {
-  const timeCs = parseTimeInput(recordInputs.time.value)
+  const timeCs = composeTimeInput(recordInputs.min.value, recordInputs.sec.value)
   const date = recordInputs.date.value
 
   if (timeCs === null || !date) {
@@ -282,7 +295,8 @@ function submitRecord(): void {
   }
 
   addRecord({ date, event: selectedEvent(), timeCs })
-  recordInputs.time.value = ''
+  recordInputs.min.value = ''
+  recordInputs.sec.value = ''
   recordSaved.textContent = '추가됨'
   renderRecords()
 }
@@ -498,12 +512,19 @@ for (const element of Object.values(inputs)) {
 
 // 거리를 바꾸면 분 칸이 붙거나 떨어진다. 위 리스너보다 먼저 돌아야 하므로 따로 건다.
 inputs.distance.addEventListener('change', () => {
-  applyDistanceToTimeFields()
+  applyTrainingDistance()
   renderTraining()
 })
+
 for (const element of Object.values(recordInputs)) {
   element.addEventListener('input', renderRecords)
 }
+
+// 기록 화면도 같은 규칙을 쓴다. 100m 면 분 칸이 나오고 25·50m 면 사라진다.
+recordInputs.distance.addEventListener('change', () => {
+  applyRecordDistance()
+  renderRecords()
+})
 
 $<HTMLButtonElement>('show-plan').addEventListener('click', () => {
   inputs.meters.blur() // 키보드를 내려야 결과가 화면에 들어온다
@@ -514,7 +535,8 @@ $<HTMLButtonElement>('add-record').addEventListener('click', submitRecord)
 addEventListener('hashchange', route)
 
 restore()
-applyDistanceToTimeFields()
+applyTrainingDistance()
+applyRecordDistance()
 recordInputs.date.value = new Date().toISOString().slice(0, 10)
 route()
 

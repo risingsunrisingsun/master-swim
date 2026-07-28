@@ -35,41 +35,14 @@ export function parseTime(input: string): number | null {
 }
 
 /**
- * 폰에서 들어오는 입력을 받는다.
- *
- * 숫자 키패드에는 콜론이 없어서 `1:23.45` 를 칠 수가 없다. 그래서 스톱워치·기록 앱이
- * 쓰는 방식대로 **숫자만 받아 오른쪽부터 채운다** — 뒤 두 자리가 1/100초, 그 앞 두
- * 자리가 초, 나머지가 분이다.
- *
- *   12345 → 1:23.45      2345 → 23.45      130 → 1.30
- *
- * 구분자를 칠 수 있는 환경(데스크톱)에서는 `1:23.45` 도 그대로 받는다.
- */
-export function parseTimeInput(input: string): number | null {
-  const text = input.trim()
-  if (text === '') return null
-
-  // 콜론이 있으면 사용자가 형식을 갖춰 쳤다는 뜻이다. 기존 규칙으로 보낸다.
-  if (text.includes(':')) return parseTime(text)
-
-  const digits = text.replace(/\D/g, '')
-  if (digits === '' || digits.length > 6) return null
-
-  const padded = digits.padStart(3, '0')
-  const centis = Number(padded.slice(-2))
-  const seconds = Number(padded.slice(-4, -2))
-  const minutes = Number(padded.slice(0, -4) || '0')
-
-  if (seconds > 59) return null
-  return (minutes * 60 + seconds) * 100 + centis
-}
-
-/**
  * 분 칸과 초 칸을 따로 받는다.
  *
- * 훈련 화면은 목표 거리가 정해져 있으므로 자리수를 미리 안다. 100m 는 분이 필요하고
- * 50m 는 초만 있으면 된다. 한 칸에 몰아넣고 오른쪽부터 채우는 방식(`parseTimeInput`)
- * 보다 칸을 나누는 편이 폰에서 오해가 없다.
+ * 두 화면 모두 거리가 정해져 있으므로 자리수를 미리 안다. 100m 는 분이 필요하고
+ * 25·50m 는 초만 있으면 된다.
+ *
+ * 앞서 한 칸에 숫자만 받아 오른쪽부터 채우는 방식(`12345` → 1:23.45)을 썼다가
+ * 걷어냈다 — 폰에서 자기가 친 숫자가 무슨 기록으로 읽혔는지 확신할 수 없었다.
+ * 칸을 나누면 그 물음 자체가 없어진다.
  *
  * 초 칸은 소수점을 그대로 받는다 — 십진 키패드에는 마침표가 있다.
  * 분 칸이 비었으면 0분으로 본다. **분이 0이면 초가 60 이상이어도 받는다** —
