@@ -85,15 +85,18 @@ export type Quote = AthleteQuote | Saying
 
 export const QUOTES: readonly Quote[] = [
   {
+    // 회원이 고른 문장이다. 1차 출처를 찾지 못해 '출처 미확인'으로 나간다.
+    //
+    // 뜻이 거의 같으면서 확인된 문장이 하나 있다 — 베이징 2008 에서 통산 11번째 금메달
+    // 뒤 NBC 에 한 말: "Eat, sleep and swim, that's all I can do."
+    // (https://www.olympics.com/en/news/michael-phelps-10000-calories-diet-what-the-american-swimmer-ate-while-training-)
+    // 바꾸고 싶어지면 그쪽으로 갈아끼우면 출처 링크까지 함께 붙는다.
     kind: 'athlete',
     id: 'phelps',
     name: '마이클 펠프스',
     note: '미국 · 접영/개인혼영',
-    text: '꿈은 얼마든지 크게 꾸세요. 정말이지, 꿀 수 있는 만큼 크게.',
-    original: "Don't be afraid to dream as big as you possibly can. I mean, absolutely as big as you can.",
-    said: '2021년 온라인 행사',
-    source:
-      'https://www.olympics.com/en/news/michael-phelps-don-t-be-afraid-to-dream-as-big-as-you-possibly-can',
+    text: '오늘이 무슨 요일인지도 몰라요. 전 그냥 수영만 해요.',
+    said: '회원 제공',
     photo: { by: 'Agência Brasil Fotografias', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:Michael_Phelps_Rio_Olympics_2016.jpg' },
   },
   {
@@ -262,16 +265,6 @@ export const QUOTES: readonly Quote[] = [
     original: "I didn't swim for the medal, but for the time.",
     said: '회원 제공',
     photo: { by: 'Martin Rulsch', license: 'CC BY-SA 4.0', source: "https://commons.wikimedia.org/wiki/File:2018-10-07_Swimming_Boys'_400_m_Freestyle_Final_at_2018_Summer_Youth_Olympics_(Martin_Rulsch)_45.jpg" },
-  },
-  {
-    kind: 'athlete',
-    id: 'lochte',
-    name: '라이언 로크티',
-    note: '미국 · 개인혼영/배영',
-    text: '내 신조는 이렇다 — 밤에 사내였으면 아침에도 사내여야 한다.',
-    original: "My philosophy is if you're a man at night, you gotta be a man in the morning.",
-    said: '회원 제공',
-    photo: { by: 'JD Lasica', license: 'CC BY 2.0', source: 'https://commons.wikimedia.org/wiki/File:Ryan_Lochte_before_race_(42052324064)_(cropped)_(cropped).jpg' },
   },
 ]
 

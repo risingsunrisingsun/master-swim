@@ -1,4 +1,4 @@
-# 어록 카드에 쓰는 선수 사진을 만든다. 저장소 루트에서 실행한다:
+﻿# 어록 카드에 쓰는 선수 사진을 만든다. 저장소 루트에서 실행한다:
 #   powershell -ExecutionPolicy Bypass -File scripts\make-quote-photos.ps1
 #
 # 원본은 `assets/quotes/*.jpg` — 위키미디어 공용에서 받은 자유 라이선스 사진이다.
@@ -22,7 +22,6 @@ $frames = @{
   ikee     = @{ X = 0.56; Y = 0.26; Zoom = 0.40 }
   park     = @{ X = 0.555; Y = 0.28; Zoom = 0.27 }
   milak    = @{ X = 0.475; Y = 0.23; Zoom = 0.32 }
-  lochte   = @{ X = 0.55; Y = 0.37; Zoom = 0.78 }
 }
 
 New-Item -ItemType Directory -Force $OutDir | Out-Null
