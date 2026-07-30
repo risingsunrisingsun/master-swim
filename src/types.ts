@@ -55,12 +55,58 @@ export interface Body {
   bodyFatPercent?: number
 }
 
+/**
+ * 회원이 고르는 목적. 무엇을 얻으려고 왔는가.
+ *
+ * 세션의 **순서**만 바꾼다(`plan.ts`). 어느 목적을 골라도 다섯 성격이 모두 한 주에
+ * 들어가고 고른 것이 앞으로 온다 — 주 2회 나오는 회원은 앞의 둘만 받는다.
+ * 하나만 남기지 않는 이유는 한 가지만 파면 나머지가 무너지기 때문이다.
+ */
+export type Purpose = 'faster' | 'form' | 'breathing' | 'injury'
+
+export const PURPOSE_LABEL: Record<Purpose, string> = {
+  faster: '기록 단축',
+  form: '영법 교정',
+  breathing: '호흡',
+  injury: '부상 예방',
+}
+
+/**
+ * 어떤 방식으로 훈련하고 싶은가. 목적과 층위가 다르다 — 이쪽은 수단이다.
+ *
+ * **세션 안의 순서는 바꾸지 않는다.** 지상훈련이 수영 뒤에 오는 것은 취향이 아니라
+ * 훈련 순서다(다리가 지친 뒤에 킥과 턴이 무너진다 · `plan.ts`). 이 선택이 정하는 것은
+ * 세션에 **어떤 지상훈련이 붙느냐**다.
+ */
+export type SessionFormat = 'pool' | 'dryland' | 'band'
+
+export const FORMAT_LABEL: Record<SessionFormat, string> = {
+  pool: '수중 세트 위주',
+  dryland: '지상훈련도 챙기기',
+  band: '밴드 위주',
+}
+
 export interface Profile {
   ageGroup: AgeGroup
   sex: Sex
   goal: Goal
   load: TrainingLoad
   body?: Body
+  /**
+   * 마법사에서 고른 목적과 형식.
+   *
+   * **선택 필드다.** 마법사 이전에 저장한 프로필에는 없고, 없으면 각각 기본값
+   * (`faster` · `pool`)으로 본다. 그래서 `storage.ts` 의 버전을 올리지 않았다.
+   */
+  purpose?: Purpose
+  format?: SessionFormat
+  /**
+   * 계산된 등급을 회원이 옮긴 경우. 없으면 계산값 그대로 쓴다.
+   *
+   * 한 단계까지만 열려 있다(`view.ts`). 자가 선택으로 돌아가는 것이 아니라,
+   * 계산이 몸 상태를 못 따라오는 경우에 대는 비상구다.
+   */
+  levelAdjust?: { intensity: Level; volume: Level }
 }
 
 /** 본인이 직접 남기는 기록 한 줄. 시계열 그래프의 재료다. */

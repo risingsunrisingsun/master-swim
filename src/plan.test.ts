@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { grade } from './grading'
 import { parseTime } from './pace'
-import { weekDays, weeklyMeters, weeklyPlan, type Purpose } from './plan'
-import type { Distance, Profile, Stroke } from './types'
+import { weekDays, weeklyMeters, weeklyPlan } from './plan'
+import type { Distance, Profile, Purpose, SessionFormat, Stroke } from './types'
 
 const at = (time: string): number => parseTime(time)!
 
@@ -174,13 +174,17 @@ describe('거리 합계', () => {
   })
 })
 
-describe('목적', () => {
+describe('목적과 형식', () => {
   const gradingFor = (p: Profile) => grade(p.goal.currentCs, p.goal.event, p.sex, p.load)
+  const planWith = (p: Profile, purpose?: Purpose, format?: SessionFormat) => {
+    const withChoice = { ...p, purpose, format }
+    return weeklyPlan(withChoice, gradingFor(withChoice))
+  }
   const focuses = (p: Profile, purpose?: Purpose) =>
-    weeklyPlan(p, gradingFor(p), purpose).map((session) => session.focus)
+    planWith(p, purpose).map((session) => session.focus)
 
   // 목적을 고르지 않던 때와 같은 플랜이 나와야 한다.
-  test('기본값은 기록 단축이고 목적을 안 넘긴 것과 같다', () => {
+  test('고르지 않으면 기록 단축과 같다', () => {
     const p = profileFor({ sessions: 5 })
     expect(focuses(p)).toEqual(focuses(p, 'faster'))
   })
@@ -207,8 +211,7 @@ describe('목적', () => {
   })
 
   test('호흡 세션은 호흡 방법으로 채워진다', () => {
-    const p = profileFor({ sessions: 3 })
-    const session = weeklyPlan(p, gradingFor(p), 'breathing')[0]!
+    const session = planWith(profileFor({ sessions: 3 }), 'breathing')[0]!
     const pool = session.items.filter((item) => item.method.kind === 'pool')
     expect(pool.length).toBeGreaterThan(0)
     for (const item of pool) expect(item.method.category).toBe('breathing')
@@ -216,11 +219,28 @@ describe('목적', () => {
 
   // 100m 는 후반에 숨이 무너지므로 배분이, 50m 는 배분할 구간이 짧아 좌우 균형이 먼저다.
   test('호흡 세션의 주역이 거리에 따라 갈린다', () => {
-    const long = profileFor({ distance: 100, sessions: 3 })
-    const short = profileFor({ distance: 50, sessions: 3 })
-    const mainOf = (p: Profile) =>
-      weeklyPlan(p, gradingFor(p), 'breathing')[0]!.items.find((i) => i.role === 'main')!.method.id
-    expect(mainOf(long)).toBe('breath-plan')
-    expect(mainOf(short)).toBe('bilateral')
+    const mainOf = (distance: Distance) =>
+      planWith(profileFor({ distance, sessions: 3 }), 'breathing')[0]!.items.find(
+        (i) => i.role === 'main',
+      )!.method.id
+    expect(mainOf(100)).toBe('breath-plan')
+    expect(mainOf(50)).toBe('bilateral')
+  })
+
+  test('밴드를 고르면 밴드로 하는 지상훈련이 붙는다', () => {
+    for (const session of planWith(profileFor({ sessions: 5 }), 'faster', 'band')) {
+      expect(session.items.find((item) => item.role === 'after')!.method.id).toBe('rotator-cuff')
+    }
+  })
+
+  // 지상훈련이 수영 뒤에 오는 것은 취향이 아니라 훈련 순서다.
+  test('형식을 바꿔도 지상훈련은 수영 뒤에 남는다', () => {
+    for (const format of ['pool', 'dryland', 'band'] as SessionFormat[]) {
+      for (const session of planWith(profileFor({ sessions: 3 }), 'faster', format)) {
+        const roles = session.items.map((item) => item.role)
+        expect(roles.lastIndexOf('after')).toBe(roles.length - 1)
+        expect(roles.indexOf('warmup')).toBe(0)
+      }
+    }
   })
 })

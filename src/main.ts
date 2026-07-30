@@ -4,16 +4,27 @@
  * 계산은 순수 함수(ADR-0001), HTML 생성은 `view.ts` 에 있다. 여기서는 입력을 읽고
  * 결과를 붙이고 저장한다. 라우팅은 해시로만 한다 — 정적 호스팅에는 서버 라우터가 없다.
  */
-import { grade } from './grading'
+import { grade, type Grading } from './grading'
 import { composeTimeInput, formatTime, refoldTimeInput, splitTimeInput } from './pace'
 import { weekDays, weeklyPlan } from './plan'
 import { pickQuote } from './quotes'
 import { addLog, addRecord, load, removeRecord, saveProfile } from './storage'
 import { buildQuiz, type QuizQuestion } from './terms'
-import type { AgeGroup, Distance, Profile, RaceEvent, Sex, Stroke } from './types'
+import type {
+  AgeGroup,
+  Distance,
+  Level,
+  Profile,
+  Purpose,
+  RaceEvent,
+  SessionFormat,
+  Sex,
+  Stroke,
+} from './types'
 import {
   drylandHtml,
   drylandResultsHtml,
+  gradeCheckHtml,
   HOME_HTML,
   NEEDS_INPUT_HTML,
   quizAnswerHtml,
@@ -26,6 +37,8 @@ import {
   termsHtml,
   termsResultsHtml,
   trainingHtml,
+  WIZARD_STEPS,
+  wizardRailHtml,
 } from './view'
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -56,6 +69,7 @@ const inputs = {
   meters: $<HTMLInputElement>('meters'),
   height: $<HTMLInputElement>('height'),
   weight: $<HTMLInputElement>('weight'),
+  bodyfat: $<HTMLInputElement>('bodyfat'),
 }
 
 /** 접는 판단은 `refoldTimeInput` 이 한다. 여기는 그 결과를 칸에 넣기만 한다. */
@@ -120,6 +134,20 @@ const subtitle = $<HTMLElement>('screen-sub')
 /** 지금 펼쳐 보는 요일. 주간 플랜을 하루씩 넘겨 보기 위한 것. */
 let dayIndex = 0
 
+/** 지금 서 있는 마법사 단계. `WIZARD_STEPS` 의 인덱스다. */
+let wizardStep = 0
+
+/**
+ * 마법사를 끝내고 결과를 보고 있는가.
+ *
+ * 저장된 프로필이 있으면 처음부터 `true` 다 — 다시 온 회원에게 다섯 단계를 또
+ * 밟게 하면 예전 폼보다 나빠진다.
+ */
+let wizardDone = false
+
+/** 회원이 등급을 옮겼으면 그 값. 계산값을 쓰면 undefined. */
+let levelAdjust: Profile['levelAdjust']
+
 /**
  * 식단을 펼쳐 뒀는지. 기본값은 접힘이다.
  *
@@ -136,7 +164,19 @@ function readBody(): Profile['body'] {
   const heightCm = Number(inputs.height.value)
   const weightKg = Number(inputs.weight.value)
   if (!heightCm || !weightKg) return undefined
-  return { heightCm, weightKg }
+
+  // 체지방률은 아는 사람만 넣는다. 비어 있으면 없는 것으로 두고, 범위를 벗어난
+  // 값은 `nutrition.ts` 가 버리고 기존 식으로 돌아간다.
+  const fat = Number(inputs.bodyfat.value)
+  const bodyFatPercent = inputs.bodyfat.value.trim() !== '' && Number.isFinite(fat) ? fat : undefined
+
+  return { heightCm, weightKg, bodyFatPercent }
+}
+
+/** 라디오 묶음에서 고른 값. 아무것도 안 골랐으면 기본값. */
+function readChoice<T extends string>(name: string, fallback: T): T {
+  const picked = document.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`)
+  return (picked?.value as T | undefined) ?? fallback
 }
 
 function readProfile(): Profile | null {
@@ -161,7 +201,20 @@ function readProfile(): Profile | null {
     },
     load: { sessionsPerWeek, metersPerSession },
     body: readBody(),
+    purpose: readChoice<Purpose>('purpose', 'faster'),
+    format: readChoice<SessionFormat>('format', 'pool'),
+    levelAdjust,
   }
+}
+
+/**
+ * 계산된 등급에 회원의 조정을 얹는다.
+ *
+ * 조정이 없으면 계산값 그대로다. `mismatch` 안내는 **계산값 기준으로 그대로 둔다** —
+ * 두 축이 벌어져 있다는 사실은 회원이 등급을 옮겼다고 사라지지 않는다.
+ */
+function effectiveGrading(base: Grading, adjust: Profile['levelAdjust']): Grading {
+  return adjust ? { ...base, intensity: adjust.intensity, volume: adjust.volume } : base
 }
 
 /**
@@ -184,18 +237,105 @@ function renderPairEcho(min: HTMLInputElement, sec: HTMLInputElement, echo: HTML
 // 훈련 화면
 // ---------------------------------------------------------------------------
 
+/** 그 단계를 채웠는가. 못 채웠으면 다음으로 못 넘어간다. */
+function stepComplete(step: number): boolean {
+  if (step === 0) {
+    return (
+      composeTimeInput(inputs.currentMin.value, inputs.currentSec.value) !== null &&
+      composeTimeInput(inputs.targetMin.value, inputs.targetSec.value) !== null
+    )
+  }
+  if (step === 1) {
+    return Number(inputs.sessions.value) > 0 && Number(inputs.meters.value) > 0
+  }
+  return true
+}
+
+/**
+ * 마법사 한 단계를 보여준다.
+ *
+ * 단계마다 화면을 다시 만들지 않고 **`hidden` 만 옮긴다** — 입력 요소가 계속 살아
+ * 있어야 `restore()` 와 거리별 분·초 규칙이 그대로 돈다.
+ */
+function renderWizard(): void {
+  const form = $<HTMLElement>('form')
+  const replan = $<HTMLElement>('replan')
+
+  form.hidden = false
+  replan.hidden = !wizardDone
+
+  for (const [index] of WIZARD_STEPS.entries()) {
+    $<HTMLElement>(`step-${index}`).hidden = wizardDone || index !== wizardStep
+  }
+  $<HTMLElement>('wizard-rail').innerHTML = wizardDone ? '' : wizardRailHtml(wizardStep)
+  $<HTMLElement>('wizard-nav-row').hidden = wizardDone
+
+  if (wizardDone) return
+
+  const prev = $<HTMLButtonElement>('step-prev')
+  const next = $<HTMLButtonElement>('step-next')
+  prev.hidden = wizardStep === 0
+  next.disabled = !stepComplete(wizardStep)
+  next.textContent = wizardStep === WIZARD_STEPS.length - 1 ? '플랜 보기' : '다음'
+
+  // 3단계는 앞 두 단계의 값으로 계산한 등급을 보여준다.
+  if (wizardStep === 2) renderGradeCheck()
+}
+
+/** 3단계 — 계산된 등급과 조정 칸. */
+function renderGradeCheck(): void {
+  const profile = readProfile()
+  const box = $<HTMLElement>('grade-check')
+  if (!profile) {
+    box.innerHTML = NEEDS_INPUT_HTML
+    return
+  }
+
+  const computed = grade(profile.goal.currentCs, profile.goal.event, profile.sex, profile.load)
+  box.innerHTML = gradeCheckHtml(computed)
+
+  const intensity = $<HTMLSelectElement>('adjust-intensity')
+  const volume = $<HTMLSelectElement>('adjust-volume')
+  if (levelAdjust) {
+    intensity.value = levelAdjust.intensity
+    volume.value = levelAdjust.volume
+  }
+
+  const onAdjust = (): void => {
+    const picked = { intensity: intensity.value as Level, volume: volume.value as Level }
+    // 계산값으로 되돌려 놓았으면 조정을 지운다 — 흔적을 남길 이유가 없다.
+    levelAdjust =
+      picked.intensity === computed.intensity && picked.volume === computed.volume
+        ? undefined
+        : picked
+  }
+  intensity.addEventListener('change', onAdjust)
+  volume.addEventListener('change', onAdjust)
+}
+
 function renderTraining(): void {
   renderPairEcho(inputs.currentMin, inputs.currentSec, $<HTMLElement>('current-echo'))
   renderPairEcho(inputs.targetMin, inputs.targetSec, $<HTMLElement>('target-echo'))
+  renderWizard()
 
   const profile = readProfile()
   if (!profile) {
-    result.innerHTML = NEEDS_INPUT_HTML
+    result.innerHTML = wizardDone ? NEEDS_INPUT_HTML : ''
     savedLabel.textContent = ''
     return
   }
 
-  const grading = grade(profile.goal.currentCs, profile.goal.event, profile.sex, profile.load)
+  // 결과는 마법사를 끝낸 뒤에만 그린다. 고르는 중에 아래에서 플랜이 흔들리면
+  // 무엇을 보고 있는지 알 수 없다.
+  if (!wizardDone) {
+    result.innerHTML = ''
+    return
+  }
+
+  const grading = effectiveGrading(
+    grade(profile.goal.currentCs, profile.goal.event, profile.sex, profile.load),
+    profile.levelAdjust,
+  )
   const plan = weeklyPlan(profile, grading)
   const days = weekDays(plan)
 
@@ -490,7 +630,24 @@ function restore(): void {
   if (profile.body) {
     inputs.height.value = String(profile.body.heightCm)
     inputs.weight.value = String(profile.body.weightKg)
+    if (profile.body.bodyFatPercent !== undefined) {
+      inputs.bodyfat.value = String(profile.body.bodyFatPercent)
+    }
   }
+
+  // 마법사에서 고른 것들. 예전에 저장한 프로필에는 없어 기본값이 남는다.
+  for (const [name, value] of [
+    ['purpose', profile.purpose],
+    ['format', profile.format],
+  ] as const) {
+    if (!value) continue
+    const radio = document.querySelector<HTMLInputElement>(`input[name="${name}"][value="${value}"]`)
+    if (radio) radio.checked = true
+  }
+  levelAdjust = profile.levelAdjust
+
+  // 이미 다 고른 회원이다. 다섯 단계를 또 밟게 하지 않는다.
+  wizardDone = true
 
   recordInputs.stroke.value = profile.goal.event.stroke
   recordInputs.distance.value = String(profile.goal.event.distance)
@@ -535,9 +692,33 @@ recordInputs.distance.addEventListener('change', () => {
   renderRecords()
 })
 
+$<HTMLButtonElement>('step-prev').addEventListener('click', () => {
+  wizardStep = Math.max(0, wizardStep - 1)
+  renderTraining()
+  scrollTo({ top: 0 })
+})
+
+$<HTMLButtonElement>('step-next').addEventListener('click', () => {
+  if (!stepComplete(wizardStep)) return
+
+  if (wizardStep === WIZARD_STEPS.length - 1) {
+    wizardDone = true
+    // 키보드를 내려야 결과가 화면에 들어온다.
+    ;(document.activeElement as HTMLElement | null)?.blur()
+  } else {
+    wizardStep++
+  }
+
+  renderTraining()
+  scrollTo({ top: 0 })
+})
+
+// 다 만든 뒤 처음부터 다시. 값은 그대로 남아 있어 고칠 것만 고치면 된다.
 $<HTMLButtonElement>('show-plan').addEventListener('click', () => {
-  inputs.meters.blur() // 키보드를 내려야 결과가 화면에 들어온다
-  result.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  wizardDone = false
+  wizardStep = 0
+  renderTraining()
+  scrollTo({ top: 0 })
 })
 $<HTMLButtonElement>('add-record').addEventListener('click', submitRecord)
 

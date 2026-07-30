@@ -35,6 +35,12 @@
       <!-- 목표 기록 훈련법 -->
       <section id="screen-training" hidden>
         <form id="form" autocomplete="off">
+          <!-- 마법사. 한 번에 한 가지만 묻는다 — 예전에는 열두 칸이 한 화면에 있었다.
+               입력 id 는 예전 그대로다. 거리별 분·초 규칙과 되살리기가 그대로 산다. -->
+          <ol class="wizard-rail" id="wizard-rail" aria-label="진행 단계"></ol>
+
+          <fieldset class="step" id="step-0">
+            <legend>어떤 종목을 목표로 하나요</legend>
           <div class="row">
             <label>
               영법
@@ -55,8 +61,8 @@
             </label>
           </div>
 
-          <!-- 기록은 분·초 칸을 나눠 받는다. 100m 면 분 칸이 나오고 50m 면 사라진다 —
-               거리가 정해져 있으니 자리수를 앱이 안다. -->
+            <!-- 기록은 분·초 칸을 나눠 받는다. 100m 면 분 칸이 나오고 50m 면 사라진다 —
+                 거리가 정해져 있으니 자리수를 앱이 안다. -->
           <label class="time-field">
             현재기록
             <div class="time-row" id="current-row">
@@ -87,6 +93,10 @@
             <span class="echo" id="target-echo"></span>
           </label>
 
+          </fieldset>
+
+          <fieldset class="step" id="step-1" hidden>
+            <legend>얼마나 훈련하나요</legend>
           <div class="row">
             <label>
               연령부
@@ -123,9 +133,86 @@
             </label>
           </div>
 
-          <!-- 식단이 주요 기능이 된 뒤로 이 두 칸을 접어두면 안 된다.
-               앞서 <details> 로 감췄다가 회원이 찾지 못했다. -->
-          <h2>식단 계산용 (선택)</h2>
+            <p class="hint">
+              이 넷이 <strong>등급을 정합니다</strong>. 기록이 세트의 강도를, 훈련량이 분량을
+              맡습니다 — 다음 화면에서 결과를 보여드립니다.
+            </p>
+          </fieldset>
+
+          <fieldset class="step" id="step-2" hidden>
+            <legend>회원님의 등급입니다</legend>
+            <div id="grade-check" aria-live="polite"></div>
+          </fieldset>
+
+          <fieldset class="step" id="step-3" hidden>
+            <legend>무엇을 얻고 싶으세요</legend>
+            <div class="choices" id="purpose-choices">
+              <label class="choice">
+                <input type="radio" name="purpose" value="faster" checked />
+                <span class="choice-body">
+                  <strong>기록 단축</strong>
+                  <span class="hint">목표 페이스를 몸에 넣는 세트가 먼저 옵니다.</span>
+                </span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="purpose" value="form" />
+                <span class="choice-body">
+                  <strong>영법 교정</strong>
+                  <span class="hint">드릴이 주역이 되고 레이스 페이스가 뒤를 받칩니다.</span>
+                </span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="purpose" value="breathing" />
+                <span class="choice-body">
+                  <strong>호흡</strong>
+                  <span class="hint">양측 호흡과 타이밍, 레이스 호흡 배분을 다룹니다.</span>
+                </span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="purpose" value="injury" />
+                <span class="choice-body">
+                  <strong>부상 예방</strong>
+                  <span class="hint">기술과 지속력을 앞에 두고 최대 속도를 뒤로 미룹니다.</span>
+                </span>
+              </label>
+            </div>
+            <p class="hint">
+              고른 것이 <strong>앞으로 올 뿐</strong> 나머지가 빠지지는 않습니다 —
+              한 가지만 파면 나머지가 무너집니다.
+            </p>
+          </fieldset>
+
+          <fieldset class="step" id="step-4" hidden>
+            <legend>어떻게 훈련하고 싶으세요</legend>
+            <div class="choices" id="format-choices">
+              <label class="choice">
+                <input type="radio" name="format" value="pool" checked />
+                <span class="choice-body">
+                  <strong>수중 세트 위주</strong>
+                  <span class="hint">성격에 맞는 지상훈련이 세션 뒤에 붙습니다.</span>
+                </span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="format" value="dryland" />
+                <span class="choice-body">
+                  <strong>지상훈련도 챙기기</strong>
+                  <span class="hint">수중 세트와 같되 지상훈련을 펼쳐서 보여드립니다.</span>
+                </span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="format" value="band" />
+                <span class="choice-body">
+                  <strong>밴드 위주</strong>
+                  <span class="hint">밴드로 하는 어깨 세트가 매 세션에 붙습니다.</span>
+                </span>
+              </label>
+            </div>
+            <p class="hint">
+              지상훈련이 수영 <strong>뒤</strong>에 오는 것은 취향이 아니라 순서입니다 —
+              다리가 지친 뒤에는 킥과 턴이 무너집니다.
+            </p>
+
+            <h2>식단 계산용 (선택)</h2>
           <div class="row">
             <label>
               키 (cm)
@@ -136,14 +223,24 @@
               <input id="weight" type="number" min="35" max="160" step="0.5" placeholder="68" />
             </label>
           </div>
-          <p class="hint">
-            입력하지 않으면 훈련 플랜만 나옵니다. 입력하면 식단이 계산되고, 이 두 값은
-            <strong>이 기기에만 저장됩니다</strong> — 서버로 보내는 코드가 없어 코치도 팀원도
-            볼 수 없습니다.
-          </p>
+            <label class="bodyfat">
+              체지방률 (%)
+              <input id="bodyfat" type="number" min="3" max="60" step="0.1" placeholder="모르면 비워두세요" />
+            </label>
+            <p class="hint">
+              입력하지 않으면 훈련 플랜만 나옵니다. 입력하면 식단이 계산되고, 이 값들은
+              <strong>이 기기에만 저장됩니다</strong> — 서버로 보내는 코드가 없어 코치도 팀원도
+              볼 수 없습니다. 체지방률을 알면 기초대사량을 더 정확히 계산합니다.
+            </p>
+          </fieldset>
 
-          <div class="actions">
-            <button id="show-plan" type="button">이번 주 플랜 보기</button>
+          <nav class="wizard-nav" id="wizard-nav-row">
+            <button id="step-prev" type="button" class="ghost">이전</button>
+            <button id="step-next" type="button">다음</button>
+          </nav>
+
+          <div class="actions" id="replan" hidden>
+            <button id="show-plan" type="button" class="ghost">처음부터 다시 고르기</button>
             <span class="saved" id="saved" aria-live="polite"></span>
           </div>
         </form>

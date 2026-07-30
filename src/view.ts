@@ -14,7 +14,7 @@ import {
   videoUrl,
   type VideoLink,
 } from './dryland'
-import { levelBoundaries, type Grading } from './grading'
+import { levelBoundaries, LEVEL_ORDER, type Grading } from './grading'
 import { verdict, type SetLog } from './log'
 import { dailyDiet, GROUP_LABEL, REPRESENTATIVE, type DailyDiet } from './nutrition'
 import { formatTime, improvementPercent, racePace25, splitTargets } from './pace'
@@ -29,7 +29,7 @@ import {
   termsByCategory,
 } from './terms'
 import { SESSION_MET, weeklyMeters, type PlannedSession, type WeekDay } from './plan'
-import type { AgeGroup, Distance, Profile, RaceEvent, RecordEntry, Sex, Stroke } from './types'
+import type { AgeGroup, Distance, Level, Profile, RaceEvent, RecordEntry, Sex, Stroke } from './types'
 import { LEVEL_LABEL, STROKE_LABEL } from './types'
 
 const ENTITIES: Record<string, string> = {
@@ -559,6 +559,74 @@ export function splitsHtml(targetCs: number, distance: Distance): string {
 
 export const NEEDS_INPUT_HTML =
   '<p class="hint">현재기록과 목표기록을 숫자로 입력해 주세요.</p>'
+
+// ---------------------------------------------------------------------------
+// 마법사
+// ---------------------------------------------------------------------------
+
+/** 마법사 단계 제목. 진행 표시줄에 그대로 쓴다. */
+export const WIZARD_STEPS = ['종목', '훈련량', '등급', '목적', '방식'] as const
+
+export function wizardRailHtml(current: number): string {
+  return WIZARD_STEPS.map((label, index) => {
+    const state = index === current ? ' class="now" aria-current="step"' : index < current ? ' class="done"' : ''
+    return `<li${state}><span class="num">${index + 1}</span>${escapeHtml(label)}</li>`
+  }).join('')
+}
+
+/**
+ * 3단계 — 판정된 등급을 문장으로 펴서 보여준다.
+ *
+ * **고르는 것이 아니라 확인하는 자리다.** 등급은 기록과 훈련량에서 계산된다
+ * (`grading.ts`) — 자가 선택을 받으면 기록에 비해 과한 세트가 나가 다칠 수 있다.
+ *
+ * 조정은 한 단계 위아래로만 열어 두고, 올릴 때는 무엇을 감수하는지 함께 적는다.
+ */
+export function gradeCheckHtml(grading: Grading): string {
+  const same = grading.intensity === grading.volume
+
+  const sentence = same
+    ? `기록과 훈련량이 모두 <strong>${LEVEL_LABEL[grading.intensity]}</strong>입니다.`
+    : `기록으로는 <strong>${LEVEL_LABEL[grading.intensity]}</strong>,
+       훈련량으로는 <strong>${LEVEL_LABEL[grading.volume]}</strong>입니다.
+       세트 강도는 기록에, 분량은 훈련량에 맞춥니다.`
+
+  return `<p class="grade-sentence">${sentence}</p>
+    ${gradingHtml(grading)}
+    <p class="hint">
+      등급은 <strong>고르는 것이 아니라 계산되는 값</strong>입니다. 앞 화면의 기록과
+      훈련 횟수를 고치면 여기도 따라 바뀝니다.
+    </p>
+    <details class="grade-adjust">
+      <summary>내 느낌과 다릅니다</summary>
+      <p class="hint">
+        한 단계까지 옮길 수 있습니다. <strong>올리면 세트를 완주하지 못할 수 있고</strong>,
+        그 상태로 반복하면 다칩니다. 완주 기록을 사흘치 남기면 앱이 목표가 적절한지
+        스스로 판정해 알려드리니, 그때까지는 계산된 등급으로 가시길 권합니다.
+      </p>
+      <div class="row">
+        <label>
+          세트 강도
+          <select id="adjust-intensity">${levelOptions(grading.intensity)}</select>
+        </label>
+        <label>
+          세트 분량
+          <select id="adjust-volume">${levelOptions(grading.volume)}</select>
+        </label>
+      </div>
+    </details>`
+}
+
+/** 계산된 등급을 가운데 두고 한 단계 위아래만 연다. */
+function levelOptions(current: Level): string {
+  const index = LEVEL_ORDER.indexOf(current)
+  return LEVEL_ORDER.filter((_, i) => Math.abs(i - index) <= 1)
+    .map(
+      (level) =>
+        `<option value="${level}"${level === current ? ' selected' : ''}>${LEVEL_LABEL[level]}${level === current ? ' (계산됨)' : ''}</option>`,
+    )
+    .join('')
+}
 
 /** 훈련 화면 전체. `day` 는 지금 펼쳐 볼 요일이다. */
 export function trainingHtml(

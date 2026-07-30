@@ -24,6 +24,9 @@ import {
   termsHtml,
   termsResultsHtml,
   trainingHtml,
+  WIZARD_STEPS,
+  wizardRailHtml,
+  gradeCheckHtml,
 } from './view'
 
 const body: Body = { heightCm: 172, weightKg: 68 }
@@ -488,5 +491,69 @@ describe('용어 화면의 강조', () => {
     const withBold = build.find((q) => q.prompt.includes('**') || q.explain.includes('**'))!
     const html = quizQuestionHtml(withBold, 0, 10) + quizAnswerHtml(withBold, 0, false)
     expect(html).not.toContain('**')
+  })
+})
+
+describe('마법사', () => {
+  test('진행 표시줄이 지금 단계를 짚는다', () => {
+    const html = wizardRailHtml(2)
+    expect(html).toContain('aria-current="step"')
+    // 지나온 단계와 남은 단계가 구별돼야 한다.
+    expect(html.match(/class="done"/g)).toHaveLength(2)
+  })
+
+  test('다섯 단계가 모두 나온다', () => {
+    const html = wizardRailHtml(0)
+    for (const label of WIZARD_STEPS) expect(html).toContain(label)
+  })
+
+  test('두 축이 같으면 한 문장으로 말한다', () => {
+    const same = { intensity: 'intermediate', volume: 'intermediate', mismatch: null } as const
+    expect(gradeCheckHtml(same)).toContain('모두 <strong>중급</strong>')
+  })
+
+  test('두 축이 갈리면 각각 밝히고 무엇이 무엇을 정하는지 적는다', () => {
+    const split = { intensity: 'advanced', volume: 'beginner', mismatch: null } as const
+    const html = gradeCheckHtml(split)
+    expect(html).toContain('기록으로는')
+    expect(html).toContain('훈련량으로는')
+    expect(html).toContain('강도는 기록에')
+  })
+
+  // 등급은 계산되는 값이라는 것이 화면에 있어야 한다. 자가 선택이 아니다.
+  test('등급이 계산된 값이라고 밝힌다', () => {
+    const g = { intensity: 'intermediate', volume: 'intermediate', mismatch: null } as const
+    expect(gradeCheckHtml(g)).toContain('고르는 것이 아니라')
+  })
+
+  test('두 축이 벌어졌으면 그 안내가 함께 뜬다', () => {
+    const g = grade(parseTime('1:10.00')!, { stroke: 'free', distance: 100 }, 'M', {
+      sessionsPerWeek: 2,
+      metersPerSession: 1000,
+    })
+    expect(g.mismatch).not.toBeNull()
+    expect(gradeCheckHtml(g)).toContain(g.mismatch!)
+  })
+
+  // 자가 선택으로 돌아가면 기록에 비해 과한 세트가 나가 다친다.
+  test('조정은 계산값 위아래 한 단계까지만 연다', () => {
+    const g = { intensity: 'intermediate', volume: 'intermediate', mismatch: null } as const
+    const html = gradeCheckHtml(g)
+    expect(html).toContain('value="beginner"')
+    expect(html).toContain('value="advanced"')
+    expect(html).not.toContain('value="elite"')
+    expect(html).toContain('(계산됨)')
+  })
+
+  test('가장 낮은 등급에서는 아래로 내려갈 곳이 없다', () => {
+    const g = { intensity: 'beginner', volume: 'beginner', mismatch: null } as const
+    const html = gradeCheckHtml(g)
+    expect(html).toContain('value="intermediate"')
+    expect(html).not.toContain('value="advanced"')
+  })
+
+  test('올릴 때 무엇을 감수하는지 적는다', () => {
+    const g = { intensity: 'intermediate', volume: 'intermediate', mismatch: null } as const
+    expect(gradeCheckHtml(g)).toContain('완주하지 못할 수 있고')
   })
 })

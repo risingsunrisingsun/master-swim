@@ -17,7 +17,7 @@ import {
   type TrainingMethod,
 } from './methods'
 import { racePace25 } from './pace'
-import type { Distance, Level, Profile } from './types'
+import type { Distance, Level, Profile, Purpose, SessionFormat } from './types'
 
 export type SessionFocus = 'racePace' | 'speed' | 'wall' | 'technique' | 'breathing' | 'endurance'
 
@@ -28,22 +28,6 @@ export const FOCUS_TITLE: Record<SessionFocus, string> = {
   technique: '기술',
   breathing: '호흡',
   endurance: '지속력 · 회복',
-}
-
-/**
- * 회원이 고르는 목적. 무엇을 얻으려고 왔는가.
- *
- * 세션의 **순서**만 바꾼다. 어느 목적을 골라도 다섯 성격이 모두 한 주에 들어가고,
- * 고른 것이 앞으로 온다 — 주 2회 나오는 회원은 앞의 둘만 받는다.
- * 하나만 남기지 않는 이유는 한 가지만 파면 나머지가 무너지기 때문이다.
- */
-export type Purpose = 'faster' | 'form' | 'breathing' | 'injury'
-
-export const PURPOSE_LABEL: Record<Purpose, string> = {
-  faster: '기록 단축',
-  form: '영법 교정',
-  breathing: '호흡',
-  injury: '부상 예방',
 }
 
 /**
@@ -121,6 +105,19 @@ const DRYLAND_AFTER: Record<SessionFocus, string> = {
   endurance: 'rotator-cuff',
 }
 
+/**
+ * 세션 뒤에 붙일 육상을 고른다.
+ *
+ * 형식 선택이 바꾸는 것은 **어떤 것이 붙느냐**뿐이다. 붙는 자리(수영 뒤)는 바꾸지
+ * 않는다 — 그것은 취향이 아니라 훈련 순서다.
+ *
+ * 밴드를 고르면 회전근개 세트가 온다. 그 세트가 밴드 외회전·밴드 로우로 되어 있어
+ * 도구가 실제로 밴드다(`dryland.ts`). 나머지는 성격에 맞는 기본값 그대로다.
+ */
+function drylandAfterFor(focus: SessionFocus, format: SessionFormat): string {
+  return format === 'band' ? 'rotator-cuff' : DRYLAND_AFTER[focus]
+}
+
 export type ItemRole = 'main' | 'support' | 'warmup' | 'after'
 
 export interface PlannedItem {
@@ -165,6 +162,7 @@ function buildSession(
   profile: Profile,
   grading: Grading,
   pace25Cs: number,
+  format: SessionFormat,
 ): PlannedSession {
   const { distance } = profile.goal.event
   const items: PlannedItem[] = []
@@ -200,7 +198,7 @@ function buildSession(
     })
   })
 
-  const after = methodById(DRYLAND_AFTER[focus])
+  const after = methodById(drylandAfterFor(focus, format))
   const afterSpec = after ? drylandSpecFor(after, grading.volume) : null
   if (after && afterSpec) {
     items.push({
@@ -218,20 +216,19 @@ function buildSession(
  * 한 주 계획. 주간 횟수가 우선순위 목록보다 많으면 앞에서부터 다시 돌아
  * 레이스 페이스 세션이 한 주에 두 번 들어간다 — 가장 중요한 것을 반복한다.
  */
-export function weeklyPlan(
-  profile: Profile,
-  grading: Grading,
-  // 목적을 고르지 않은 회원(마법사 이전에 저장한 프로필)은 기록 단축으로 본다.
-  purpose: Purpose = 'faster',
-): PlannedSession[] {
+export function weeklyPlan(profile: Profile, grading: Grading): PlannedSession[] {
   const { event, targetCs } = profile.goal
   const pace25Cs = racePace25(targetCs, event.distance)
+
+  // 마법사 이전에 저장한 프로필에는 이 둘이 없다. 그때와 같은 플랜이 나와야 한다.
+  const purpose: Purpose = profile.purpose ?? 'faster'
+  const format: SessionFormat = profile.format ?? 'pool'
   const priority = FOCUS_PRIORITY[purpose][event.distance]
 
   const sessions = Math.max(1, Math.min(7, Math.round(profile.load.sessionsPerWeek)))
 
   return Array.from({ length: sessions }, (_, index) =>
-    buildSession(priority[index % priority.length]!, profile, grading, pace25Cs),
+    buildSession(priority[index % priority.length]!, profile, grading, pace25Cs, format),
   )
 }
 
