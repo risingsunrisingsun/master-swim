@@ -125,3 +125,44 @@ describe('dailyDiet', () => {
     expect(rest.proteinTargetG).toBeCloseTo(68 * 1.2, 5)
   })
 })
+
+describe('체지방률을 아는 경우', () => {
+  const lean: Body = { heightCm: 172, weightKg: 68, bodyFatPercent: 12 }
+  const fat: Body = { heightCm: 172, weightKg: 68, bodyFatPercent: 30 }
+
+  // 370 + 21.6 × (68 × 0.88) = 370 + 21.6 × 59.84 = 1662.5
+  test('Katch-McArdle 로 계산한다', () => {
+    expect(basalMetabolicRate(lean, '45-49', 'M')).toBeCloseTo(1662.5, 1)
+  })
+
+  // 같은 체중이라도 근육이 많으면 더 쓴다. 키·나이 식은 이 차이를 보지 못한다.
+  test('같은 체중이면 체지방률이 낮은 쪽이 더 높다', () => {
+    expect(basalMetabolicRate(lean, '45-49', 'M')).toBeGreaterThan(
+      basalMetabolicRate(fat, '45-49', 'M'),
+    )
+  })
+
+  // 제지방량만 보므로 성별 보정이 따로 필요 없다.
+  test('체지방률을 알면 성별로 갈리지 않는다', () => {
+    expect(basalMetabolicRate(lean, '45-49', 'M')).toBe(basalMetabolicRate(lean, '45-49', 'F'))
+  })
+
+  test('체지방률을 알면 나이대로 갈리지 않는다', () => {
+    expect(basalMetabolicRate(lean, '25-29', 'M')).toBe(basalMetabolicRate(lean, '70+', 'M'))
+  })
+
+  // 이상한 숫자로 계산한 열량을 그럴듯하게 보여주느니 덜 정확한 쪽이 낫다.
+  test('말이 안 되는 값은 버리고 기존 식으로 돌아간다', () => {
+    const plain = basalMetabolicRate({ heightCm: 172, weightKg: 68 }, '45-49', 'M')
+    for (const bodyFatPercent of [0, 1, 61, 95, -5]) {
+      expect(basalMetabolicRate({ heightCm: 172, weightKg: 68, bodyFatPercent }, '45-49', 'M')).toBe(
+        plain,
+      )
+    }
+  })
+
+  test('체지방률이 없으면 지금까지와 같은 값이다', () => {
+    const before = basalMetabolicRate({ heightCm: 172, weightKg: 68 }, '45-49', 'M')
+    expect(before).toBeCloseTo(10 * 68 + 6.25 * 172 - 5 * 47 + 5, 5)
+  })
+})

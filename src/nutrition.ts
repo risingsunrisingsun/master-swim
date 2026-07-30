@@ -5,7 +5,7 @@
  * **에너지 필요량 → 식품군별 섭취횟수 → 식품군 대표식품**의 순서로만 내려간다.
  *
  * 출처
- * - 기초대사량: Mifflin-St Jeor 식
+ * - 기초대사량: Mifflin-St Jeor 식. 체지방률을 아는 회원은 Katch-McArdle 식
  * - 식품군 1회 분량 열량과 대표식품: 한국인 영양소 섭취기준(KDRIs)의 식사구성안
  * - 훈련일 단백질·탄수화물 범위: ACSM/IOC 스포츠영양 권고
  * - 수영 소모 열량: MET × 3.5 × 체중(kg) / 200 × 분
@@ -61,7 +61,31 @@ export interface EnergyBreakdown {
 /** 좌식~가벼운 활동 성인의 활동계수. 수영 소모는 여기 포함되지 않고 따로 더한다. */
 const ACTIVITY_FACTOR = 1.4
 
+/**
+ * 체지방률이 성립하는 범위.
+ *
+ * 필수지방 아래(남 3% · 여 12%)는 생존 한계이고, 60% 를 넘는 값은 입력 실수다.
+ * 벗어난 값은 **버리고 기존 식으로 돌아간다** — 이상한 숫자로 계산한 열량을
+ * 그럴듯하게 보여주느니 덜 정확한 쪽이 낫다.
+ */
+const BODY_FAT_RANGE = { min: 3, max: 60 } as const
+
+/**
+ * 기초대사량.
+ *
+ * 체지방률을 알면 **Katch-McArdle**(`370 + 21.6 × 제지방량`)을 쓴다. 같은 키·체중
+ * 이라도 근육이 많으면 더 쓰는데, 키·나이로 어림하는 식은 그 차이를 보지 못한다.
+ *
+ * 모르면 **Mifflin-St Jeor** 그대로다. 대부분의 회원은 체지방률을 모르고,
+ * 모른다고 해서 식단을 못 받아서는 안 된다.
+ */
 export function basalMetabolicRate(body: Body, ageGroup: AgeGroup, sex: Sex): number {
+  const fat = body.bodyFatPercent
+  if (fat !== undefined && fat >= BODY_FAT_RANGE.min && fat <= BODY_FAT_RANGE.max) {
+    const leanMassKg = body.weightKg * (1 - fat / 100)
+    return 370 + 21.6 * leanMassKg
+  }
+
   const age = AGE_GROUP_MIDPOINT[ageGroup]
   const base = 10 * body.weightKg + 6.25 * body.heightCm - 5 * age
   return sex === 'M' ? base + 5 : base - 161

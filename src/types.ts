@@ -46,6 +46,13 @@ export interface TrainingLoad {
 export interface Body {
   heightCm: number
   weightKg: number
+  /**
+   * 체지방률(%). 아는 회원만 넣는다.
+   *
+   * 있으면 기초대사량이 제지방량 기준(Katch-McArdle)으로 계산된다 — 같은 체중이라도
+   * 근육이 많으면 더 쓴다. 없으면 키·나이로 어림하는 기존 식을 그대로 쓴다.
+   */
+  bodyFatPercent?: number
 }
 
 export interface Profile {
