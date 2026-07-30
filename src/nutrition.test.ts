@@ -42,7 +42,7 @@ describe('수영 소모', () => {
     )
   })
 
-  test('레이스페이스 2,000m 는 대략 600kcal 언저리다', () => {
+  test('레이스 페이스 2,000m 는 대략 600kcal 언저리다', () => {
     const value = swimKcal(body, 2000, SWIM_MET.hard)
     expect(value).toBeGreaterThan(500)
     expect(value).toBeLessThan(700)

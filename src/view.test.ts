@@ -147,7 +147,7 @@ describe('훈련 로그', () => {
 
   test('계획 개수가 세트 지시문과 일치한다', () => {
     const html = dayHtml(profile, trainingDay, 7, [], false, '2026-07-26')
-    // 100m 목표 · 강도/분량 중급이면 주 세트는 레이스페이스 50 8회다
+    // 100m 목표 · 강도/분량 중급이면 주 세트는 레이스 페이스 50 8회다
     expect(html).toContain('data-planned="8"')
     expect(html).toContain('계획 8개 중')
   })
@@ -165,7 +165,7 @@ describe('훈련 로그', () => {
     }))
     const html = dayHtml(profile, trainingDay, 7, logs, false, '2026-07-26')
     expect(html).toContain('too-hard')
-    expect(html).toContain('이릅니다')
+    expect(html).toContain('이른 목표')
   })
 
   test('오늘 이미 남긴 값은 되불러 수정할 수 있다', () => {

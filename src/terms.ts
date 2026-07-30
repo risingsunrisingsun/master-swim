@@ -382,7 +382,7 @@ export function quizVerdict(correct: number, total: number): string {
   if (total === 0) return ''
   const ratio = correct / total
   if (ratio === 1) return '전부 맞혔습니다. 코치 말을 놓칠 일은 없겠습니다.'
-  if (ratio >= 0.8) return '잘 아십니다. 틀린 것만 다시 보면 됩니다.'
+  if (ratio >= 0.8) return '잘 아시네요. 틀린 것만 다시 보면 됩니다.'
   if (ratio >= 0.5) return '절반은 넘겼습니다. 용어집을 한 번 훑고 다시 풀어보세요.'
   return '용어집을 먼저 읽고 오시면 훨씬 쉽습니다.'
 }

@@ -43,7 +43,7 @@ describe('verdict', () => {
       'rp25',
     )
     expect(result.kind).toBe('too-hard')
-    expect(result.message).toContain('이릅니다')
+    expect(result.message).toContain('이른 목표')
   })
 
   test('거의 다 채우면 목표를 당길 때다', () => {

@@ -174,7 +174,7 @@ function renderPairEcho(min: HTMLInputElement, sec: HTMLInputElement, echo: HTML
   }
 
   const parsed = composeTimeInput(min.value, sec.value)
-  echo.textContent = parsed === null ? '읽을 수 없는 숫자' : `→ ${formatTime(parsed)}`
+  echo.textContent = parsed === null ? '숫자를 읽을 수 없습니다' : `→ ${formatTime(parsed)}`
   echo.classList.toggle('bad', parsed === null)
 }
 
@@ -237,7 +237,7 @@ function renderTraining(): void {
   saveProfile(profile)
 
   const now = new Date()
-  savedLabel.textContent = `이 기기에 저장됨 · ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`
+  savedLabel.textContent = `이 기기에 저장했습니다 · ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`
 }
 
 // ---------------------------------------------------------------------------
@@ -278,14 +278,14 @@ function submitRecord(): void {
   const date = recordInputs.date.value
 
   if (timeCs === null || !date) {
-    recordSaved.textContent = '날짜와 기록을 모두 넣어주세요'
+    recordSaved.textContent = '날짜와 기록을 모두 입력해 주세요.'
     return
   }
 
   addRecord({ date, event: selectedEvent(), timeCs })
   recordInputs.min.value = ''
   recordInputs.sec.value = ''
-  recordSaved.textContent = '추가됨'
+  recordSaved.textContent = '추가했습니다'
   renderRecords()
 }
 
@@ -376,11 +376,11 @@ function renderTerms(): void {
 // ---------------------------------------------------------------------------
 
 const ROUTES = {
-  '#/home': { screen: 'home', title: '나인틴', sub: '무엇을 하시겠습니까', back: false },
+  '#/home': { screen: 'home', title: '나인틴', sub: '오늘은 무엇을 해볼까요', back: false },
   '#/training': {
     screen: 'training',
     title: '목표 기록 훈련법',
-    sub: '목표 페이스에서 주간 플랜과 식단을 만듭니다',
+    sub: '목표기록으로 주간 플랜과 식단을 만듭니다',
     back: true,
   },
   '#/records': {
@@ -392,13 +392,13 @@ const ROUTES = {
   '#/dryland': {
     screen: 'dryland',
     title: '지상훈련 세트',
-    sub: '영법별로 뭍에서 만들 것',
+    sub: '영법별 지상 보강운동',
     back: true,
   },
   '#/terms': {
     screen: 'terms',
     title: '수영용어',
-    sub: '코치 말을 알아듣는 데 필요한 것',
+    sub: '코치의 말을 알아듣는 데 필요한 용어',
     back: true,
   },
 } as const

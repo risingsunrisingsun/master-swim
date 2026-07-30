@@ -129,7 +129,7 @@ export function quoteHtml(quote: Quote): string {
 export const HOME_HTML = `<nav class="home">
     <a class="tile" href="#/training">
       <strong>목표 기록 훈련법</strong>
-      <span>목표기록에서 주간 플랜과 식단을 만듭니다</span>
+      <span>목표기록으로 주간 플랜과 식단을 만듭니다</span>
     </a>
     <a class="tile" href="#/records">
       <strong>개인기록 추이</strong>
@@ -137,11 +137,11 @@ export const HOME_HTML = `<nav class="home">
     </a>
     <a class="tile" href="#/dryland">
       <strong>지상훈련 세트</strong>
-      <span>영법별로 뭍에서 만들 것과 영상</span>
+      <span>영법별 지상 보강운동과 참고 영상</span>
     </a>
     <a class="tile" href="#/terms">
       <strong>수영용어</strong>
-      <span>코치 말을 알아듣는 데 필요한 것 + 퀴즈</span>
+      <span>코치의 말을 알아듣는 데 필요한 용어 · 퀴즈</span>
     </a>
     <a class="tile outbound" href="${CAFE_URL}" target="_blank" rel="noopener noreferrer">
       <strong>나인틴 훈련일정 확인</strong>
@@ -180,7 +180,7 @@ function drylandSetHtml(set: DrylandSet): string {
       (exercise) => `<li>
           <strong>${escapeHtml(exercise.name)}</strong>
           <span class="set">${escapeHtml(exercise.prescription)}</span>
-          <span class="hint">${escapeHtml(exercise.cue)}</span>
+          <span class="hint">${bold(exercise.cue)}</span>
         </li>`,
     )
     .join('')
@@ -220,7 +220,7 @@ export function drylandHtml(stroke: Stroke): string {
     </label>
 
     <p class="hint">
-      주간 플랜에 들어가는 육상 세트는 <strong>등급에 따라 분량이 정해집니다</strong> —
+      주간 플랜에 들어가는 지상훈련 세트는 <strong>등급에 따라 분량이 정해집니다</strong> —
       여기 적힌 세트·반복은 등급을 나누지 않은 기본값입니다.
       통증이 있으면 강화가 아니라 진료가 먼저입니다.
     </p>
@@ -352,7 +352,7 @@ function dietHtml(diet: DailyDiet, open: boolean): string {
         <span class="meters">${kcal(diet.energy.total)}</span>
       </summary>
       <p class="hint">
-        기초대사량 ${kcal(diet.energy.bmr)} · 일상활동 포함 ${kcal(diet.energy.baseline)}
+        기초대사량 ${kcal(diet.energy.bmr)} · 일상 활동까지 ${kcal(diet.energy.baseline)}
         ${diet.training ? ` · 수영 ${kcal(diet.energy.swim)}` : ''} · 단백질 목표 ${Math.round(diet.proteinTargetG)}g
       </p>
       <div class="meals">${rows}</div>
@@ -366,7 +366,7 @@ function dietHtml(diet: DailyDiet, open: boolean): string {
 export const NEEDS_BODY_HTML = `<section class="diet locked">
     <h3>식단</h3>
     <p class="hint">
-      키와 체중을 넣으면 식단이 계산됩니다. 이 두 값은 <strong>이 기기에만 저장되고
+      키와 체중을 입력하면 식단이 계산됩니다. 이 두 값은 <strong>이 기기에만 저장되고
       서버로 전송되지 않습니다</strong> — 코치도 팀원도 볼 수 없습니다.
     </p>
   </section>`
@@ -405,7 +405,7 @@ function logHtml(session: PlannedSession, logs: readonly SetLog[], today: string
             placeholder="0"
           />
         </label>
-        <button type="button" id="log-save" data-method="${escapeHtml(main.method.id)}" data-planned="${planned}">${already ? '수정' : '기록'}</button>
+        <button type="button" id="log-save" data-method="${escapeHtml(main.method.id)}" data-planned="${planned}">${already ? '수정' : '저장'}</button>
       </div>
       <p class="verdict ${result.kind === 'too-hard' ? 'too-hard' : result.kind === 'ready' ? 'ready' : ''}">
         ${escapeHtml(result.message)}
@@ -431,7 +431,7 @@ export function dayHtml(
       </article>`
     : `<article class="session rest">
         <h3>${day.label}요일 · 휴식</h3>
-        <p class="hint">물에 들어가지 않는 날입니다. 회복이 다음 세션의 질을 정합니다.</p>
+        <p class="hint">물에 들어가지 않는 날입니다. 회복이 다음 훈련의 질을 좌우합니다.</p>
       </article>`
 
   const diet = profile.body
@@ -479,7 +479,7 @@ export function splitsHtml(targetCs: number, distance: Distance): string {
 }
 
 export const NEEDS_INPUT_HTML =
-  '<p class="hint">현재기록과 목표기록을 숫자로 넣어주세요.</p>'
+  '<p class="hint">현재기록과 목표기록을 숫자로 입력해 주세요.</p>'
 
 /** 훈련 화면 전체. `day` 는 지금 펼쳐 볼 요일이다. */
 export function trainingHtml(
@@ -510,7 +510,7 @@ export function trainingHtml(
 
     ${gradingHtml(grading)}
 
-    <h2>이번 주 <span class="hint">계획 ${meters(planned)} / 입력 ${meters(declared)}</span></h2>
+    <h2>이번 주 <span class="hint">계획 ${meters(planned)} / 내가 적은 양 ${meters(declared)}</span></h2>
     ${dayHtml(profile, days[dayIndex]!, days.length, logs, dietOpen)}
 
     ${splitsHtml(targetCs, event.distance)}`
@@ -527,7 +527,7 @@ function standingHtml(entry: RecordEntry, sex: Sex, ageGroup?: AgeGroup): string
   const headline =
     result.source === 'distribution'
       ? `국내 마스터즈 <strong>상위 ${result.topPercent}%</strong>`
-      : `위치 <strong>${result.position} / 100</strong>`
+      : `등급 구간 위치 <strong>${result.position} / 100</strong>`
 
   return `<div class="standing">
       <div class="bar" role="img" aria-label="상위 ${result.position}%">
@@ -594,7 +594,7 @@ export function recordsHtml(
         <strong class="pace-value">${formatTime(best.timeCs)}</strong>
         <span class="hint">${best.date} · 기록 ${forEvent.length}건</span>
       </div>`
-    : '<p class="hint">이 종목의 기록이 아직 없습니다. 아래에서 추가하세요.</p>'
+    : '<p class="hint">이 종목의 기록이 아직 없습니다. 아래에서 추가해 주세요.</p>'
 
   return `${summary}
     ${points.length >= 2 ? recordChart(points, bands) : EMPTY_CHART_HTML}

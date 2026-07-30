@@ -229,7 +229,7 @@ export const QUOTES: readonly Quote[] = [
     kind: 'saying',
     id: 'calling',
     text: 'The water is calling, and I must swim',
-    korean: '물은 나를 부르고 나는 수영하고 있네',
+    korean: '물이 부르니 나는 헤엄칠 수밖에',
   },
   {
     kind: 'saying',

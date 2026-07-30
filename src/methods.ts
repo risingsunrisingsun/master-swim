@@ -33,7 +33,7 @@ export interface PoolSpec {
   paceOffsetCs: number
   /**
    * 표시된 페이스가 적용되는 범위.
-   * `each`(기본)는 모든 반복, `final`은 마지막 반복의 목표다 — 데센딩처럼 반복마다
+   * `each`(기본)는 모든 반복, `final`은 마지막 반복의 목표다 — 디센딩처럼 반복마다
    * 페이스가 달라지는 세트에서 한 값만 띄우면 "매 반복 이 페이스"로 오해된다.
    */
   paceScope?: 'each' | 'final'
@@ -77,7 +77,7 @@ const POOL_METHODS: TrainingMethod[] = [
   {
     kind: 'pool',
     id: 'rp25',
-    name: '레이스페이스 25',
+    name: '레이스 페이스 25',
     category: 'racePace',
     purpose: '목표 페이스의 동작 패턴을 몸에 고착시킨다.',
     principle:
@@ -96,7 +96,7 @@ const POOL_METHODS: TrainingMethod[] = [
   {
     kind: 'pool',
     id: 'rp50',
-    name: '레이스페이스 50',
+    name: '레이스 페이스 50',
     category: 'racePace',
     purpose: '목표 페이스를 턴 하나를 포함한 길이로 이어 붙인다.',
     principle:
@@ -157,13 +157,13 @@ const POOL_METHODS: TrainingMethod[] = [
   {
     kind: 'pool',
     id: 'descending',
-    name: '데센딩',
+    name: '디센딩',
     category: 'racePace',
     purpose: '페이스를 의도한 대로 올리는 감각을 만든다.',
     principle:
       '같은 거리를 반복하면서 매번 조금씩 빠르게 간다. 마스터즈에서 가장 흔한 실패는 페이스 감각 없이 처음부터 전력으로 나가는 것인데, 이 세트는 속도를 스스로 배분하게 만든다.',
     cautions: [
-      '마지막 반복만 빠르면 데센딩이 아니다. 매 반복이 앞보다 빨라야 한다.',
+      '마지막 반복만 빠르면 디센딩이 아니다. 매 반복이 앞보다 빨라야 한다.',
       '1번을 너무 빠르게 시작하면 세트가 성립하지 않는다.',
     ],
     levels: {
@@ -173,7 +173,7 @@ const POOL_METHODS: TrainingMethod[] = [
         restCs: 30 * SECONDS,
         paceOffsetCs: 0,
         paceScope: 'final',
-        note: '1번은 +2초에서 시작해 매 반복 당긴다',
+        note: '1번은 +2초에서 시작해 매 반복 당깁니다',
       },
       intermediate: {
         reps: 8,
@@ -189,7 +189,7 @@ const POOL_METHODS: TrainingMethod[] = [
         restCs: 20 * SECONDS,
         paceOffsetCs: 0,
         paceScope: 'final',
-        note: '4개씩 세 묶음. 묶음마다 시작 페이스를 당긴다',
+        note: '4개씩 세 묶음. 묶음마다 시작 페이스를 당깁니다',
       },
       elite: {
         reps: 16,
@@ -293,10 +293,10 @@ const POOL_METHODS: TrainingMethod[] = [
       '어지럽거나 시야가 좁아지면 즉시 중단한다.',
     ],
     levels: {
-      beginner: { reps: 4, distance: 15, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '잠영 7m 목표' },
-      intermediate: { reps: 6, distance: 15, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '잠영 10m 목표' },
-      advanced: { reps: 8, distance: 15, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '잠영 12m 목표' },
-      elite: { reps: 10, distance: 15, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '잠영 15m 규정 한계까지' },
+      beginner: { reps: 4, distance: 15, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '언더워터 7m 목표' },
+      intermediate: { reps: 6, distance: 15, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '언더워터 10m 목표' },
+      advanced: { reps: 8, distance: 15, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '언더워터 12m 목표' },
+      elite: { reps: 10, distance: 15, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '언더워터 15m 규정 한계까지' },
     },
   },
   {
@@ -441,7 +441,7 @@ const POOL_METHODS: TrainingMethod[] = [
       '전날 고강도 세트를 넣지 않는다. 컨디션이 다르면 비교할 수 없다.',
     ],
     levels: {
-      beginner: { reps: 1, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'max', note: '다이빙 스타트, 구간 기록 기록' },
+      beginner: { reps: 1, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'max', note: '다이빙 스타트, 구간 기록까지 측정' },
       intermediate: { reps: 1, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'max', note: '구간 기록 + 구간별 스트로크 수' },
       advanced: { reps: 1, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'max', note: '구간 기록 + 스트로크 수 + 15m 통과' },
       elite: { reps: 2, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'max', note: '충분한 회복 뒤 두 번, 좋은 쪽을 채택' },

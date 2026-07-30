@@ -64,7 +64,7 @@ describe('카탈로그 무결성', () => {
 describe('describePoolSet', () => {
   const pace = racePace25(8000, 100) // 100m 목표 1:20.00 → 25m 20.18
 
-  test('레이스페이스 세트에 페이스와 인터벌이 들어간다', () => {
+  test('레이스 페이스 세트에 페이스와 인터벌이 들어간다', () => {
     expect(describePoolSet(poolSpec('rp25', 'advanced')!, pace, 100)).toBe(
       '20 × 25m @ 20.18 · 인터벌 32.18',
     )
@@ -82,7 +82,7 @@ describe('describePoolSet', () => {
     )
   })
 
-  test('데센딩은 표시된 페이스가 마지막 반복 목표임을 밝힌다', () => {
+  test('디센딩은 표시된 페이스가 마지막 반복 목표임을 밝힌다', () => {
     expect(describePoolSet(poolSpec('descending', 'beginner')!, pace, 100)).toBe(
       '4 × 50m 마지막 @ 40.35 · 인터벌 1:10.35',
     )

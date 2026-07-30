@@ -82,7 +82,7 @@ export function verdict(logs: readonly SetLog[], methodId: string): Verdict {
       kind: 'too-hard',
       attempts: recent.length,
       ratio,
-      message: `최근 ${WINDOW}회 평균 완주 ${average}%. 목표 페이스가 아직 이릅니다 — 중간목표를 세우고 단계적으로 당기세요.`,
+      message: `최근 ${WINDOW}회 평균 완주 ${average}%. 아직 이른 목표입니다 — 중간목표를 세우고 단계적으로 당기세요.`,
     }
   }
 

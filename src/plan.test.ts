@@ -74,7 +74,7 @@ describe('목표 거리가 배치를 가른다', () => {
     expect(focuses).not.toContain('speed')
   })
 
-  test('100m 는 레이스페이스 50 을, 25m 는 레이스페이스 25 를 쓴다', () => {
+  test('100m 는 레이스 페이스 50 을, 25m 는 레이스 페이스 25 를 쓴다', () => {
     const long = planFor({ distance: 100 })[0]!.items.find((item) => item.role === 'main')
     const short = planFor({ distance: 25, target: '15.00', current: '16.50' })[0]!.items.find(
       (item) => item.role === 'main',
