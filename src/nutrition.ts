@@ -174,7 +174,7 @@ export function dailyDiet(
         { group: 'vegetable', count: vegetable[0]! },
         { group: 'dairy', count: 1 },
       ],
-      hint: options.training ? '훈련 2시간 전이면 곡류 위주로, 지방은 줄인다' : undefined,
+      hint: options.training ? '훈련 2시간 전이면 곡류 위주로 먹고 지방은 줄이세요' : undefined,
     },
     {
       name: '점심',
@@ -199,7 +199,7 @@ export function dailyDiet(
         { group: 'dairy', count: Math.max(0, servings.dairy - 1) },
       ],
       hint: options.training
-        ? '훈련 직후 30분 안에 과일 + 우유를 함께 — 회복이 빨라진다'
+        ? '훈련 직후 30분 안에 과일과 우유를 함께 — 회복이 빨라집니다'
         : undefined,
     },
   ]
