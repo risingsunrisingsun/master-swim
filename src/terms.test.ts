@@ -4,6 +4,7 @@ import {
   CATEGORY_LABEL,
   OPTION_COUNT,
   quizVerdict,
+  searchTerms,
   termById,
   termsByCategory,
   TERMS,
@@ -119,5 +120,47 @@ describe('quizVerdict', () => {
 
   test('문제가 없으면 빈 문자열 — 0으로 나누지 않는다', () => {
     expect(quizVerdict(0, 0)).toBe('')
+  })
+})
+
+describe('searchTerms', () => {
+  test('빈 입력은 빈 배열 — 화면이 전체 목록으로 돌아갈 수 있어야 한다', () => {
+    expect(searchTerms('')).toEqual([])
+    expect(searchTerms('   ')).toEqual([])
+  })
+
+  test('표제어로 찾는다', () => {
+    const found = searchTerms('플립턴')
+    expect(found.map((term) => term.id)).toContain('flip-turn')
+  })
+
+  test('영어 표기로도 찾는다 — 코치가 영어로 부르는 경우가 많다', () => {
+    expect(searchTerms('EVF').map((term) => term.id)).toContain('high-elbow')
+    expect(searchTerms('pace clock').map((term) => term.id)).toContain('pace-clock')
+  })
+
+  test('대소문자를 가리지 않는다', () => {
+    expect(searchTerms('dps').map((term) => term.id)).toContain('dps')
+    expect(searchTerms('DPS').map((term) => term.id)).toContain('dps')
+  })
+
+  test('정의문에 있는 말로도 찾힌다', () => {
+    // '앞구르기'는 플립턴의 정의문에만 있고 표제어에는 없다.
+    expect(searchTerms('앞구르기').map((term) => term.id)).toContain('flip-turn')
+  })
+
+  test('표제어에 맞은 것이 정의문에 맞은 것보다 앞에 온다', () => {
+    const found = searchTerms('스컬링')
+    expect(found[0]!.id).toBe('sculling')
+  })
+
+  test('같은 용어가 두 번 나오지 않는다', () => {
+    // 표제어와 정의문에 모두 들어 있어도 한 번만 나와야 한다.
+    const ids = searchTerms('스트로크').map((term) => term.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  test('없는 말은 빈 배열', () => {
+    expect(searchTerms('싱크로나이즈드')).toEqual([])
   })
 })

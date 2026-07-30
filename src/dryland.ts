@@ -287,6 +287,35 @@ export function setsFor(stroke: Stroke): readonly DrylandSet[] {
   return [...common, ...byStroke]
 }
 
+/**
+ * 지상훈련 세트를 찾는다.
+ *
+ * 세트 제목·설명, 동작 이름·요령, 영상 제목·채널을 모두 훑는다. 회원이 실제로 치는 말
+ * ("어깨" · "밴드" · "코어")이 이 필드들에 이미 들어 있다.
+ *
+ * **영법을 가리지 않는다.** '밴드'를 친 사람은 자기 영법 밖의 밴드 동작도 보고 싶어한다.
+ * 영법으로 좁히는 것은 `setsFor` 의 일이다.
+ *
+ * 돌려주는 단위는 **세트 전체**다. 동작 하나만 떼어 보여주면 왜 그걸 하는지(`why`)가
+ * 떨어져 나가 아무 도움이 안 된다.
+ *
+ * 빈 문자열이면 빈 배열 — `searchTerms` 와 같은 규칙이다.
+ */
+export function searchDryland(query: string): readonly DrylandSet[] {
+  const needle = query.trim().toLowerCase()
+  if (needle === '') return []
+
+  const hit = (text: string): boolean => text.toLowerCase().includes(needle)
+
+  return DRYLAND_SETS.filter(
+    (set) =>
+      hit(set.title) ||
+      hit(set.why) ||
+      set.exercises.some((exercise) => hit(exercise.name) || hit(exercise.cue)) ||
+      set.videos.some((video) => hit(video.title) || hit(video.channel)),
+  )
+}
+
 export function videoUrl(video: VideoLink): string {
   return `https://www.youtube.com/watch?v=${video.id}`
 }

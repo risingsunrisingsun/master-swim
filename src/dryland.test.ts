@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { DRYLAND_SETS, setsFor, videoUrl } from './dryland'
+import { DRYLAND_SETS, searchDryland, setsFor, videoUrl } from './dryland'
 import { methodById } from './methods'
 import type { Stroke } from './types'
 
@@ -110,5 +110,46 @@ describe('setsFor', () => {
     for (const stroke of ['free', 'back', 'breast', 'fly', 'im'] as Stroke[]) {
       expect(setsFor(stroke).length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('searchDryland', () => {
+  test('빈 입력은 빈 배열 — 화면이 영법별 목록으로 돌아갈 수 있어야 한다', () => {
+    expect(searchDryland('')).toEqual([])
+    expect(searchDryland('   ')).toEqual([])
+  })
+
+  test('세트 제목으로 찾는다', () => {
+    expect(searchDryland('어깨').map((set) => set.id)).toContain('shoulder')
+  })
+
+  test('동작 이름으로 찾는다', () => {
+    // '데드버그'는 코어 세트의 동작 이름에만 있다.
+    expect(searchDryland('데드버그').map((set) => set.id)).toContain('core')
+  })
+
+  test('영법을 가리지 않는다 — 밴드는 공통과 영법 세트 양쪽에 있다', () => {
+    const found = searchDryland('밴드')
+    expect(found.length).toBeGreaterThan(1)
+    expect(found.some((set) => set.scope === 'common')).toBe(true)
+    expect(found.some((set) => set.scope !== 'common')).toBe(true)
+  })
+
+  test('영상 채널명으로도 찾는다', () => {
+    expect(searchDryland('U.S. Masters Swimming').map((set) => set.id)).toContain('core')
+  })
+
+  test('대소문자를 가리지 않는다', () => {
+    expect(searchDryland('masters').length).toBeGreaterThan(0)
+    expect(searchDryland('MASTERS').length).toBeGreaterThan(0)
+  })
+
+  test('같은 세트가 두 번 나오지 않는다 — 여러 필드에 맞아도 한 번이다', () => {
+    const ids = searchDryland('어깨').map((set) => set.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  test('없는 말은 빈 배열', () => {
+    expect(searchDryland('역도')).toEqual([])
   })
 })

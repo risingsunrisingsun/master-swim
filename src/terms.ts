@@ -314,6 +314,33 @@ export function termsByCategory(category: TermCategory): readonly Term[] {
   return TERMS.filter((term) => term.category === category)
 }
 
+/**
+ * 용어를 찾는다.
+ *
+ * 표제어·영어 표기·한 줄 정의를 모두 훑는다. **영어를 훑는 이유는 코치가 영어로
+ * 부르는 경우가 많기 때문이다** — "EVF" 를 듣고 온 회원이 '하이엘보'를 찾을 수 있어야 한다.
+ *
+ * 표제어에 맞은 것이 정의에 맞은 것보다 앞에 온다. '스트로크'로 찾으면 표제어가
+ * `세트 / 리핏` 인 것보다 스트로크 자체를 다루는 용어가 먼저 나와야 한다.
+ *
+ * **초성 검색은 하지 않는다.** 용어가 32개뿐이라 얻는 것보다 드는 비용이 크다.
+ *
+ * 빈 문자열이면 빈 배열이다 — 화면은 그때 분류별 전체 목록으로 돌아간다.
+ * '전부 맞았다'와 '아직 안 찾았다'는 다른 상태이므로 여기서 섞지 않는다.
+ */
+export function searchTerms(query: string): readonly Term[] {
+  const needle = query.trim().toLowerCase()
+  if (needle === '') return []
+
+  const inHead = (term: Term): boolean =>
+    term.term.toLowerCase().includes(needle) || (term.english?.toLowerCase().includes(needle) ?? false)
+
+  const inBody = (term: Term): boolean =>
+    term.short.toLowerCase().includes(needle) || (term.detail?.toLowerCase().includes(needle) ?? false)
+
+  return [...TERMS.filter(inHead), ...TERMS.filter((term) => !inHead(term) && inBody(term))]
+}
+
 // ---------------------------------------------------------------------------
 // 퀴즈
 // ---------------------------------------------------------------------------
