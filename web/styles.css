@@ -894,6 +894,40 @@ footer p {
   margin-bottom: 0.75rem;
 }
 
+/* --- 찾기 ------------------------------------------------------------- */
+
+/* 검색창과 영법 선택을 한 줄에. 용어 화면은 검색창 하나뿐이라 그대로 늘어난다. */
+.finder {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.finder:has(> :only-child) {
+  grid-template-columns: 1fr;
+}
+
+.finder .picker {
+  margin-bottom: 0;
+}
+
+/* iOS 가 type=search 에 얹는 둥근 테두리를 걷어내 다른 입력과 모양을 맞춘다. */
+.finder input[type='search'] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.empty {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
 .dryland {
   margin-top: 1rem;
   padding: 1rem;

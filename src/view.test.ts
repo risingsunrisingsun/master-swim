@@ -9,6 +9,7 @@ import {
   CAFE_URL,
   dayHtml,
   drylandHtml,
+  drylandResultsHtml,
   escapeHtml,
   gradingHtml,
   HOME_HTML,
@@ -21,6 +22,7 @@ import {
   SPLASH_HTML,
   splitsHtml,
   termsHtml,
+  termsResultsHtml,
   trainingHtml,
 } from './view'
 
@@ -280,6 +282,30 @@ describe('지상훈련 화면', () => {
     expect(html).toContain('<strong>')
     expect(html).not.toContain('<script')
   })
+
+  test('검색창과 결과 영역이 따로 있다 — 결과만 갈아 끼워야 커서가 산다', () => {
+    const html = drylandHtml('free')
+    expect(html).toContain('id="dryland-search"')
+    expect(html).toContain('id="dryland-results"')
+  })
+
+  test('검색어가 비면 고른 영법의 세트가 나온다', () => {
+    expect(drylandResultsHtml('breast', '')).toContain('평영')
+  })
+
+  test('검색하면 고른 영법 밖의 세트도 나오고 그 사실을 밝힌다', () => {
+    const html = drylandResultsHtml('free', '밴드')
+    expect(html).toContain('영법과 상관없이')
+    expect(html).toContain('개를 찾았습니다')
+  })
+
+  test('없는 말을 치면 빈 결과 안내가 나온다', () => {
+    expect(drylandResultsHtml('free', '역도')).toContain('찾는 동작이 없습니다')
+  })
+
+  test('검색어가 입력 칸에 다시 들어간다 — 다시 그려도 지워지면 안 된다', () => {
+    expect(drylandHtml('free', '어깨')).toContain('value="어깨"')
+  })
 })
 
 describe('수영용어 화면', () => {
@@ -292,6 +318,39 @@ describe('수영용어 화면', () => {
 
   test('퀴즈 시작 버튼이 있다', () => {
     expect(termsHtml()).toContain('id="quiz-start"')
+  })
+
+  test('검색창과 결과 영역이 따로 있다', () => {
+    const html = termsHtml()
+    expect(html).toContain('id="terms-search"')
+    expect(html).toContain('id="terms-results"')
+  })
+
+  test('검색어가 비면 분류별 전체 목록으로 돌아간다', () => {
+    const html = termsResultsHtml('')
+    expect(html).toContain('class="term-group"')
+    expect(html).toContain('벽 — 스타트와 턴')
+  })
+
+  test('검색하면 분류 묶음 없이 결과만 나온다 — 묶으면 맞은 순서가 깨진다', () => {
+    const html = termsResultsHtml('플립턴')
+    expect(html).toContain('플립턴')
+    expect(html).not.toContain('class="term-group"')
+  })
+
+  test('없는 말을 치면 빈 결과 안내가 나온다', () => {
+    expect(termsResultsHtml('싱크로나이즈드')).toContain('아직 용어집에 없습니다')
+  })
+
+  test('검색어가 입력 칸에 다시 들어간다', () => {
+    expect(termsHtml('캐치')).toContain('value="캐치"')
+  })
+
+  // 검색어는 그대로 HTML 에 다시 들어간다. 이스케이프하지 않으면 구멍이 된다.
+  test('검색어의 꺾쇠가 이스케이프된다', () => {
+    const html = termsHtml('<script>alert(1)</script>')
+    expect(html).not.toContain('<script>alert(1)')
+    expect(html).toContain('&lt;script&gt;')
   })
 })
 

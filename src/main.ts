@@ -13,6 +13,7 @@ import { buildQuiz, type QuizQuestion } from './terms'
 import type { AgeGroup, Distance, Profile, RaceEvent, Sex, Stroke } from './types'
 import {
   drylandHtml,
+  drylandResultsHtml,
   HOME_HTML,
   NEEDS_INPUT_HTML,
   quizAnswerHtml,
@@ -23,6 +24,7 @@ import {
   recordsHtml,
   SPLASH_HTML,
   termsHtml,
+  termsResultsHtml,
   trainingHtml,
 } from './view'
 
@@ -296,13 +298,23 @@ function submitRecord(): void {
 /** 지금 보고 있는 영법. 저장된 목표 종목에서 시작해 화면에서 바꿀 수 있다. */
 let drylandStroke: Stroke = 'free'
 
+/** 지금 친 검색어. 영법을 바꿔도 지운 적이 없으면 남는다. */
+let drylandQuery = ''
+
 function renderDryland(): void {
-  screens.dryland.innerHTML = drylandHtml(drylandStroke)
+  screens.dryland.innerHTML = drylandHtml(drylandStroke, drylandQuery)
 
   $<HTMLSelectElement>('dryland-stroke').addEventListener('change', (event) => {
     drylandStroke = (event.target as HTMLSelectElement).value as Stroke
     renderDryland()
     scrollTo({ top: 0 })
+  })
+
+  // 검색은 결과 영역만 갈아 끼운다. 화면을 통째로 다시 그리면 입력 칸이 새로
+  // 만들어져 커서가 날아간다.
+  $<HTMLInputElement>('dryland-search').addEventListener('input', (event) => {
+    drylandQuery = (event.target as HTMLInputElement).value
+    $<HTMLElement>('dryland-results').innerHTML = drylandResultsHtml(drylandStroke, drylandQuery)
   })
 }
 
@@ -366,9 +378,18 @@ function startQuiz(): void {
   if (!quizDialog.open) quizDialog.showModal()
 }
 
+/** 지금 친 검색어. 퀴즈를 열었다 닫아도 남는다. */
+let termsQuery = ''
+
 function renderTerms(): void {
-  screens.terms.innerHTML = termsHtml()
+  screens.terms.innerHTML = termsHtml(termsQuery)
   $<HTMLButtonElement>('quiz-start').addEventListener('click', startQuiz)
+
+  // 지상훈련과 같은 이유로 결과 영역만 갈아 끼운다.
+  $<HTMLInputElement>('terms-search').addEventListener('input', (event) => {
+    termsQuery = (event.target as HTMLInputElement).value
+    $<HTMLElement>('terms-results').innerHTML = termsResultsHtml(termsQuery)
+  })
 }
 
 // ---------------------------------------------------------------------------

@@ -6,7 +6,7 @@
  */
 import { standing, toNextLevel } from './benchmark'
 import { EMPTY_CHART_HTML, recordChart, type ChartBand, type ChartPoint } from './chart'
-import { type DrylandSet, setsFor, videoUrl, type VideoLink } from './dryland'
+import { type DrylandSet, searchDryland, setsFor, videoUrl, type VideoLink } from './dryland'
 import { levelBoundaries, type Grading } from './grading'
 import { verdict, type SetLog } from './log'
 import { dailyDiet, GROUP_LABEL, REPRESENTATIVE, type DailyDiet } from './nutrition'
@@ -16,6 +16,7 @@ import {
   CATEGORY_LABEL,
   type QuizQuestion,
   quizVerdict,
+  searchTerms,
   type Term,
   type TermCategory,
   termsByCategory,
@@ -205,8 +206,27 @@ function bold(text: string): string {
   return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
 }
 
-export function drylandHtml(stroke: Stroke): string {
-  const sets = setsFor(stroke)
+/**
+ * 검색 결과 영역만. 검색창은 여기 없다.
+ *
+ * **입력 칸과 결과를 나눈 이유**: 한 글자마다 화면 전체를 다시 그리면 입력 칸이
+ * 새로 만들어져 포커스와 커서 위치가 날아간다. `main.ts` 는 이 부분만 갈아 끼운다.
+ */
+export function drylandResultsHtml(stroke: Stroke, query: string): string {
+  if (query.trim() === '') return setsFor(stroke).map(drylandSetHtml).join('')
+
+  const found = searchDryland(query)
+  if (found.length === 0) {
+    return `<p class="empty">찾는 동작이 없습니다. 영법을 골라 전체 세트를 훑어보세요.</p>`
+  }
+
+  // 검색은 영법을 무시하므로 그 사실을 밝힌다 — 고른 영법과 다른 세트가 나오면
+  // 고장으로 보인다.
+  return `<p class="hint">영법과 상관없이 ${found.length}개를 찾았습니다.</p>
+    ${found.map(drylandSetHtml).join('')}`
+}
+
+export function drylandHtml(stroke: Stroke, query = ''): string {
   const options = (['free', 'back', 'breast', 'fly', 'im'] as const)
     .map(
       (value) =>
@@ -214,10 +234,17 @@ export function drylandHtml(stroke: Stroke): string {
     )
     .join('')
 
-  return `<label class="picker">
-      영법
-      <select id="dryland-stroke">${options}</select>
-    </label>
+  return `<div class="finder">
+      <label class="search">
+        찾기
+        <input type="search" id="dryland-search" value="${escapeHtml(query)}"
+          placeholder="어깨 · 밴드 · 코어" autocomplete="off" />
+      </label>
+      <label class="picker">
+        영법
+        <select id="dryland-stroke">${options}</select>
+      </label>
+    </div>
 
     <p class="hint">
       주간 플랜에 들어가는 지상훈련 세트는 <strong>등급에 따라 분량이 정해집니다</strong> —
@@ -225,7 +252,7 @@ export function drylandHtml(stroke: Stroke): string {
       통증이 있으면 강화가 아니라 진료가 먼저입니다.
     </p>
 
-    ${sets.map(drylandSetHtml).join('')}
+    <div id="dryland-results">${drylandResultsHtml(stroke, query)}</div>
 
     <p class="hint source">
       영상은 <strong>실제로 살아 있는지만 확인</strong>했고 내용을 보증하지 않습니다.
@@ -248,22 +275,50 @@ function termHtml(term: Term): string {
     </li>`
 }
 
-export function termsHtml(): string {
-  const groups = (Object.keys(CATEGORY_LABEL) as TermCategory[])
-    .map((category) => {
-      const items = termsByCategory(category)
-      if (items.length === 0) return ''
-      return `<section class="term-group">
-          <h3>${escapeHtml(CATEGORY_LABEL[category])}</h3>
-          <ul class="terms">${items.map(termHtml).join('')}</ul>
-        </section>`
-    })
-    .join('')
+/**
+ * 검색 결과 영역만. `drylandResultsHtml` 과 같은 이유로 검색창과 나눠 뒀다.
+ *
+ * **입력이 비면 분류별 전체 목록으로 돌아간다.** 검색은 훑어보기를 대체하지 않고
+ * 덧붙는 것이다 — 무엇을 찾을지 모르는 회원은 목록을 훑어야 한다.
+ */
+export function termsResultsHtml(query: string): string {
+  if (query.trim() === '') {
+    return (Object.keys(CATEGORY_LABEL) as TermCategory[])
+      .map((category) => {
+        const items = termsByCategory(category)
+        if (items.length === 0) return ''
+        return `<section class="term-group">
+            <h3>${escapeHtml(CATEGORY_LABEL[category])}</h3>
+            <ul class="terms">${items.map(termHtml).join('')}</ul>
+          </section>`
+      })
+      .join('')
+  }
 
-  return `<div class="actions">
+  const found = searchTerms(query)
+  if (found.length === 0) {
+    return `<p class="empty">그 말은 아직 용어집에 없습니다.</p>`
+  }
+
+  // 결과는 맞은 자리(표제어 먼저) 순서라 분류로 다시 묶지 않는다 — 묶으면 그 순서가 깨진다.
+  return `<p class="hint">${found.length}개를 찾았습니다.</p>
+    <ul class="terms">${found.map(termHtml).join('')}</ul>`
+}
+
+export function termsHtml(query = ''): string {
+  return `<div class="finder">
+      <label class="search">
+        찾기
+        <input type="search" id="terms-search" value="${escapeHtml(query)}"
+          placeholder="용어 · 영어 표기 · 뜻" autocomplete="off" />
+      </label>
+    </div>
+
+    <div class="actions">
       <button type="button" id="quiz-start">퀴즈 풀기 · ${QUIZ_LENGTH}문제</button>
     </div>
-    ${groups}`
+
+    <div id="terms-results">${termsResultsHtml(query)}</div>`
 }
 
 /** 한 판에 내는 문제 수. 폰에서 한 번에 끝낼 수 있는 길이로 잡았다. */
