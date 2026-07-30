@@ -82,6 +82,29 @@ export function splitTimeInput(
   }
 }
 
+/**
+ * 칸 구성이 바뀌어도 **같은 기록을 가리키게** 두 칸을 다시 접는다.
+ *
+ * 100m→50m 이면 분을 초로 내리고(1:25.00 → 85.00), 50m→100m 이면 60초 이상을 분으로 올린다.
+ *
+ * 읽을 수 없는 입력은 접어 옮길 값이 없다. 이때 **분 칸만 비우면 남은 초 칸이 다른
+ * 기록으로 읽힌다** — `1분` `85.00초`(거부되는 조합)에서 분만 지우면 `85.00` 이 남아
+ * 1:25.00 이 되고, 회원이 뜻한 2:25.00 에서 1분이 조용히 사라진다. 분 칸이 숨을 때는
+ * 두 칸을 함께 비워 되읽을 값을 남기지 않는다.
+ */
+export function refoldTimeInput(
+  minutes: string,
+  seconds: string,
+  secondsOnly: boolean,
+): { minutes: string; seconds: string } {
+  const cs = composeTimeInput(minutes, seconds)
+  if (cs === null) {
+    // 분 칸이 보이는 채로 남으면 회원이 직접 고칠 수 있다. 그때는 그대로 둔다.
+    return secondsOnly ? { minutes: '', seconds: '' } : { minutes, seconds }
+  }
+  return splitTimeInput(cs, secondsOnly)
+}
+
 /** centisecond 를 "1:23.45" 로. 1분 미만이면 "23.45". */
 export function formatTime(cs: number): string {
   const rounded = Math.round(cs)

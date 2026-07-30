@@ -5,7 +5,7 @@
  * 결과를 붙이고 저장한다. 라우팅은 해시로만 한다 — 정적 호스팅에는 서버 라우터가 없다.
  */
 import { grade } from './grading'
-import { composeTimeInput, formatTime, splitTimeInput } from './pace'
+import { composeTimeInput, formatTime, refoldTimeInput, splitTimeInput } from './pace'
 import { weekDays, weeklyPlan } from './plan'
 import { pickQuote } from './quotes'
 import { addLog, addRecord, load, removeRecord, saveProfile } from './storage'
@@ -56,21 +56,9 @@ const inputs = {
   weight: $<HTMLInputElement>('weight'),
 }
 
-/**
- * 칸 구성이 바뀌어도 **같은 기록을 가리키게** 다시 접는다.
- *
- * 100m→50m 이면 분을 초로 내리고(1:25.00 → 85.00), 50m→100m 이면 60초 이상을
- * 분으로 올린다. 분 칸을 그냥 지우면 1:25.00 이 25.00 이 되어 조용히 1분이 사라진다.
- */
+/** 접는 판단은 `refoldTimeInput` 이 한다. 여기는 그 결과를 칸에 넣기만 한다. */
 function refoldTime(min: HTMLInputElement, sec: HTMLInputElement, secondsOnly: boolean): void {
-  const cs = composeTimeInput(min.value, sec.value)
-  if (cs === null) {
-    // 읽을 수 없는 입력이라 보존할 값이 없다. 숨는 칸만 비운다.
-    if (secondsOnly) min.value = ''
-    return
-  }
-
-  const next = splitTimeInput(cs, secondsOnly)
+  const next = refoldTimeInput(min.value, sec.value, secondsOnly)
   min.value = next.minutes
   sec.value = next.seconds
 }

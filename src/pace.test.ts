@@ -6,6 +6,7 @@ import {
   improvementPercent,
   parseTime,
   racePace25,
+  refoldTimeInput,
   splitTargets,
   splitTimeInput,
 } from './pace'
@@ -71,6 +72,46 @@ describe('splitTimeInput · composeTimeInput 의 역', () => {
       const flat = splitTimeInput(cs, true)
       expect(composeTimeInput(flat.minutes, flat.seconds)).toBe(cs)
     }
+  })
+})
+
+describe('refoldTimeInput · 거리를 바꿔도 같은 기록을 가리킨다', () => {
+  test('100m→50m 는 분을 초로 내린다', () => {
+    expect(refoldTimeInput('1', '25.00', true)).toEqual({ minutes: '', seconds: '85.00' })
+  })
+
+  test('50m→100m 는 60초 이상을 분으로 올린다', () => {
+    expect(refoldTimeInput('', '85.00', false)).toEqual({ minutes: '1', seconds: '25.00' })
+  })
+
+  // 이 조합은 `composeTimeInput` 이 거부한다. 분 칸만 비우면 남은 `85.00` 이
+  // 1:25.00 으로 읽혀 회원이 뜻한 2:25.00 에서 1분이 조용히 사라진다.
+  test('읽을 수 없는 입력에서 분만 지우지 않는다 — 초 칸이 다른 기록이 된다', () => {
+    expect(refoldTimeInput('1', '85.00', true)).toEqual({ minutes: '', seconds: '' })
+  })
+
+  test('분 칸이 남아 있으면 손대지 않는다 — 회원이 직접 고칠 수 있다', () => {
+    expect(refoldTimeInput('1', '85.00', false)).toEqual({ minutes: '1', seconds: '85.00' })
+    expect(refoldTimeInput('x', '25.00', false)).toEqual({ minutes: 'x', seconds: '25.00' })
+  })
+
+  test('초 칸이 비어 있으면 숨는 김에 분 칸도 비운다', () => {
+    expect(refoldTimeInput('1', '', true)).toEqual({ minutes: '', seconds: '' })
+  })
+
+  test('거리를 왕복해도 값이 보존된다', () => {
+    for (const cs of [1320, 2845, 6530, 8500, 12500]) {
+      const flat = splitTimeInput(cs, true)
+      const up = refoldTimeInput(flat.minutes, flat.seconds, false)
+      const down = refoldTimeInput(up.minutes, up.seconds, true)
+      expect(composeTimeInput(up.minutes, up.seconds)).toBe(cs)
+      expect(composeTimeInput(down.minutes, down.seconds)).toBe(cs)
+    }
+  })
+
+  // 25m 기록은 분이 붙을 일이 없다. 초 칸만으로 왕복해야 한다.
+  test('25m 짧은 기록', () => {
+    expect(refoldTimeInput('', '13.20', true)).toEqual({ minutes: '', seconds: '13.20' })
   })
 })
 
