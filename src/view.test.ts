@@ -3,7 +3,7 @@ import { grade } from './grading'
 import { parseTime } from './pace'
 import { weekDays, weeklyPlan } from './plan'
 import { type AthleteQuote, QUOTES } from './quotes'
-import { buildQuiz, quizVerdict } from './terms'
+import { buildQuiz, quizVerdict, TERMS } from './terms'
 import type { Body, Profile, RecordEntry } from './types'
 import {
   CAFE_URL,
@@ -471,5 +471,22 @@ describe('recordsHtml', () => {
 
   test('기록이 없으면 추가하라고 안내한다', () => {
     expect(recordsHtml([], event, 'M')).toContain('아직 없습니다')
+  })
+})
+
+describe('용어 화면의 강조', () => {
+  // 지상훈련 cue 에서 별표가 그대로 찍혔던 것과 같은 문제다. 용어집의 short·detail
+  // 에도 **강조**가 쓰이므로 통과시키지 않으면 별표가 화면에 남는다.
+  test('용어 설명의 강조가 별표로 남지 않는다', () => {
+    const html = termsResultsHtml('오픈턴')
+    expect(html).toContain('<strong>양손 동시 터치</strong>')
+    expect(html).not.toContain('**')
+  })
+
+  test('퀴즈 문제와 설명의 강조도 별표로 남지 않는다', () => {
+    const build = buildQuiz(TERMS.length, () => 0.5)
+    const withBold = build.find((q) => q.prompt.includes('**') || q.explain.includes('**'))!
+    const html = quizQuestionHtml(withBold, 0, 10) + quizAnswerHtml(withBold, 0, false)
+    expect(html).not.toContain('**')
   })
 })

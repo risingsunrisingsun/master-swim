@@ -96,6 +96,30 @@ export const TERMS: readonly Term[] = [
     short: '한 팔이 앞에서 기다렸다가 다른 팔이 도착하면 출발하는 드릴.',
     detail: '스트로크를 느리게 쪼개 각 구간을 확인하는 용도다. 레이스 자세는 아니다.',
   },
+  {
+    id: 'bilateral',
+    term: '양측 호흡',
+    english: 'bilateral breathing',
+    category: 'technique',
+    short: '좌우 번갈아 숨을 쉬는 것. 보통 3회마다 쉬면 그렇게 된다.',
+    detail: '한쪽으로만 쉬면 그쪽 롤링만 커지고 반대쪽 캐치가 얕아진다. 숨을 참는 훈련이 아니라 양쪽을 쓰는 훈련이다.',
+  },
+  {
+    id: 'breath-timing',
+    term: '호흡 타이밍',
+    english: 'breathing timing',
+    category: 'technique',
+    short: '머리를 롤링에 얹어 옆으로 돌리며 숨을 쉬는 시점.',
+    detail: '고개를 들어 쉬면 엉덩이가 가라앉는다. 한쪽 고글은 물에 잠긴 채로 두는 것이 기준이다.',
+  },
+  {
+    id: 'hypoxic',
+    term: '저호흡 훈련',
+    english: 'hypoxic training',
+    category: 'training',
+    short: '숨을 일부러 참거나 호흡 횟수를 줄여 하는 훈련.',
+    detail: '**이 앱은 처방하지 않는다.** 물속 의식 소실(shallow water blackout)이 조용히 일어나 옆에서도 알아채지 못한다. 호흡이 힘들면 참는 것이 아니라 타이밍과 배분을 고친다.',
+  },
 
   // --- 벽 -----------------------------------------------------------------
   {

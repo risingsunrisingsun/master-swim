@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { grade } from './grading'
 import { parseTime } from './pace'
-import { weekDays, weeklyMeters, weeklyPlan } from './plan'
+import { weekDays, weeklyMeters, weeklyPlan, type Purpose } from './plan'
 import type { Distance, Profile, Stroke } from './types'
 
 const at = (time: string): number => parseTime(time)!
@@ -171,5 +171,56 @@ describe('거리 합계', () => {
   test('주간 합계는 세션 합의 총합이다', () => {
     const plan = planFor()
     expect(weeklyMeters(plan)).toBe(plan.reduce((sum, session) => sum + session.meters, 0))
+  })
+})
+
+describe('목적', () => {
+  const gradingFor = (p: Profile) => grade(p.goal.currentCs, p.goal.event, p.sex, p.load)
+  const focuses = (p: Profile, purpose?: Purpose) =>
+    weeklyPlan(p, gradingFor(p), purpose).map((session) => session.focus)
+
+  // 목적을 고르지 않던 때와 같은 플랜이 나와야 한다.
+  test('기본값은 기록 단축이고 목적을 안 넘긴 것과 같다', () => {
+    const p = profileFor({ sessions: 5 })
+    expect(focuses(p)).toEqual(focuses(p, 'faster'))
+  })
+
+  test('고른 목적이 첫 세션으로 온다', () => {
+    const p = profileFor({ sessions: 3 })
+    expect(focuses(p, 'form')[0]).toBe('technique')
+    expect(focuses(p, 'breathing')[0]).toBe('breathing')
+    expect(focuses(p, 'faster')[0]).toBe('racePace')
+  })
+
+  // 한 가지만 파면 나머지가 무너진다. 주 5회면 다섯 성격이 다 들어와야 한다.
+  test('주 5회면 어느 목적이든 다섯 성격이 모두 들어간다', () => {
+    const p = profileFor({ sessions: 5 })
+    for (const purpose of ['faster', 'form', 'breathing', 'injury'] as Purpose[]) {
+      expect(new Set(focuses(p, purpose)).size).toBe(5)
+    }
+  })
+
+  // 부상 예방은 강도를 맨 뒤로 밀어 적게 나오는 회원에게 배정되지 않게 한다.
+  test('부상 예방은 주 3회까지 최대 속도를 넣지 않는다', () => {
+    const p = profileFor({ sessions: 3 })
+    expect(focuses(p, 'injury')).not.toContain('speed')
+  })
+
+  test('호흡 세션은 호흡 방법으로 채워진다', () => {
+    const p = profileFor({ sessions: 3 })
+    const session = weeklyPlan(p, gradingFor(p), 'breathing')[0]!
+    const pool = session.items.filter((item) => item.method.kind === 'pool')
+    expect(pool.length).toBeGreaterThan(0)
+    for (const item of pool) expect(item.method.category).toBe('breathing')
+  })
+
+  // 100m 는 후반에 숨이 무너지므로 배분이, 50m 는 배분할 구간이 짧아 좌우 균형이 먼저다.
+  test('호흡 세션의 주역이 거리에 따라 갈린다', () => {
+    const long = profileFor({ distance: 100, sessions: 3 })
+    const short = profileFor({ distance: 50, sessions: 3 })
+    const mainOf = (p: Profile) =>
+      weeklyPlan(p, gradingFor(p), 'breathing')[0]!.items.find((i) => i.role === 'main')!.method.id
+    expect(mainOf(long)).toBe('breath-plan')
+    expect(mainOf(short)).toBe('bilateral')
   })
 })

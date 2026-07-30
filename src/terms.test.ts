@@ -164,3 +164,18 @@ describe('searchTerms', () => {
     expect(searchTerms('싱크로나이즈드')).toEqual([])
   })
 })
+
+describe('호흡 용어', () => {
+  // 저호흡은 물속 의식 소실 위험이 있어 처방하지 않는다. 용어집에는 두되
+  // 처방하지 않는다는 사실을 함께 적어야 회원이 어디서 듣고 와도 알 수 있다.
+  test('저호흡은 처방하지 않는다고 밝힌다', () => {
+    const term = termById('hypoxic')!
+    expect(term.detail).toContain('처방하지 않는다')
+    expect(term.detail).toContain('의식 소실')
+  })
+
+  test('양측 호흡과 호흡 타이밍이 용어집에 있다', () => {
+    expect(termById('bilateral')).toBeDefined()
+    expect(termById('breath-timing')).toBeDefined()
+  })
+})

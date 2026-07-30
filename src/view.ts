@@ -292,8 +292,8 @@ function termHtml(term: Term): string {
         <strong>${escapeHtml(term.term)}</strong>
         ${term.english ? `<span class="en">${escapeHtml(term.english)}</span>` : ''}
       </div>
-      <p class="term-short">${escapeHtml(term.short)}</p>
-      ${term.detail ? `<p class="hint">${escapeHtml(term.detail)}</p>` : ''}
+      <p class="term-short">${bold(term.short)}</p>
+      ${term.detail ? `<p class="hint">${bold(term.detail)}</p>` : ''}
     </li>`
 }
 
@@ -355,8 +355,10 @@ export function quizQuestionHtml(question: QuizQuestion, index: number, total: n
     )
     .join('')
 
+  // 문제와 설명은 용어집의 `short`·`detail` 그대로다. 거기에 쓰인 **강조**를
+  // 통과시키지 않으면 별표가 화면에 찍힌다.
   return `<p class="quiz-progress">${index + 1} / ${total}</p>
-    <p class="quiz-prompt">${escapeHtml(question.prompt)}</p>
+    <p class="quiz-prompt">${bold(question.prompt)}</p>
     <div class="quiz-options">${options}</div>`
 }
 
@@ -366,7 +368,7 @@ export function quizAnswerHtml(question: QuizQuestion, picked: number, last: boo
   return `<p class="quiz-verdict ${correct ? 'ok' : 'no'}">
       ${correct ? '정답' : `오답 · 답은 <strong>${escapeHtml(question.options[question.answer]!)}</strong>`}
     </p>
-    <p class="hint">${escapeHtml(question.explain)}</p>
+    <p class="hint">${bold(question.explain)}</p>
     <button type="button" id="quiz-next">${last ? '결과 보기' : '다음 문제'}</button>`
 }
 

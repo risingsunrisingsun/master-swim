@@ -132,3 +132,27 @@ describe('안전 관련', () => {
     expect(methodById('underwater')!.cautions.join(' ')).toContain('의식 소실')
   })
 })
+
+describe('호흡 방법의 안전 경계', () => {
+  const breathing = METHODS.filter((method) => method.category === 'breathing')
+
+  test('호흡 방법이 있다', () => {
+    expect(breathing.length).toBeGreaterThan(0)
+  })
+
+  // 저호흡·숨참기는 물속 의식 소실로 이어질 수 있고, 그것은 조용히 일어나
+  // 옆 레인에서도 알아채지 못한다. 처방에 들어가면 안 된다.
+  test('숨을 참거나 줄이라고 지시하지 않는다', () => {
+    for (const method of breathing) {
+      const text = [method.purpose, method.principle, ...method.cautions].join(' ')
+      expect(text).not.toContain('숨을 참고')
+      expect(text).not.toContain('호흡을 줄여')
+      expect(text).not.toContain('저호흡')
+    }
+  })
+
+  test('숨이 차면 멈추라는 말이 주의문에 있다', () => {
+    const cautions = breathing.flatMap((method) => method.cautions).join(' ')
+    expect(cautions).toContain('멈춘다')
+  })
+})

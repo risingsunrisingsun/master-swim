@@ -19,26 +19,67 @@ import {
 import { racePace25 } from './pace'
 import type { Distance, Level, Profile } from './types'
 
-export type SessionFocus = 'racePace' | 'speed' | 'wall' | 'technique' | 'endurance'
+export type SessionFocus = 'racePace' | 'speed' | 'wall' | 'technique' | 'breathing' | 'endurance'
 
 export const FOCUS_TITLE: Record<SessionFocus, string> = {
   racePace: '레이스 페이스',
   speed: '최대 속도',
   wall: '벽 구간',
   technique: '기술',
+  breathing: '호흡',
   endurance: '지속력 · 회복',
 }
 
 /**
- * 목표 거리별 세션 우선순위. 주간 횟수만큼 앞에서부터 잘라 쓴다.
+ * 회원이 고르는 목적. 무엇을 얻으려고 왔는가.
+ *
+ * 세션의 **순서**만 바꾼다. 어느 목적을 골라도 다섯 성격이 모두 한 주에 들어가고,
+ * 고른 것이 앞으로 온다 — 주 2회 나오는 회원은 앞의 둘만 받는다.
+ * 하나만 남기지 않는 이유는 한 가지만 파면 나머지가 무너지기 때문이다.
+ */
+export type Purpose = 'faster' | 'form' | 'breathing' | 'injury'
+
+export const PURPOSE_LABEL: Record<Purpose, string> = {
+  faster: '기록 단축',
+  form: '영법 교정',
+  breathing: '호흡',
+  injury: '부상 예방',
+}
+
+/**
+ * 목적 · 목표 거리별 세션 우선순위. 주간 횟수만큼 앞에서부터 잘라 쓴다.
+ *
+ * `faster` 는 이 앱의 기본값이고 **거리별 값이 예전 그대로다** — 목적을 고르지 않던
+ * 때와 같은 플랜이 나온다.
  *
  * 25m 는 스타트와 잠영이 기록의 3~4할이라 벽 구간이 최대 속도보다 앞선다.
  * 100m 는 턴이 세 개라 벽 구간이 앞서고, 후반 유지 때문에 지속력이 최대 속도를 밀어낸다.
  */
-const FOCUS_PRIORITY: Record<Distance, readonly SessionFocus[]> = {
-  25: ['racePace', 'wall', 'speed', 'technique', 'endurance'],
-  50: ['racePace', 'speed', 'wall', 'technique', 'endurance'],
-  100: ['racePace', 'wall', 'endurance', 'technique', 'speed'],
+const FOCUS_PRIORITY: Record<Purpose, Record<Distance, readonly SessionFocus[]>> = {
+  faster: {
+    25: ['racePace', 'wall', 'speed', 'technique', 'endurance'],
+    50: ['racePace', 'speed', 'wall', 'technique', 'endurance'],
+    100: ['racePace', 'wall', 'endurance', 'technique', 'speed'],
+  },
+  // 기술이 주역이고 레이스 페이스가 바로 뒤를 받친다 — 고친 자세가 속도에서도
+  // 남는지 확인하지 않으면 드릴을 위한 드릴이 된다.
+  form: {
+    25: ['technique', 'racePace', 'wall', 'speed', 'endurance'],
+    50: ['technique', 'racePace', 'wall', 'speed', 'endurance'],
+    100: ['technique', 'racePace', 'wall', 'endurance', 'speed'],
+  },
+  breathing: {
+    25: ['breathing', 'technique', 'racePace', 'wall', 'endurance'],
+    50: ['breathing', 'technique', 'racePace', 'endurance', 'wall'],
+    100: ['breathing', 'technique', 'racePace', 'endurance', 'wall'],
+  },
+  // 강도를 앞에 두지 않는다. 최대 속도는 맨 뒤로 밀어 주 2~3회 나오는 회원에게는
+  // 아예 배정되지 않게 한다.
+  injury: {
+    25: ['technique', 'endurance', 'racePace', 'wall', 'speed'],
+    50: ['technique', 'endurance', 'racePace', 'wall', 'speed'],
+    100: ['technique', 'endurance', 'racePace', 'wall', 'speed'],
+  },
 }
 
 /** 세션을 이루는 수영장 방법. 목표 거리와 강도 등급에 따라 갈린다. */
@@ -57,6 +98,10 @@ function poolIdsFor(focus: SessionFocus, distance: Distance, intensity: Level): 
       return isLong ? ['turns', 'underwater'] : ['underwater', 'starts']
     case 'technique':
       return ['drills', 'dps']
+    case 'breathing':
+      // 100m 는 후반에 숨이 무너지므로 배분이 주역이고, 50m 는 배분할 구간이
+      // 짧아 좌우 균형을 먼저 잡는다.
+      return isLong ? ['breath-plan', 'bilateral'] : ['bilateral', 'breath-timing']
     case 'endurance':
       return ['aerobic', 'recovery']
   }
@@ -71,6 +116,8 @@ const DRYLAND_AFTER: Record<SessionFocus, string> = {
   speed: 'lower-power',
   wall: 'lower-power',
   technique: 'rotator-cuff',
+  // 호흡할 때 몸이 흔들리는 것은 몸통이 못 버텨서인 경우가 많다.
+  breathing: 'core-antirotation',
   endurance: 'rotator-cuff',
 }
 
@@ -171,10 +218,15 @@ function buildSession(
  * 한 주 계획. 주간 횟수가 우선순위 목록보다 많으면 앞에서부터 다시 돌아
  * 레이스 페이스 세션이 한 주에 두 번 들어간다 — 가장 중요한 것을 반복한다.
  */
-export function weeklyPlan(profile: Profile, grading: Grading): PlannedSession[] {
+export function weeklyPlan(
+  profile: Profile,
+  grading: Grading,
+  // 목적을 고르지 않은 회원(마법사 이전에 저장한 프로필)은 기록 단축으로 본다.
+  purpose: Purpose = 'faster',
+): PlannedSession[] {
   const { event, targetCs } = profile.goal
   const pace25Cs = racePace25(targetCs, event.distance)
-  const priority = FOCUS_PRIORITY[event.distance]
+  const priority = FOCUS_PRIORITY[purpose][event.distance]
 
   const sessions = Math.max(1, Math.min(7, Math.round(profile.load.sessionsPerWeek)))
 
@@ -194,6 +246,8 @@ export const SESSION_MET: Record<SessionFocus, number> = {
   speed: 8.3,
   wall: 7.0,
   technique: 6.0,
+  // 드릴 위주라 기술 세션과 같은 강도다.
+  breathing: 6.0,
   endurance: 7.0,
 }
 

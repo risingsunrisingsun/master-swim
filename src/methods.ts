@@ -16,6 +16,7 @@ export type MethodCategory =
   | 'speed' // 최대 속도·파워
   | 'wall' // 스타트·턴·언더워터
   | 'technique' // 기술·스트로크 길이
+  | 'breathing' // 호흡 — 타이밍과 배분
   | 'aerobic' // 기초 지속력·회복
   | 'test' // 측정
   | 'dryland' // 육상
@@ -394,6 +395,71 @@ const POOL_METHODS: TrainingMethod[] = [
       elite: { reps: 20, distance: 25, restCs: 15 * SECONDS, paceOffsetCs: 0, effort: 'easy', note: '판 없이, 4개마다 전력 1개' },
     },
   },
+  // -------------------------------------------------------------------------
+  // 호흡
+  //
+  // **저호흡(hypoxic) 세트를 넣지 않는다.** 숨을 참거나 호흡을 의도적으로 줄이는
+  // 훈련은 물속 의식 소실(shallow water blackout)로 이어질 수 있고, 그것은 조용히
+  // 일어나 옆 레인에서도 알아채지 못한다. 마스터즈 동호회에는 감시할 코치가 상시
+  // 붙어 있지 않다. 여기 세 방법은 **숨을 더 잘 쉬는 법**이지 덜 쉬는 법이 아니다.
+  // -------------------------------------------------------------------------
+  {
+    kind: 'pool',
+    id: 'bilateral',
+    name: '양측 호흡',
+    category: 'breathing',
+    purpose: '한쪽으로만 쉬느라 생긴 좌우 불균형을 없앤다.',
+    principle:
+      '늘 같은 쪽으로 숨을 쉬면 그쪽 롤링만 커지고 반대쪽 캐치가 얕아진다. 몸이 한쪽으로 휘어 직진성도 떨어진다. 3회마다 쉬면 좌우가 번갈아 나와 균형이 잡힌다.',
+    cautions: [
+      '숨을 참는 훈련이 아니다. 3회마다가 힘들면 2회로 줄이고, 그래도 숨이 차면 이 세트를 멈춘다.',
+      '반대쪽 호흡은 처음에 물을 먹는다. 25m 씩 짧게 끊어 익히고 거리를 늘린다.',
+    ],
+    levels: {
+      beginner: { reps: 6, distance: 25, restCs: 25 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '3회마다 호흡. 반대쪽이 어려우면 25m 씩 번갈아' },
+      intermediate: { reps: 8, distance: 50, restCs: 20 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '3회마다 호흡' },
+      advanced: { reps: 8, distance: 50, restCs: 20 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '3회마다 호흡, 절반은 5회마다' },
+      elite: { reps: 10, distance: 50, restCs: 15 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '3회·5회를 번갈아' },
+    },
+  },
+  {
+    kind: 'pool',
+    id: 'breath-timing',
+    name: '호흡 타이밍 드릴',
+    category: 'breathing',
+    purpose: '숨을 쉬느라 무너지는 자세를 붙잡는다.',
+    principle:
+      '고개를 들어 쉬면 엉덩이가 가라앉고 그 순간 속도가 죽는다. 머리는 롤링을 따라 옆으로 돌아야 하고 한쪽 고글은 물에 잠긴 채여야 한다. 스노클을 끼면 호흡 동작이 빠져 자세만 따로 볼 수 있다.',
+    cautions: [
+      '스노클이 없으면 한팔 드릴로 대신한다 — 쉬는 쪽 팔을 앞에 두고 그 겨드랑이로 숨을 찾는다.',
+      '목이 아프면 그만한다. 고개를 젖혀 쉬고 있다는 뜻이다.',
+    ],
+    levels: {
+      beginner: { reps: 8, distance: 25, restCs: 25 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '스노클 또는 한팔. 시선은 옆, 아래가 아니다' },
+      intermediate: { reps: 10, distance: 25, restCs: 20 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '드릴 2개 + 전체 동작 1개씩 번갈아' },
+      advanced: { reps: 12, distance: 25, restCs: 15 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '드릴 1 + 전체 1. 전체에서도 자세가 남는지 확인' },
+      elite: { reps: 12, distance: 25, restCs: 15 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '레이스 페이스에서도 머리가 뜨지 않는지' },
+    },
+  },
+  {
+    kind: 'pool',
+    id: 'breath-plan',
+    name: '레이스 호흡 배분',
+    category: 'breathing',
+    purpose: '대회에서 어디서 쉴지를 미리 정해 둔다.',
+    principle:
+      '숨이 급해진 뒤에 쉴 곳을 찾으면 이미 늦다. 100m 라면 첫 25m 는 적게, 마지막 25m 는 필요한 만큼 쉬는 배분을 훈련에서 몸에 넣어두어야 대회에서 그대로 나온다.',
+    cautions: [
+      '배분은 정하는 것이지 참는 것이 아니다. 정한 지점보다 일찍 숨이 차면 그 자리에서 쉰다.',
+      '50m 는 배분할 구간이 짧다. 스타트 후 첫 호흡 시점만 정해 둔다.',
+    ],
+    levels: {
+      beginner: { reps: 4, distance: 0, restCs: null, paceOffsetCs: 200, effort: 'technique', note: '어디서 쉬었는지만 세어 본다. 완전 회복' },
+      intermediate: { reps: 4, distance: 0, restCs: null, paceOffsetCs: 100, effort: 'technique', note: '정한 지점에서 쉬어 본다. 완전 회복' },
+      advanced: { reps: 5, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '목표 페이스로 배분을 지킨다. 완전 회복' },
+      elite: { reps: 6, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '마지막 둘은 대회 배분 그대로. 완전 회복' },
+    },
+  },
   {
     kind: 'pool',
     id: 'aerobic',
@@ -555,6 +621,7 @@ export const CATEGORY_LABEL: Record<MethodCategory, string> = {
   speed: '최대 속도 · 파워',
   wall: '벽 구간 (스타트 · 턴 · 잠영)',
   technique: '기술',
+  breathing: '호흡',
   aerobic: '지속력 · 회복',
   test: '측정',
   dryland: '육상',
