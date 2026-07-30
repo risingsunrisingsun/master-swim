@@ -996,9 +996,36 @@ footer p {
   gap: 0.1rem;
 }
 
-.videos a {
+/* 그림 + 글 한 줄. 그림이 못 오면 스스로 빠지고(onerror) 글만 남는데,
+   그때 첫 칸이 비지 않도록 너비를 auto 로 둔다. */
+.video {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.6rem;
   font-size: 0.85rem;
   color: var(--accent);
+  text-decoration: none;
+}
+
+.video-thumb {
+  width: 96px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--line);
+  display: block;
+}
+
+.video-text {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.video-title {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .channel {

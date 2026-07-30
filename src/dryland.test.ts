@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { DRYLAND_SETS, searchDryland, setsFor, videoUrl } from './dryland'
+import { DRYLAND_SETS, searchDryland, setsFor, thumbnailUrl, videoUrl } from './dryland'
 import { methodById } from './methods'
 import type { Stroke } from './types'
 
@@ -73,6 +73,19 @@ describe('영상 링크', () => {
     expect(videoUrl({ id: 'abc12345678', title: 't', channel: 'c' })).toBe(
       'https://www.youtube.com/watch?v=abc12345678',
     )
+  })
+
+  // mqdefault 는 어느 영상에나 반드시 있다. maxresdefault 는 없는 영상이 있어 빈칸이 된다.
+  test('thumbnailUrl 이 mqdefault 주소를 만든다', () => {
+    expect(thumbnailUrl({ id: 'abc12345678', title: 't', channel: 'c' })).toBe(
+      'https://img.youtube.com/vi/abc12345678/mqdefault.jpg',
+    )
+  })
+
+  // 받아서 저장소에 넣으면 재배포가 된다. 그것은 어록 사진에 세운 원칙과 결이 다르다.
+  test('썸네일을 저장소에 받아두지 않는다', async () => {
+    expect(await Bun.file('web/dryland').exists()).toBe(false)
+    expect(await Bun.file('src/sw.ts').text()).not.toContain('img.youtube.com')
   })
 })
 

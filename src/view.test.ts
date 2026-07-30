@@ -267,6 +267,29 @@ describe('지상훈련 화면', () => {
     expect(html).toContain('class="channel"')
   })
 
+  test('영상마다 미리보기 그림이 붙는다', () => {
+    const html = drylandHtml('free')
+    expect(html).toContain('https://img.youtube.com/vi/')
+    expect(html).toContain('loading="lazy"')
+  })
+
+  // 그림이 못 오면 스스로 빠지고 제목·채널명이 남아야 한다.
+  test('그림이 실패하면 스스로 빠진다', () => {
+    expect(drylandHtml('free')).toContain('onerror="this.remove()"')
+  })
+
+  // 제목이 바로 옆에 글로 있다. alt 에 같은 말을 넣으면 두 번 읽어준다.
+  test('미리보기 그림의 alt 는 비어 있다', () => {
+    expect(drylandHtml('free')).toContain('alt=""')
+  })
+
+  // 그림이 늦게 와도 글이 밀리면 안 된다.
+  test('미리보기 그림에 크기가 박혀 있다', () => {
+    const html = drylandHtml('free')
+    expect(html).toContain('width="320"')
+    expect(html).toContain('height="180"')
+  })
+
   // 내용을 보증하지 않는다는 사실이 화면에 있어야 한다.
   test('영상을 보증하지 않는다는 안내가 있다', () => {
     expect(drylandHtml('free')).toContain('보증하지 않습니다')

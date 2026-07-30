@@ -319,3 +319,20 @@ export function searchDryland(query: string): readonly DrylandSet[] {
 export function videoUrl(video: VideoLink): string {
   return `https://www.youtube.com/watch?v=${video.id}`
 }
+
+/**
+ * 영상 미리보기 그림.
+ *
+ * 유튜브가 영상 id 로 바로 내주는 주소라 **파일을 받아 둘 필요가 없다.** 받아서
+ * 저장소에 넣으면 재배포가 되고, 그것은 어록 사진에 세운 "라이선스를 확인한 것만
+ * 쓴다"는 원칙과 결이 다르다. 핫링크는 유튜브가 허용하는 방식이다.
+ *
+ * `mqdefault` 는 320×180 이다. 카드 폭에 맞고 어느 영상에나 반드시 있다 —
+ * `maxresdefault` 는 없는 영상이 있어 빈칸이 된다.
+ *
+ * 링크가 죽거나 네트워크가 끊기면 그림이 안 온다. 그때는 화면이 제목·채널명만
+ * 남기고 넘어간다(`view.ts` 의 `onerror`).
+ */
+export function thumbnailUrl(video: VideoLink): string {
+  return `https://img.youtube.com/vi/${video.id}/mqdefault.jpg`
+}

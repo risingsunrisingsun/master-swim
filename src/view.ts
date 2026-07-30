@@ -6,7 +6,14 @@
  */
 import { standing, toNextLevel } from './benchmark'
 import { EMPTY_CHART_HTML, recordChart, type ChartBand, type ChartPoint } from './chart'
-import { type DrylandSet, searchDryland, setsFor, videoUrl, type VideoLink } from './dryland'
+import {
+  type DrylandSet,
+  searchDryland,
+  setsFor,
+  thumbnailUrl,
+  videoUrl,
+  type VideoLink,
+} from './dryland'
 import { levelBoundaries, type Grading } from './grading'
 import { verdict, type SetLog } from './log'
 import { dailyDiet, GROUP_LABEL, REPRESENTATIVE, type DailyDiet } from './nutrition'
@@ -155,16 +162,31 @@ export const HOME_HTML = `<nav class="home">
 // 지상훈련
 // ---------------------------------------------------------------------------
 
+/**
+ * 영상 카드. 미리보기 그림 + 제목 + 채널명.
+ *
+ * **`onerror="this.remove()"`** — 링크가 죽거나 네트워크가 끊기면 그림만 스스로
+ * 빠지고 제목·채널명이 남는다. 깨진 이미지 아이콘을 띄우느니 없던 것처럼 두는 편이 낫다.
+ *
+ * `alt` 가 비어 있는 것은 실수가 아니다. 바로 옆에 제목이 글로 있으므로 같은 말을
+ * 두 번 읽어주게 된다 — 화면 낭독기에는 장식으로 알리는 편이 맞다.
+ *
+ * `width`·`height` 를 박아 그림이 늦게 와도 글이 밀리지 않게 한다.
+ */
 function videoListHtml(videos: readonly VideoLink[]): string {
   if (videos.length === 0) return ''
 
   const items = videos
     .map(
       (video) => `<li>
-          <a href="${escapeHtml(videoUrl(video))}" target="_blank" rel="noopener noreferrer">
-            ${escapeHtml(video.title)}
+          <a class="video" href="${escapeHtml(videoUrl(video))}" target="_blank" rel="noopener noreferrer">
+            <img class="video-thumb" src="${escapeHtml(thumbnailUrl(video))}"
+              width="320" height="180" loading="lazy" alt="" onerror="this.remove()" />
+            <span class="video-text">
+              <span class="video-title">${escapeHtml(video.title)}</span>
+              <span class="channel">${escapeHtml(video.channel)}</span>
+            </span>
           </a>
-          <span class="channel">${escapeHtml(video.channel)}</span>
         </li>`,
     )
     .join('')
