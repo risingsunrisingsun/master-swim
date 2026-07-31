@@ -418,8 +418,8 @@ const POOL_METHODS: TrainingMethod[] = [
     levels: {
       beginner: { reps: 6, distance: 25, restCs: 25 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '3회마다 호흡. 반대쪽이 어려우면 25m 씩 번갈아' },
       intermediate: { reps: 8, distance: 50, restCs: 20 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '3회마다 호흡' },
-      advanced: { reps: 8, distance: 50, restCs: 20 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '3회마다 호흡, 절반은 5회마다' },
-      elite: { reps: 10, distance: 50, restCs: 15 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '3회·5회를 번갈아' },
+      advanced: { reps: 8, distance: 50, restCs: 20 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '3회마다 호흡, 절반은 반대쪽부터 시작' },
+      elite: { reps: 10, distance: 50, restCs: 15 * SECONDS, paceOffsetCs: 0, effort: 'technique', note: '3회마다 호흡, 25m 마다 시작 방향을 바꾼다' },
     },
   },
   {
@@ -454,8 +454,11 @@ const POOL_METHODS: TrainingMethod[] = [
       '50m 는 배분할 구간이 짧다. 스타트 후 첫 호흡 시점만 정해 둔다.',
     ],
     levels: {
-      beginner: { reps: 4, distance: 0, restCs: null, paceOffsetCs: 200, effort: 'technique', note: '어디서 쉬었는지만 세어 본다. 완전 회복' },
-      intermediate: { reps: 4, distance: 0, restCs: null, paceOffsetCs: 100, effort: 'technique', note: '정한 지점에서 쉬어 본다. 완전 회복' },
+      // 페이스 보정을 두지 않는다. `effort` 가 붙은 세트는 `describePoolSet` 이 목표
+      // 시간을 계산하기 전에 반환하므로 보정값이 화면에 한 글자도 뜨지 않는다 —
+      // 등급 차는 반복 수로만 낸다.
+      beginner: { reps: 4, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '어디서 쉬었는지만 세어 본다. 완전 회복' },
+      intermediate: { reps: 4, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '정한 지점에서 쉬어 본다. 완전 회복' },
       advanced: { reps: 5, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '목표 페이스로 배분을 지킨다. 완전 회복' },
       elite: { reps: 6, distance: 0, restCs: null, paceOffsetCs: 0, effort: 'technique', note: '마지막 둘은 대회 배분 그대로. 완전 회복' },
     },

@@ -144,10 +144,18 @@ describe('호흡 방법의 안전 경계', () => {
   // 옆 레인에서도 알아채지 못한다. 처방에 들어가면 안 된다.
   test('숨을 참거나 줄이라고 지시하지 않는다', () => {
     for (const method of breathing) {
-      const text = [method.purpose, method.principle, ...method.cautions].join(' ')
+      // note 까지 훑는다. 앞의 세 필드는 화면에 뜨지 않고, 회원이 실제로 보고
+      // 따라 하는 것은 세트 줄에 붙는 note 다 — 저호흡이 새어 들어온 자리가 거기였다.
+      const notes = Object.values(method.levels)
+        .map((spec) => (spec && 'note' in spec ? (spec.note ?? '') : ''))
+        .join(' ')
+      const text = [method.purpose, method.principle, ...method.cautions, notes].join(' ')
       expect(text).not.toContain('숨을 참고')
       expect(text).not.toContain('호흡을 줄여')
       expect(text).not.toContain('저호흡')
+      // 양측 호흡의 기준은 3회다. 그보다 드문 호흡은 횟수를 줄이는 것이고,
+      // 그것이 이 앱이 처방하지 않기로 한 저호흡이다(`terms.ts` 의 `hypoxic`).
+      expect(notes).not.toMatch(/[4-9]회마다/)
     }
   })
 
