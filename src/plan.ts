@@ -41,28 +41,30 @@ export const FOCUS_TITLE: Record<SessionFocus, string> = {
  */
 const FOCUS_PRIORITY: Record<Purpose, Record<Distance, readonly SessionFocus[]>> = {
   faster: {
-    25: ['racePace', 'wall', 'speed', 'technique', 'endurance'],
-    50: ['racePace', 'speed', 'wall', 'technique', 'endurance'],
-    100: ['racePace', 'wall', 'endurance', 'technique', 'speed'],
+    25: ['racePace', 'wall', 'speed', 'technique', 'endurance', 'breathing'],
+    50: ['racePace', 'speed', 'wall', 'technique', 'endurance', 'breathing'],
+    100: ['racePace', 'wall', 'endurance', 'technique', 'speed', 'breathing'],
   },
   // 기술이 주역이고 레이스 페이스가 바로 뒤를 받친다 — 고친 자세가 속도에서도
   // 남는지 확인하지 않으면 드릴을 위한 드릴이 된다.
   form: {
-    25: ['technique', 'racePace', 'wall', 'speed', 'endurance'],
-    50: ['technique', 'racePace', 'wall', 'speed', 'endurance'],
-    100: ['technique', 'racePace', 'wall', 'endurance', 'speed'],
+    25: ['technique', 'racePace', 'wall', 'speed', 'endurance', 'breathing'],
+    50: ['technique', 'racePace', 'wall', 'speed', 'endurance', 'breathing'],
+    100: ['technique', 'racePace', 'wall', 'endurance', 'speed', 'breathing'],
   },
+  // 최대 속도를 **뒤로 밀되 빼지는 않는다.** 호흡을 고쳐도 전 종목이 스프린트라는
+  // 사실은 달라지지 않는다 — 한 주기 내내 전력이 없으면 목표 페이스의 천장이 그대로다.
   breathing: {
-    25: ['breathing', 'technique', 'racePace', 'wall', 'endurance'],
-    50: ['breathing', 'technique', 'racePace', 'endurance', 'wall'],
-    100: ['breathing', 'technique', 'racePace', 'endurance', 'wall'],
+    25: ['breathing', 'technique', 'racePace', 'wall', 'speed', 'endurance'],
+    50: ['breathing', 'technique', 'racePace', 'endurance', 'speed', 'wall'],
+    100: ['breathing', 'technique', 'racePace', 'endurance', 'speed', 'wall'],
   },
   // 강도를 앞에 두지 않는다. 최대 속도는 맨 뒤로 밀어 주 2~3회 나오는 회원에게는
   // 아예 배정되지 않게 한다.
   injury: {
-    25: ['technique', 'endurance', 'racePace', 'wall', 'speed'],
-    50: ['technique', 'endurance', 'racePace', 'wall', 'speed'],
-    100: ['technique', 'endurance', 'racePace', 'wall', 'speed'],
+    25: ['technique', 'endurance', 'racePace', 'wall', 'speed', 'breathing'],
+    50: ['technique', 'endurance', 'racePace', 'wall', 'speed', 'breathing'],
+    100: ['technique', 'endurance', 'racePace', 'wall', 'speed', 'breathing'],
   },
 }
 
@@ -157,6 +159,44 @@ function drylandSpecFor(method: TrainingMethod, volume: Level): DrylandSpec | nu
   return method.kind === 'dryland' ? method.levels[volume] : null
 }
 
+/** 이지 스윔은 50m 단위로 끊는다. 25m 단수로에서 왕복 한 번이 최소 단위다. */
+const FILLER_STEP = 50
+
+/**
+ * 채우기의 상한. 이보다 더 모자라면 남겨 둔다.
+ *
+ * 회원이 적은 값이 실제보다 크게 적혀 있을 수 있고(주간 거리와 헷갈려 적는 일이 흔하다),
+ * 그때 이지 스윔 3,000m 를 처방하면 그날 훈련이 통째로 채우기가 된다. 화면의
+ * `계획 / 내가 적은 양` 이 남은 차이를 계속 보여주므로 회원이 스스로 판단할 수 있다.
+ */
+const FILLER_MAX_METERS = 2_000
+
+/**
+ * 선언한 세션 거리에 못 미치는 만큼을 **쉬운 헤엄**으로 채운다.
+ *
+ * 성격마다 질 위주 세트의 거리가 벽 구간 240m ~ 지속력 1,700m 로 7배 벌어진다. 그대로
+ * 두면 목적이 순서를 바꿀 때 무엇이 잘리느냐로 주간 총량이 배 넘게 흔들리고, 그날 식단
+ * 열량까지 함께 움직인다. 실제 훈련도 그렇게 하지 않는다 — 스타트 세션이라고 240m 만
+ * 하고 나오지 않고, 앞뒤로 편하게 헤엄쳐 그날의 거리를 채운다.
+ *
+ * **반복 수를 늘려 채우지 않는다.** 반복 수는 분량 등급이 정하고(`mergedPoolSpec`),
+ * 그 등급을 만드는 재료가 바로 이 '세션당 거리'다. 같은 값으로 반복 수를 다시 곱하면
+ * 등급이 눌러 둔 상한을 등급의 재료가 뚫는다 — 주 2회 나오는 회원에게 레이스 페이스
+ * 18회가 나가는 식이다. 채우는 것은 **강도가 아니라 거리**이므로 회복 스윔으로 채운다.
+ *
+ * 인터벌은 `recovery` 의 등급별 값을 그대로 쓴다. 두 축의 분리는 여기서도 유지된다.
+ */
+const FILLER_NOTE = '적어 주신 세션 거리를 채우는 자리입니다. 페이스를 재지 않습니다'
+
+/** 모자란 거리를 50m 단위 반복 수로 바꾼다. 100m 미만이면 채우지 않는다(`null`). */
+function fillerReps(qualityMeters: number, declaredMeters: number): number | null {
+  if (!Number.isFinite(declaredMeters) || declaredMeters <= 0) return null
+
+  const gap = Math.min(declaredMeters - qualityMeters, FILLER_MAX_METERS)
+  const reps = Math.floor(gap / FILLER_STEP)
+  return reps >= 2 ? reps : null
+}
+
 function buildSession(
   focus: SessionFocus,
   profile: Profile,
@@ -179,24 +219,48 @@ function buildSession(
     })
   }
 
-  const poolIds = poolIdsFor(focus, distance, grading.intensity)
-  poolIds.forEach((id, index) => {
-    const method = methodById(id)
-    if (!method) return
+  const repDistanceOf = (spec: PoolSpec): number => (spec.distance === 0 ? distance : spec.distance)
 
-    const spec = mergedPoolSpec(method, grading.intensity, grading.volume)
-    if (!spec) return
+  const pool = poolIdsFor(focus, distance, grading.intensity)
+    .map((id) => methodById(id))
+    .filter((method): method is TrainingMethod => method !== undefined)
+    .map((method) => ({ method, spec: mergedPoolSpec(method, grading.intensity, grading.volume) }))
+    .filter((entry): entry is { method: TrainingMethod; spec: PoolSpec } => entry.spec !== null)
 
-    const repDistance = spec.distance === 0 ? distance : spec.distance
-    meters += spec.reps * repDistance
+  const quality = pool.reduce((sum, { spec }) => sum + spec.reps * repDistanceOf(spec), 0)
+  const extra = fillerReps(quality, profile.load.metersPerSession)
+
+  // 이미 회복 스윔이 든 세션(지속력)은 **그 세트를 늘린다.** 뒤에 하나 더 붙이면
+  // 같은 세트가 두 번 나오고, 건너뛰면 그 세션만 짧은 채로 남는다.
+  const existing = extra === null ? -1 : pool.findIndex(({ method }) => method.id === 'recovery')
+
+  pool.forEach(({ method, spec: base }, index) => {
+    const grew = extra !== null && index === existing
+    const spec = grew ? { ...base, reps: base.reps + extra } : base
+    meters += spec.reps * repDistanceOf(spec)
 
     items.push({
       role: index === 0 ? 'main' : 'support',
       method,
       text: describePoolSet(spec, pace25Cs, distance),
-      note: spec.note,
+      note: grew ? FILLER_NOTE : spec.note,
     })
   })
+
+  // 회복 스윔이 없던 세션에는 이지 스윔을 한 줄 붙인다. 질 위주 세트 **뒤**,
+  // 육상 **앞**이다 — 편한 헤엄으로 마무리하고 물에서 나와 육상을 한다.
+  const recovery = methodById('recovery')
+  const recoveryBase = recovery ? mergedPoolSpec(recovery, grading.intensity, grading.volume) : null
+  if (extra !== null && existing < 0 && recovery && recoveryBase) {
+    const spec = { ...recoveryBase, distance: FILLER_STEP, reps: extra }
+    meters += extra * FILLER_STEP
+    items.push({
+      role: 'support',
+      method: recovery,
+      text: describePoolSet(spec, pace25Cs, distance),
+      note: FILLER_NOTE,
+    })
+  }
 
   const after = methodById(drylandAfterFor(focus, format))
   const afterSpec = after ? drylandSpecFor(after, grading.volume) : null

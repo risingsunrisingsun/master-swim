@@ -43,8 +43,14 @@ describe('세션 수', () => {
     expect(planFor({ sessions: 5 })).toHaveLength(5)
   })
 
-  test('우선순위 목록보다 많으면 앞에서부터 다시 돌아 레이스 페이스가 두 번 들어간다', () => {
+  // 성격이 여섯이라 주 6회까지는 겹치지 않는다. 되도는 것은 7회부터다.
+  test('주 6회면 여섯 성격이 한 번씩 들어간다', () => {
     const focuses = planFor({ sessions: 6, meters: 3000 }).map((session) => session.focus)
+    expect(new Set(focuses).size).toBe(6)
+  })
+
+  test('우선순위 목록보다 많으면 앞에서부터 다시 돌아 레이스 페이스가 두 번 들어간다', () => {
+    const focuses = planFor({ sessions: 7, meters: 3000 }).map((session) => session.focus)
     expect(focuses.filter((focus) => focus === 'racePace')).toHaveLength(2)
   })
 
@@ -204,6 +210,16 @@ describe('목적과 형식', () => {
     }
   })
 
+  // 개수만 세면 **어떤** 다섯인지를 놓친다. 실제로 호흡 목적이 최대 속도를 배열에서
+  // 통째로 빼고도 다섯을 채워 이 테스트를 통과한 적이 있다. 전 종목이 스프린트인
+  // 앱에서 한 주기 내내 전력이 없으면 목표 페이스의 천장이 그대로다.
+  test('주 5회면 어느 목적이든 최대 속도가 들어간다', () => {
+    const p = profileFor({ sessions: 5 })
+    for (const purpose of ['faster', 'form', 'breathing', 'injury'] as Purpose[]) {
+      expect(focuses(p, purpose)).toContain('speed')
+    }
+  })
+
   // 부상 예방은 강도를 맨 뒤로 밀어 적게 나오는 회원에게 배정되지 않게 한다.
   test('부상 예방은 주 3회까지 최대 속도를 넣지 않는다', () => {
     const p = profileFor({ sessions: 3 })
@@ -212,7 +228,10 @@ describe('목적과 형식', () => {
 
   test('호흡 세션은 호흡 방법으로 채워진다', () => {
     const session = planWith(profileFor({ sessions: 3 }), 'breathing')[0]!
-    const pool = session.items.filter((item) => item.method.kind === 'pool')
+    // 이지 스윔 채우기(회복 스윔)는 성격과 무관하게 붙는 자리라 빼고 본다.
+    const pool = session.items.filter(
+      (item) => item.method.kind === 'pool' && item.method.id !== 'recovery',
+    )
     expect(pool.length).toBeGreaterThan(0)
     for (const item of pool) expect(item.method.category).toBe('breathing')
   })
@@ -242,5 +261,69 @@ describe('목적과 형식', () => {
         expect(roles.indexOf('warmup')).toBe(0)
       }
     }
+  })
+})
+
+// 성격마다 질 위주 세트의 거리가 7배 벌어져 있어, 그대로 두면 목적이 순서를 바꿀 때
+// 무엇이 잘리느냐로 주간 총량이 배 넘게 흔들렸다. 모자란 만큼은 쉬운 헤엄으로 채운다.
+describe('이지 스윔 채우기', () => {
+  const gradingFor = (p: Profile) => grade(p.goal.currentCs, p.goal.event, p.sex, p.load)
+  const planWith = (p: Profile, purpose?: Purpose) => {
+    const withChoice = { ...p, purpose }
+    return weeklyPlan(withChoice, gradingFor(withChoice))
+  }
+  const fillerOf = (session: { items: { method: { id: string }; note?: string }[] }) =>
+    session.items.find((item) => item.method.id === 'recovery' && item.note?.includes('채우는 자리'))
+
+  test('짧은 세션은 적어 준 거리 가까이까지 채워진다', () => {
+    for (const session of planFor({ sessions: 5, meters: 2000 })) {
+      expect(session.meters).toBeGreaterThan(1500)
+      expect(session.meters).toBeLessThanOrEqual(2000)
+    }
+  })
+
+  test('목적을 바꿔도 주간 거리가 크게 흔들리지 않는다', () => {
+    const totals = (['faster', 'form', 'injury', 'breathing'] as Purpose[]).map((purpose) =>
+      weeklyMeters(planWith(profileFor({ sessions: 3, meters: 2000 }), purpose)),
+    )
+    // 고치기 전에는 주 3회에서 최대 2.3배까지 벌어졌다.
+    expect(Math.max(...totals) / Math.min(...totals)).toBeLessThan(1.2)
+  })
+
+  // 반복 수는 분량 등급이 정하고, 그 등급을 만드는 재료가 '세션당 거리'다.
+  // 같은 값으로 반복 수를 다시 곱하면 등급이 눌러 둔 상한을 등급의 재료가 뚫는다.
+  test('채우기는 질 위주 세트의 반복 수를 늘리지 않는다', () => {
+    const profile = profileFor({ current: '1:05.00', sessions: 2, meters: 1500 })
+    const grading = grade(profile.goal.currentCs, profile.goal.event, profile.sex, profile.load)
+    expect(grading.intensity).toBe('elite')
+    expect(grading.volume).toBe('beginner')
+
+    const main = weeklyPlan(profile, grading)[0]!.items.find((item) => item.role === 'main')!
+    expect(main.text).toContain('6 × 50m')
+  })
+
+  test('채우기는 쉬운 헤엄이고 페이스를 재지 않는다고 밝힌다', () => {
+    const filler = fillerOf(planFor({ sessions: 5, meters: 2000 })[2]!)
+    expect(filler).toBeDefined()
+    expect(filler!.method.id).toBe('recovery')
+  })
+
+  // 이미 회복 스윔이 든 세션에 또 붙이면 같은 세트가 두 번 나온다. 늘리기만 한다.
+  test('지속력 세션은 회복 스윔이 하나로 남고 늘어난다', () => {
+    const endurance = planFor({ sessions: 5, meters: 2000 }).find(
+      (session) => session.focus === 'endurance',
+    )!
+    const recoveries = endurance.items.filter((item) => item.method.id === 'recovery')
+    expect(recoveries).toHaveLength(1)
+    expect(recoveries[0]!.note).toContain('채우는 자리')
+    expect(endurance.meters).toBeGreaterThan(1500)
+  })
+
+  test('적어 준 거리를 이미 넘긴 세션은 채우지 않는다', () => {
+    // 100m 목표의 레이스 페이스 세션은 질 위주 세트만으로 500m 를 넘는다.
+    const racePace = planFor({ sessions: 5, meters: 500 }).find(
+      (session) => session.focus === 'racePace',
+    )!
+    expect(fillerOf(racePace)).toBeUndefined()
   })
 })
