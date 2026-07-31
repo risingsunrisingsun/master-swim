@@ -68,7 +68,7 @@ const ACTIVITY_FACTOR = 1.4
  * 벗어난 값은 **버리고 기존 식으로 돌아간다** — 이상한 숫자로 계산한 열량을
  * 그럴듯하게 보여주느니 덜 정확한 쪽이 낫다.
  */
-const BODY_FAT_RANGE = { min: 3, max: 60 } as const
+const BODY_FAT_RANGE = { M: { min: 3, max: 60 }, F: { min: 12, max: 60 } } as const
 
 /**
  * 기초대사량.
@@ -81,7 +81,8 @@ const BODY_FAT_RANGE = { min: 3, max: 60 } as const
  */
 export function basalMetabolicRate(body: Body, ageGroup: AgeGroup, sex: Sex): number {
   const fat = body.bodyFatPercent
-  if (fat !== undefined && fat >= BODY_FAT_RANGE.min && fat <= BODY_FAT_RANGE.max) {
+  const range = BODY_FAT_RANGE[sex]
+  if (fat !== undefined && fat >= range.min && fat <= range.max) {
     const leanMassKg = body.weightKg * (1 - fat / 100)
     return 370 + 21.6 * leanMassKg
   }
