@@ -29,7 +29,7 @@ import {
   type TermCategory,
   termsByCategory,
 } from './terms'
-import { SESSION_MET, weeklyMeters, type PlannedSession, type WeekDay } from './plan'
+import { weeklyMeters, type PlannedSession, type WeekDay } from './plan'
 import type { AgeGroup, Distance, Level, Profile, RaceEvent, RecordEntry, Sex, Stroke } from './types'
 import { LEVEL_LABEL, STROKE_LABEL } from './types'
 
@@ -551,7 +551,7 @@ export function dayHtml(
         dailyDiet(profile.body, profile.ageGroup, profile.sex, {
           training: session !== null,
           meters: session?.meters ?? 0,
-          met: session ? SESSION_MET[session.focus] : 0,
+          met: session ? session.met : 0,
         }),
         dietOpen,
       )

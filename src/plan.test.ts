@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { grade } from './grading'
 import { parseTime } from './pace'
-import { weekDays, weeklyMeters, weeklyPlan } from './plan'
+import { SESSION_MET, weekDays, weeklyMeters, weeklyPlan } from './plan'
 import type { Distance, Profile, Purpose, SessionFormat, Stroke } from './types'
 
 const at = (time: string): number => parseTime(time)!
@@ -325,5 +325,45 @@ describe('이지 스윔 채우기', () => {
       (session) => session.focus === 'racePace',
     )!
     expect(fillerOf(racePace)).toBeUndefined()
+  })
+})
+
+// 이지 스윔이 붙으면 세션의 절반 넘게가 쉬운 헤엄인 경우가 생긴다. 그 전부를 성격의
+// MET 으로 치면 소모 열량이 부풀려지고 그만큼 식단이 커진다.
+describe('세션 MET 은 구간별로 가중한다', () => {
+  const sessionOf = (focus: string, meters = 2000) =>
+    planFor({ sessions: 5, meters }).find((session) => session.focus === focus)!
+
+  test('채우기가 없으면 성격의 MET 그대로다', () => {
+    // 적어 준 거리가 질 위주 세트보다 짧으면 채우지 않는다.
+    const racePace = sessionOf('racePace', 500)
+    expect(racePace.met).toBeCloseTo(SESSION_MET.racePace, 5)
+  })
+
+  test('채우기가 붙으면 성격의 MET 과 쉬운 헤엄 사이에 놓인다', () => {
+    const speed = sessionOf('speed')
+    expect(speed.met).toBeLessThan(SESSION_MET.speed)
+    expect(speed.met).toBeGreaterThan(6.0 - 0.001)
+  })
+
+  test('성격의 MET 이 이미 쉬운 헤엄과 같으면 채워도 그대로다', () => {
+    const technique = sessionOf('technique')
+    expect(SESSION_MET.technique).toBe(6.0)
+    expect(technique.met).toBeCloseTo(6.0, 5)
+  })
+
+  test('가중 평균이라 거리로 나눈 값과 맞는다', () => {
+    const wall = sessionOf('wall')
+    const filler = wall.items.find(
+      (item) => item.method.id === 'recovery' && item.note?.includes('채우는 자리'),
+    )!
+
+    // 지시문 앞머리가 "35 × 50m …" 이다. 계획에 실제로 쓰인 값은 여기 들어 있다.
+    const [, reps, repDistance] = /^(\d+)\s*×\s*(\d+)m/.exec(filler.text)!
+    const fillerMeters = Number(reps) * Number(repDistance)
+    const quality = wall.meters - fillerMeters
+
+    expect(fillerMeters).toBeGreaterThan(0)
+    expect(wall.met).toBeCloseTo((quality * SESSION_MET.wall + fillerMeters * 6.0) / wall.meters, 5)
   })
 })

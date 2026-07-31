@@ -136,6 +136,14 @@ export interface PlannedSession {
   items: PlannedItem[]
   /** 수영 구간 합계(m). 육상은 제외한다. */
   meters: number
+  /**
+   * 이 세션 전체의 평균 MET. 식단의 소모 열량이 이 값을 쓴다.
+   *
+   * 성격의 MET(`SESSION_MET`)을 그대로 쓰지 않는 이유는 이지 스윔 채우기 때문이다 —
+   * 벽 구간 세션은 240m 의 질 위주 세트에 1,760m 의 쉬운 헤엄이 붙는데, 그 전부를
+   * 벽 구간의 7.0 으로 치면 소모 열량이 크게 부풀려진다. 구간별로 나눠 가중한다.
+   */
+  met: number
 }
 
 /**
@@ -187,6 +195,27 @@ const FILLER_MAX_METERS = 2_000
  * 인터벌은 `recovery` 의 등급별 값을 그대로 쓴다. 두 축의 분리는 여기서도 유지된다.
  */
 const FILLER_NOTE = '적어 주신 세션 거리를 채우는 자리입니다. 페이스를 재지 않습니다'
+
+/**
+ * 채우기 구간의 MET. 회복 스윔이므로 `nutrition.ts` 의 `SWIM_MET.easy` 와 같은 값이다.
+ *
+ * 여기 적어 두는 이유는 `plan.ts` 가 `nutrition.ts` 를 알 필요가 없기 때문이다 —
+ * 플랜은 세션이 얼마나 힘든지까지만 말하고, 그것을 열량으로 바꾸는 것은 식단의 일이다.
+ */
+const FILLER_MET = 6.0
+
+/**
+ * 질 위주 구간과 채우기 구간을 거리로 가중한 평균 MET.
+ *
+ * 벽 구간 세션은 240m 뒤에 1,760m 의 쉬운 헤엄이 붙는다. 전부를 벽 구간의 7.0 으로 치면
+ * 소모 열량이 실제보다 크게 잡히고, 그만큼 식단이 부풀려진다.
+ */
+function weightedMet(focus: SessionFocus, qualityMeters: number, fillerMeters: number): number {
+  const total = qualityMeters + fillerMeters
+  if (total <= 0) return SESSION_MET[focus]
+
+  return (qualityMeters * SESSION_MET[focus] + fillerMeters * FILLER_MET) / total
+}
 
 /** 모자란 거리를 50m 단위 반복 수로 바꾼다. 100m 미만이면 채우지 않는다(`null`). */
 function fillerReps(qualityMeters: number, declaredMeters: number): number | null {
@@ -273,7 +302,14 @@ function buildSession(
     })
   }
 
-  return { focus, title: FOCUS_TITLE[focus], items, meters }
+  const fillerMeters = extra === null ? 0 : extra * FILLER_STEP
+  return {
+    focus,
+    title: FOCUS_TITLE[focus],
+    items,
+    meters,
+    met: weightedMet(focus, meters - fillerMeters, fillerMeters),
+  }
 }
 
 /**
@@ -301,7 +337,12 @@ export function weeklyMeters(plan: readonly PlannedSession[]): number {
   return plan.reduce((total, session) => total + session.meters, 0)
 }
 
-/** 세션 성격별 수영 MET. 식단의 소모 열량 계산에 쓴다. */
+/**
+ * 세션 성격별 수영 MET — **질 위주 구간의 값**이다.
+ *
+ * 식단이 실제로 쓰는 것은 이 값이 아니라 `PlannedSession.met` 이다. 이지 스윔 채우기가
+ * 붙은 세션은 이 값과 쉬운 헤엄(6.0)을 거리로 가중한 평균이 된다(`weightedMet`).
+ */
 export const SESSION_MET: Record<SessionFocus, number> = {
   racePace: 8.3,
   speed: 8.3,
