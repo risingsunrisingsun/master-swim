@@ -4,7 +4,7 @@
  * 계산은 순수 함수(ADR-0001), HTML 생성은 `view.ts` 에 있다. 여기서는 입력을 읽고
  * 결과를 붙이고 저장한다. 라우팅은 해시로만 한다 — 정적 호스팅에는 서버 라우터가 없다.
  */
-import { grade, type Grading } from './grading'
+import { grade, type Grading, LEVEL_ORDER } from './grading'
 import { composeTimeInput, formatTime, refoldTimeInput, splitTimeInput } from './pace'
 import { weekDays, weeklyPlan } from './plan'
 import { pickQuote } from './quotes'
@@ -214,7 +214,19 @@ function readProfile(): Profile | null {
  * 두 축이 벌어져 있다는 사실은 회원이 등급을 옮겼다고 사라지지 않는다.
  */
 function effectiveGrading(base: Grading, adjust: Profile['levelAdjust']): Grading {
-  return adjust ? { ...base, intensity: adjust.intensity, volume: adjust.volume } : base
+  if (!adjust) return base
+
+  // **계산값에서 한 단계까지만 받는다.** 조정은 프로필에 저장돼 되살아나는데 계산값은
+  // 기록·훈련량을 고치면 움직인다. 대조하지 않으면 중급에서 올려 둔 고급이 나중에
+  // 초급이 된 회원에게 그대로 얹혀 두 단계 위 세트가 나간다 — 3단계를 다시 보지 않는
+  // 회원에게는 그 사실이 화면에 뜨지도 않는다. 벗어난 조정은 버리고 계산값으로 돌아간다.
+  const withinOneStep = (picked: Level, computed: Level): boolean =>
+    Math.abs(LEVEL_ORDER.indexOf(picked) - LEVEL_ORDER.indexOf(computed)) <= 1
+
+  if (!withinOneStep(adjust.intensity, base.intensity)) return base
+  if (!withinOneStep(adjust.volume, base.volume)) return base
+
+  return { ...base, intensity: adjust.intensity, volume: adjust.volume }
 }
 
 /**
@@ -324,6 +336,11 @@ function renderTraining(): void {
     savedLabel.textContent = ''
     return
   }
+
+  // 고르는 중에도 저장한다. 마법사는 다섯 단계라 중간에 전화가 오거나 화면이
+  // 잠기는 구간이 예전 폼보다 길다 — 그때 열두 칸이 전부 사라지면 다음 방문에
+  // 1단계부터 다시다. 저장과 결과 그리기는 다른 일이다.
+  saveProfile(profile)
 
   // 결과는 마법사를 끝낸 뒤에만 그린다. 고르는 중에 아래에서 플랜이 흔들리면
   // 무엇을 보고 있는지 알 수 없다.
