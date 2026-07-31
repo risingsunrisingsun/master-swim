@@ -316,6 +316,16 @@ export function searchDryland(query: string): readonly DrylandSet[] {
   )
 }
 
+/**
+ * 주간 플랜에 붙은 육상 방법(`methods.ts` 의 id)에 대응하는 참고 세트.
+ *
+ * 방식으로 '지상훈련도 챙기기'를 고른 회원에게 동작 이름과 요령까지 펴 보여주기
+ * 위한 것이다. 대응하는 세트가 없으면 `undefined` — 그때는 지시문 한 줄만 남는다.
+ */
+export function setByMethod(methodId: string): DrylandSet | undefined {
+  return DRYLAND_SETS.find((set) => set.method === methodId)
+}
+
 export function videoUrl(video: VideoLink): string {
   return `https://www.youtube.com/watch?v=${video.id}`
 }

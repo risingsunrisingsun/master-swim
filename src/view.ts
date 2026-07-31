@@ -9,6 +9,7 @@ import { EMPTY_CHART_HTML, recordChart, type ChartBand, type ChartPoint } from '
 import {
   type DrylandSet,
   searchDryland,
+  setByMethod,
   setsFor,
   thumbnailUrl,
   videoUrl,
@@ -385,18 +386,50 @@ export function quizResultHtml(correct: number, total: number): string {
 // 훈련 — 하루씩
 // ---------------------------------------------------------------------------
 
-function sessionItemsHtml(session: PlannedSession): string {
-  return session.items
+/**
+ * 방식으로 '지상훈련도 챙기기'를 고른 회원에게만 펴 보여주는 동작 목록.
+ *
+ * 그 선택지는 "지상훈련을 펼쳐서 보여드립니다"라고 약속한다. 지시문 한 줄(`3세트 × 15회`)
+ * 만으로는 무엇을 하라는 것인지 알 수 없으므로 `dryland.ts` 의 참고 세트에서 동작 이름과
+ * 요령을 가져와 붙인다. 접어서 내보내는 이유는 하루 화면의 주인공이 그날의 수영 세트이기
+ * 때문이다 — 식단과 같은 이유다.
+ */
+function drylandDetailHtml(methodId: string): string {
+  const set = setByMethod(methodId)
+  if (!set) return ''
+
+  const rows = set.exercises
     .map(
-      (item) => `<li>
+      (exercise) => `<li>
+          <strong>${escapeHtml(exercise.name)}</strong>
+          <span class="set">${escapeHtml(exercise.prescription)}</span>
+          <span class="hint">${bold(exercise.cue)}</span>
+        </li>`,
+    )
+    .join('')
+
+  return `<details class="dryland-detail">
+      <summary>동작 보기</summary>
+      <ul class="exercises">${rows}</ul>
+    </details>`
+}
+
+function sessionItemsHtml(session: PlannedSession, expandDryland = false): string {
+  return session.items
+    .map((item) => {
+      const detail =
+        expandDryland && item.method.kind === 'dryland' ? drylandDetailHtml(item.method.id) : ''
+
+      return `<li>
           <span class="role">${ROLE_LABEL[item.role]}</span>
           <span class="item">
             <strong>${escapeHtml(item.method.name)}</strong>
             <span class="set">${escapeHtml(item.text)}</span>
             ${item.note ? `<span class="hint">${escapeHtml(item.note)}</span>` : ''}
+            ${detail}
           </span>
-        </li>`,
-    )
+        </li>`
+    })
     .join('')
 }
 
@@ -505,7 +538,7 @@ export function dayHtml(
   const training = session
     ? `<article class="session">
         <h3>${day.label}요일 · ${escapeHtml(session.title)} <span class="meters">${meters(session.meters)}</span></h3>
-        <ul>${sessionItemsHtml(session)}</ul>
+        <ul>${sessionItemsHtml(session, profile.format === 'dryland')}</ul>
         ${logHtml(session, logs, today)}
       </article>`
     : `<article class="session rest">
@@ -601,7 +634,7 @@ export function gradeCheckHtml(grading: Grading): string {
       <summary>내 느낌과 다릅니다</summary>
       <p class="hint">
         한 단계까지 옮길 수 있습니다. <strong>올리면 세트를 완주하지 못할 수 있고</strong>,
-        그 상태로 반복하면 다칩니다. 완주 기록을 사흘치 남기면 앱이 목표가 적절한지
+        그 상태로 반복하면 다칩니다. 같은 세트의 완주 기록을 세 번 남기면 앱이 목표가 적절한지
         스스로 판정해 알려드리니, 그때까지는 계산된 등급으로 가시길 권합니다.
       </p>
       <div class="row">
