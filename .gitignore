@@ -8,3 +8,6 @@ dist/
 feedback/
 uxui_image/
 swim_records/
+
+# Supabase CLI 의 로컬 상태(링크된 프로젝트 등). 사람마다 다르다.
+**/supabase/.temp/

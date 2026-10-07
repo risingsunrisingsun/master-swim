@@ -5,6 +5,18 @@
 
 설계 배경은 [`CONTEXT.md`](./CONTEXT.md), 결정 근거는 [`docs/adr/`](./docs/adr) 에 있다.
 
+## v2 (개편 중 · `app/`)
+
+로그인하는 회원 앱으로 다시 만들고 있다 — [PRD-0001](./docs/prd/0001-nineteen-member-app-v2.md),
+ADR-0010 · 0011. v1 은 그대로 두고 `app/` 에 따로 짓는다.
+
+```sh
+bun run app:serve   # 데모 모드로 http://localhost:5174
+bun run app:test
+```
+
+Supabase 연결 절차는 [`app/supabase/README.md`](./app/supabase/README.md).
+
 ## 명령
 
 ```sh

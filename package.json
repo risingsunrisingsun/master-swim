@@ -8,10 +8,16 @@
     "dev": "bun run build.ts --watch",
     "serve": "bun run build.ts && bun run serve.ts",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "app:build": "bun run app/build.ts",
+    "app:serve": "bun run app/build.ts && bun run app/serve.ts",
+    "app:test": "bun test app/src"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3"
   }
 }

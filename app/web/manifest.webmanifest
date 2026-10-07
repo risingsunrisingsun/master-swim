@@ -1,0 +1,17 @@
+{
+  "name": "나인틴",
+  "short_name": "나인틴",
+  "description": "나인틴 회원 전용 — 내 기록, 내 훈련, 내 출석",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f6fb",
+  "theme_color": "#0a5bd3",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
