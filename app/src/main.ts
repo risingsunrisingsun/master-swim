@@ -19,7 +19,7 @@ import {
   recordsOf,
 } from './core/records'
 import { exportFileName, recordSheets } from './core/export'
-import { BIRTH_YEAR_MAX, BIRTH_YEAR_MIN, parseRoster, readBirthYear, readSex, ROSTER_MAX, type RosterEntry } from './core/roster'
+import { BIRTH_YEAR_MAX, BIRTH_YEAR_MIN, NAME_MAX, parseRoster, readBirthYear, readSex, ROSTER_MAX, type RosterEntry } from './core/roster'
 import { type Bracket, BRACKETS, formulaPlanAt, planProblem, prescribe } from './core/sets'
 import {
   eventKey,
@@ -356,6 +356,7 @@ async function adminScreen(route: Route, today: string): Promise<string> {
     }
     const view = adminMemberHtml({
       member,
+      isSelf: member.id === me?.id,
       issued: issued[0] ?? null,
       appUrl: location.origin + location.pathname,
       saved: flash.saved,
@@ -730,13 +731,22 @@ const submitHandlers: Record<string, (form: HTMLFormElement) => Promise<void>> =
 
   'profile-form': async (form) => {
     const id = field(form, 'id')
+    const displayName = field(form, 'name').trim()
+    const role = field(form, 'role') === 'admin' ? 'admin' : 'member'
     const sex = readSex(field(form, 'sex'))
     const birthYear = readBirthYear(field(form, 'birthYear'))
-    if (Number.isNaN(birthYear)) return showFormError(form, BIRTH_YEAR_PROBLEM)
+    const problem = !displayName
+      ? '이름을 넣어 주세요.'
+      : displayName.length > NAME_MAX
+        ? `이름은 ${NAME_MAX}자까지입니다.`
+        : Number.isNaN(birthYear)
+          ? BIRTH_YEAR_PROBLEM
+          : null
+    if (problem) return showFormError(form, problem)
     try {
-      await backend.updateMemberProfile(id, { sex, birthYear })
-      // 자기 정보를 고쳤으면 세트 · 기록 화면이 바로 쓰도록 들고 있는 값도 바꾼다.
-      if (me && me.id === id) me = { ...me, sex, birthYear }
+      await backend.updateMemberProfile(id, { displayName, role, sex, birthYear })
+      // 자기 정보를 고쳤으면 홈 · 세트 · 기록 화면이 바로 쓰도록 들고 있는 값도 바꾼다.
+      if (me && me.id === id) me = { ...me, displayName, sex, birthYear }
       flashSaved = true
       void render()
     } catch (error) {

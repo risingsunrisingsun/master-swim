@@ -204,6 +204,7 @@ describe('회원 정보 · 비밀번호', () => {
   test('회원 한 명 화면 — 저장된 값, 이스케이프, 가입 전이면 계정 만들기', () => {
     const html = adminMemberHtml({
       member: member({ displayName: EVIL, status: 'invited', sex: 'M', birthYear: 1979 }),
+      isSelf: false,
       issued: null,
       appUrl: 'https://x.org/',
       saved: false,
@@ -213,6 +214,22 @@ describe('회원 정보 · 비밀번호', () => {
     expect(html).toContain('<option value="M" selected>')
     expect(html).toContain('value="1979"')
     expect(html).toContain('계정 만들기')
+    expect(html).toContain('id="profile-name"')
+    expect(html).toContain('<option value="member" selected>')
+    expect(html).not.toContain('id="profile-role" name="role" disabled')
+  })
+
+  test('내 계정이면 역할을 못 바꾼다', () => {
+    const html = adminMemberHtml({
+      member: member({ role: 'admin' }),
+      isSelf: true,
+      issued: null,
+      appUrl: 'https://x.org/',
+      saved: false,
+      error: null,
+    })
+    expect(html).toContain('id="profile-role" name="role" disabled')
+    expect(html).toContain('<input type="hidden" name="role" value="admin" />')
   })
 })
 

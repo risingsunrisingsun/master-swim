@@ -276,14 +276,46 @@ describe('운영자가 정하는 비밀번호 · 회원 정보', () => {
   test('회원은 남의 비밀번호 · 정보를 못 바꾼다', async () => {
     await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
     await expect(backend.setPasswords([{ memberId: 'demo-2', password: 'hacked1' }])).rejects.toThrow('운영자')
-    await expect(backend.updateMemberProfile('demo-2', { sex: 'M', birthYear: 1990 })).rejects.toThrow('운영자')
+    await expect(backend.updateMemberProfile('demo-2', { displayName: '회원 02', role: 'admin', sex: 'M', birthYear: 1990 })).rejects.toThrow('운영자')
   })
 
   test('운영자는 성별 · 출생연도를 고치고 지울 수 있다', async () => {
     await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
-    await backend.updateMemberProfile('demo-1', { sex: null, birthYear: null })
+    await backend.updateMemberProfile('demo-1', { displayName: DEMO_MEMBER.name, role: 'member', sex: null, birthYear: null })
     const hong = (await backend.members()).find((m) => m.id === 'demo-1')!
     expect([hong.sex, hong.birthYear]).toEqual([null, null])
+  })
+
+  test('이름을 바꾸면 새 이름 · 같은 비밀번호로 들어오고, 운영자로 올리면 운영 기능을 쓴다', async () => {
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    await backend.updateMemberProfile('demo-1', { displayName: ' 홍길동A ', role: 'admin', sex: 'M', birthYear: 1975 })
+    await backend.signOut()
+    await expect(backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)).rejects.toBeInstanceOf(UserFacingError)
+    const renamed = await backend.signIn('홍길동A', DEMO_MEMBER.password)
+    expect(renamed.role).toBe('admin')
+    expect((await backend.members()).length).toBeGreaterThan(1)
+
+    // 다시 회원으로 내리면 운영 기능이 막힌다.
+    await backend.updateMemberProfile('demo-1', { displayName: '홍길동A', role: 'admin', sex: 'M', birthYear: 1975 })
+    await backend.signOut()
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    await backend.updateMemberProfile('demo-1', { displayName: '홍길동A', role: 'member', sex: 'M', birthYear: 1975 })
+    await backend.signOut()
+    await backend.signIn('홍길동A', DEMO_MEMBER.password)
+    await expect(backend.members()).rejects.toThrow('운영자')
+  })
+
+  test('같은 이름으로는 못 바꾸고, 자기 역할은 못 내린다', async () => {
+    const admin = await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    await expect(
+      backend.updateMemberProfile('demo-1', { displayName: '회원 02', role: 'member', sex: null, birthYear: null }),
+    ).rejects.toThrow('같은 이름')
+    await expect(
+      backend.updateMemberProfile(admin.id, { displayName: DEMO_ADMIN.name, role: 'member', sex: null, birthYear: null }),
+    ).rejects.toThrow('자기 역할')
+    // 자기 이름은 바꿀 수 있다.
+    await backend.updateMemberProfile(admin.id, { displayName: '총무', role: 'admin', sex: null, birthYear: null })
+    expect((await backend.me())?.displayName).toBe('총무')
   })
 })
 

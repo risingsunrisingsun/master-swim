@@ -313,12 +313,24 @@ export class SupabaseBackend implements Backend {
   }
 
   async updateMemberProfile(memberId: string, profile: MemberProfile): Promise<void> {
+    const me = await this.requireMe()
+    if (me.id === memberId && profile.role !== me.role) {
+      throw new UserFacingError('자기 역할은 바꿀 수 없습니다. 다른 운영자에게 부탁하세요.')
+    }
     const { data, error } = await this.client
       .from('members')
-      .update({ sex: profile.sex, birth_year: profile.birthYear })
+      .update({
+        display_name: profile.displayName.trim(),
+        role: profile.role,
+        sex: profile.sex,
+        birth_year: profile.birthYear,
+      })
       .eq('id', memberId)
       .select('id')
-    if (error) throw failure(error)
+    if (error) {
+      if (error.code === '23505') throw new UserFacingError('같은 이름이 이미 있습니다. 김민수A 처럼 구분해 주세요.')
+      throw failure(error)
+    }
     if (data.length === 0) throw new UserFacingError('운영자만 회원 정보를 고칠 수 있습니다.')
   }
 

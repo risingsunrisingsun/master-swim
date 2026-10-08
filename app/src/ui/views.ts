@@ -720,7 +720,7 @@ export function adminMembersHtml(view: AdminMembersView): string {
           <strong>${esc(m.displayName)}</strong>
           <span class="small muted">${m.role === 'admin' ? '운영자 · ' : ''}${MEMBER_STATUS_LABEL[m.status]}${profile ? ` · ${profile}` : ''}</span>
         </div>
-        <div class="row">${invite}<a class="button small-button" href="#/admin/member?id=${m.id}">정보 · 비번</a>${toggle}</div>
+        <div class="row">${invite}<a class="button small-button" href="#/admin/member?id=${m.id}">수정 · 비번</a>${toggle}</div>
       </li>`
     })
     .join('')
@@ -767,6 +767,8 @@ export function adminMembersHtml(view: AdminMembersView): string {
 
 export interface AdminMemberView {
   member: Member
+  /** 내 계정이면 역할을 못 바꾼다. */
+  isSelf: boolean
   /** 방금 정한 비밀번호. 보낼 문구를 띄운다. */
   issued: IssuedCode | null
   appUrl: string
@@ -804,9 +806,26 @@ export function adminMemberHtml(view: AdminMemberView): string {
       <form id="profile-form" class="card stack" novalidate>
         <h2>회원 정보</h2>
         <input type="hidden" name="id" value="${member.id}" />
-        <p class="small muted">${member.role === 'admin' ? '운영자' : '회원'} · ${MEMBER_STATUS_LABEL[member.status]} · ${shortDateLabel(member.joinedOn)} 가입</p>
+        <p class="small muted">${MEMBER_STATUS_LABEL[member.status]} · ${shortDateLabel(member.joinedOn)} 가입</p>
+        <div class="field">
+          <label for="profile-name">이름 <span class="muted">(로그인 이름)</span></label>
+          <input id="profile-name" name="name" required maxlength="30" value="${esc(member.displayName)}" />
+          <p class="hint">바꾸면 이 회원은 다음부터 새 이름으로 로그인합니다. 비밀번호는 그대로입니다 — 회원에게 알려 주세요.</p>
+        </div>
+        <div class="field">
+          <label for="profile-role">역할</label>
+          <select id="profile-role" name="role"${view.isSelf ? ' disabled' : ''}>
+            <option value="member"${member.role === 'member' ? ' selected' : ''}>회원</option>
+            <option value="admin"${member.role === 'admin' ? ' selected' : ''}>운영자</option>
+          </select>
+          ${
+            view.isSelf
+              ? '<input type="hidden" name="role" value="admin" /><p class="hint">자기 역할은 바꿀 수 없습니다. 운영자가 한 명도 남지 않는 일을 막기 위해서입니다.</p>'
+              : '<p class="hint">운영자는 [운영] 탭에서 회원 명단 · 출석 · 기록 · 세트를 모두 다룹니다.</p>'
+          }
+        </div>
         ${profileFieldsHtml('profile', member)}
-        <p class="hint">세트 반복 수와 기록 화면의 국내 마스터즈 상위 % 에 씁니다. 비워 두면 세트는 남자 기준으로 계산하고 상위 % 는 숨깁니다.</p>
+        <p class="hint">성별 · 출생연도는 세트 반복 수와 기록 화면의 국내 마스터즈 상위 % 에 씁니다. 비워 두면 세트는 남자 기준으로 계산하고 상위 % 는 숨깁니다.</p>
         <button class="button" type="submit">정보 저장</button>
       </form>
       ${password}

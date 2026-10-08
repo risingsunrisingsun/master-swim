@@ -6,7 +6,7 @@
  * LocalBackend 는 같은 규칙을 코드로 흉내 낸다. 화면이 버튼을 숨기는 것은 편의일 뿐이다.
  */
 import type { Bracket, SetOverride, SetPlan } from '../core/sets'
-import type { Goal, Meeting, MeetingInput, Member, RecordInput, Sex, SwimEvent, SwimRecord } from '../core/types'
+import type { Goal, Meeting, MeetingInput, Member, RecordInput, Role, Sex, SwimEvent, SwimRecord } from '../core/types'
 
 /** 화면에 그대로 띄울 수 있는 문구를 담은 오류. */
 export class UserFacingError extends Error {}
@@ -20,6 +20,9 @@ export interface NewMemberInput {
 }
 
 export interface MemberProfile {
+  /** 로그인 이름. 바꾸면 그 회원은 다음부터 새 이름으로 들어온다(비밀번호는 그대로). */
+  displayName: string
+  role: Role
   sex: Sex | null
   birthYear: number | null
 }
@@ -88,6 +91,7 @@ export interface Backend {
   createMember(input: NewMemberInput): Promise<Member>
   setMemberActive(memberId: string, active: boolean): Promise<void>
   issueInvite(memberId: string): Promise<IssuedInvite>
+  /** 이름 · 역할 · 성별 · 출생연도. 운영자는 자기 역할을 바꿀 수 없다 — 운영자가 0명이 되지 않게. */
   updateMemberProfile(memberId: string, profile: MemberProfile): Promise<void>
   /**
    * 운영자가 비밀번호를 직접 정한다. 가입 전 회원은 계정이 바로 생기고, 가입한 회원은

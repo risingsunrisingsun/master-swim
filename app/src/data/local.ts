@@ -242,10 +242,20 @@ export class LocalBackend implements Backend {
   }
 
   async updateMemberProfile(memberId: string, profile: MemberProfile): Promise<void> {
-    await this.requireAdmin()
+    const me = await this.requireAdmin()
     const state = this.load()
     const member = state.members.find((m) => m.id === memberId)
     if (!member) throw new UserFacingError('회원을 찾을 수 없습니다.')
+    if (me.id === memberId && profile.role !== me.role) {
+      throw new UserFacingError('자기 역할은 바꿀 수 없습니다. 다른 운영자에게 부탁하세요.')
+    }
+    const displayName = profile.displayName.trim()
+    if (!displayName) throw new UserFacingError('이름을 넣어주세요.')
+    if (state.members.some((m) => m.id !== memberId && m.displayName === displayName)) {
+      throw new UserFacingError('같은 이름이 이미 있습니다. 김민수A 처럼 구분해 주세요.')
+    }
+    member.displayName = displayName
+    member.role = profile.role
     member.sex = profile.sex
     member.birthYear = profile.birthYear
     this.save(state)
