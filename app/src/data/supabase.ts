@@ -17,7 +17,7 @@ import {
 } from './backend'
 
 const MEMBER_COLUMNS = 'id, display_name, role, status, joined_on, sex, birth_year'
-const MEETING_COLUMNS = 'id, date, kind, place, cancelled, checked_at'
+const MEETING_COLUMNS = 'id, date, kind, label, place, cancelled, checked_at'
 const RECORD_COLUMNS = 'id, member_id, stroke, distance, time_cs, date, source, meeting_id, note'
 
 interface MemberRow {
@@ -34,6 +34,7 @@ interface MeetingRow {
   id: string
   date: string
   kind: Meeting['kind']
+  label: string
   place: string
   cancelled: boolean
   checked_at: string | null
@@ -77,6 +78,7 @@ const toMeeting = (row: MeetingRow): Meeting => ({
   id: row.id,
   date: row.date,
   kind: row.kind,
+  label: row.label,
   place: row.place,
   cancelled: row.cancelled,
   checkedAt: row.checked_at,
@@ -339,7 +341,7 @@ export class SupabaseBackend implements Backend {
   async createMeeting(input: MeetingInput): Promise<Meeting> {
     const { data, error } = await this.client
       .from('meetings')
-      .insert({ date: input.date, kind: input.kind, place: input.place })
+      .insert({ date: input.date, kind: input.kind, label: input.kind === 'custom' ? input.label : '', place: input.place })
       .select(MEETING_COLUMNS)
       .single<MeetingRow>()
     if (error) throw failure(error)
@@ -363,6 +365,24 @@ export class SupabaseBackend implements Backend {
       p_present: [...presentMemberIds],
     })
     if (error) throw failure(error)
+  }
+
+  async allRecords(): Promise<SwimRecord[]> {
+    // PostgREST 는 한 번에 1,000행까지 준다. 100명 × 몇 년이면 넘을 수 있어 나눠 받는다.
+    const PAGE = 1000
+    const all: SwimRecord[] = []
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await this.client
+        .from('records')
+        .select(RECORD_COLUMNS)
+        .order('date')
+        .order('id')
+        .range(from, from + PAGE - 1)
+      if (error) throw failure(error)
+      const rows = data as RecordRow[]
+      all.push(...rows.map(toRecord))
+      if (rows.length < PAGE) return all
+    }
   }
 
   async meetingRecords(meetingId: string): Promise<SwimRecord[]> {

@@ -26,6 +26,7 @@ const meeting: Meeting = {
   id: 'mt1',
   date: '2026-09-27',
   kind: 'record',
+  label: '',
   place: EVIL,
   cancelled: false,
   checkedAt: '2026-09-27T22:00:00Z',
@@ -207,4 +208,18 @@ describe('세트', () => {
     }
     expect(readPlanForm((name) => values.get(name) ?? '')).toEqual(plan)
   })
+})
+
+test('운영자 기록 화면에 엑셀 내려받기 — 모임이 없어도', () => {
+  const empty = adminRecordsHtml({
+    meetings: [],
+    selected: null,
+    event: FREE50,
+    roster: [],
+    present: new Set(),
+    values: new Map(),
+    saved: false,
+    error: null,
+  })
+  expect(empty).toContain('data-action="download-records"')
 })

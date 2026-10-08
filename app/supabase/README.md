@@ -21,6 +21,7 @@
 - `0003_records_goals_sets.sql` — 기록 · 목표 · 세트 코치 조정 테이블과 `save_meeting_records`.
   **앱을 배포하기 전에** 실행한다. 없으면 홈 · 기록 · 세트 화면이 「저장하지 못했습니다」로 막힌다.
 - `0004_member_profile.sql` — 회원 성별 · 출생연도(운영자가 넣는 선택값). 이것도 배포 전에.
+- `0005_meeting_custom_label.sql` — 모임 종류 직접 입력(`kind = 'custom'` + `label`). 배포 전에.
 
 ## 3. Edge Function
 

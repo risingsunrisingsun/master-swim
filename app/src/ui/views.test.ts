@@ -6,6 +6,7 @@ import {
   adminMemberHtml,
   passwordMessage,
   adminAttendanceHtml,
+  adminMeetingsHtml,
   adminMembersHtml,
   attendanceHtml,
   esc,
@@ -33,6 +34,7 @@ const meeting = (date: string, extra: Partial<Meeting> = {}): Meeting => ({
   id: date,
   date,
   kind: 'training',
+  label: '',
   place: '',
   cancelled: false,
   checkedAt: `${date}T22:00:00Z`,
@@ -211,5 +213,41 @@ describe('회원 정보 · 비밀번호', () => {
     expect(html).toContain('<option value="M" selected>')
     expect(html).toContain('value="1979"')
     expect(html).toContain('계정 만들기')
+  })
+})
+
+describe('모임 종류 — 자수모임 · 직접 입력', () => {
+  test('기록회는 자수모임으로 보인다', () => {
+    const html = adminMeetingsHtml({ today: TODAY, meetings: [meeting('2026-10-25', { kind: 'record' })], customLabels: [], error: null })
+    expect(html).toContain('자수모임')
+    expect(html).not.toContain('기록회')
+    expect(html).toContain('<option value="custom">직접 입력…</option>')
+    expect(html).toContain('class="field custom-label-field" hidden')
+  })
+
+  test('직접 넣은 이름은 이스케이프되고, 종류 목록에 다시 나온다', () => {
+    const custom = meeting('2026-10-25', { kind: 'custom', label: EVIL })
+    const html = adminMeetingsHtml({ today: TODAY, meetings: [custom], customLabels: [EVIL], error: null })
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('value="custom:&lt;img')
+    const home = homeHtml({
+      member: member(),
+      today: TODAY,
+      month: monthSummary('2026-10', [], new Set(), '2026-01-01', TODAY),
+      next: { ...custom, date: '2026-10-30', checkedAt: null },
+      pb: null,
+      goal: null,
+      tempPassword: false,
+    })
+    expect(home).not.toContain('<img src=x')
+    const attendance = attendanceHtml({
+      today: TODAY,
+      summary: monthSummary('2026-10', [custom], new Set(), '2026-01-01', TODAY),
+      history: [],
+      prevMonth: '2026-09',
+      nextMonth: null,
+    })
+    expect(attendance).not.toContain('<img src=x')
+    expect(attendance).toContain('&lt;img src=x')
   })
 })

@@ -88,7 +88,7 @@ describe('권한', () => {
     await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
     await expect(backend.members()).rejects.toThrow('운영자')
     await expect(backend.saveAttendance('x', [])).rejects.toThrow('운영자')
-    await expect(backend.createMeeting({ date: TODAY, kind: 'training', place: '' })).rejects.toThrow('운영자')
+    await expect(backend.createMeeting({ date: TODAY, kind: 'training', label: '', place: '' })).rejects.toThrow('운영자')
   })
 
   test('운영자는 자기 계정을 중지할 수 없다', async () => {
@@ -100,7 +100,7 @@ describe('권한', () => {
 describe('출석', () => {
   test('저장하면 집계됨이 되고 회원의 참석 목록에 들어간다', async () => {
     await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
-    const meeting = await backend.createMeeting({ date: TODAY, kind: 'training', place: '' })
+    const meeting = await backend.createMeeting({ date: TODAY, kind: 'training', label: '', place: '' })
     expect(meeting.checkedAt).toBeNull()
     const hong = (await backend.members()).find((m) => m.displayName === DEMO_MEMBER.name)!
 
@@ -201,7 +201,7 @@ describe('기록', () => {
 
   test('운영자 모임 기록 — 그 모임 · 그 종목을 통째로 바꾸고 회원에게 보인다', async () => {
     await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
-    const meeting = await backend.createMeeting({ date: TODAY, kind: 'record', place: '' })
+    const meeting = await backend.createMeeting({ date: TODAY, kind: 'record', label: '', place: '' })
     const hong = (await backend.members()).find((m) => m.displayName === DEMO_MEMBER.name)!
     await backend.saveMeetingRecords(meeting.id, FREE50, [{ memberId: hong.id, timeCs: 2950 }])
     await backend.saveMeetingRecords(meeting.id, { stroke: 'back', distance: 50 }, [{ memberId: hong.id, timeCs: 3500 }])
@@ -285,4 +285,22 @@ describe('운영자가 정하는 비밀번호 · 회원 정보', () => {
     const hong = (await backend.members()).find((m) => m.id === 'demo-1')!
     expect([hong.sex, hong.birthYear]).toEqual([null, null])
   })
+})
+
+test('직접 입력한 모임 — 이름이 있어야 하고, 정해 둔 종류는 이름을 버린다', async () => {
+  await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+  await expect(backend.createMeeting({ date: TODAY, kind: 'custom', label: '  ', place: '' })).rejects.toThrow('모임 이름')
+  const sea = await backend.createMeeting({ date: TODAY, kind: 'custom', label: ' 바다수영 ', place: '' })
+  expect(sea.label).toBe('바다수영')
+  const training = await backend.createMeeting({ date: TODAY, kind: 'training', label: '무시됨', place: '' })
+  expect(training.label).toBe('')
+})
+
+test('전체 기록은 운영자만', async () => {
+  await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+  await expect(backend.allRecords()).rejects.toThrow('운영자')
+  await backend.signOut()
+  await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+  const all = await backend.allRecords()
+  expect(new Set(all.map((r) => r.memberId)).size).toBeGreaterThan(1)
 })

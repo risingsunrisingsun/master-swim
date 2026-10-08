@@ -33,13 +33,19 @@ export function mastersAge(birthYear: number, today: string): number {
   return Number(today.slice(0, 4)) - birthYear
 }
 
-/** 정기 훈련 · 기록회. 둘 다 달성률에 들어간다(PRD-0001 §11 열린 질문 2). */
-export type MeetingKind = 'training' | 'record'
+/**
+ * 정기 훈련 · 자수모임 · 운영자가 직접 이름을 붙인 모임. 모두 달성률에 들어간다
+ * (PRD-0001 §11 열린 질문 2). DB 값 `record` 는 처음 이름이 "기록회"였던 흔적이다 —
+ * 화면 이름만 바꾸고 값은 두었다.
+ */
+export type MeetingKind = 'training' | 'record' | 'custom'
 
 export interface Meeting {
   id: string
   date: string
   kind: MeetingKind
+  /** `custom` 일 때 운영자가 직접 넣은 이름. 그 밖에는 빈 글자. */
+  label: string
   place: string
   cancelled: boolean
   /**
@@ -53,12 +59,24 @@ export interface Meeting {
 export interface MeetingInput {
   date: string
   kind: MeetingKind
+  label: string
   place: string
 }
 
-export const MEETING_KIND_LABEL: Record<MeetingKind, string> = {
+/** 정해 둔 종류의 화면 이름. 직접 입력한 모임은 `meetingKindLabel` 로 읽는다. */
+export const MEETING_KIND_LABEL: Record<Exclude<MeetingKind, 'custom'>, string> = {
   training: '정기 훈련',
-  record: '기록회',
+  record: '자수모임',
+}
+
+/** `meetings.label` 의 check 와 같다. */
+export const MEETING_LABEL_MAX = 20
+
+/**
+ * 모임 종류의 화면 이름. 직접 입력한 이름은 **사람이 넣은 글자**다 — HTML 에 넣을 때 esc 를 거친다.
+ */
+export function meetingKindLabel(meeting: Pick<Meeting, 'kind' | 'label'>): string {
+  return meeting.kind === 'custom' ? meeting.label || '모임' : MEETING_KIND_LABEL[meeting.kind]
 }
 
 // ── 기록 (기능2) ─────────────────────────────────────────────
@@ -89,7 +107,7 @@ export const RECORD_EVENTS: readonly SwimEvent[] = [
   { stroke: 'im', distance: 100 },
 ]
 
-/** 개인 입력 · 정기모임 기록회. 같은 차트에 겹치되 출처를 가른다. */
+/** 개인 입력 · 정기모임에서 운영자가 넣은 기록. 같은 차트에 겹치되 출처를 가른다. */
 export type RecordSource = 'self' | 'meeting'
 
 export interface SwimRecord extends SwimEvent {

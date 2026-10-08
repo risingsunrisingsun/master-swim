@@ -8,7 +8,7 @@ import { type NationalStanding, PERIOD_LABEL, type Period } from '../core/record
 import { eventKey, eventLabel, formatTime, hasMinuteField, timeFields } from '../core/time'
 import {
   type Meeting,
-  MEETING_KIND_LABEL,
+  meetingKindLabel,
   type Member,
   RECORD_EVENTS,
   type SwimEvent,
@@ -20,7 +20,7 @@ import { adminHeadHtml, errorHtml, esc, icon } from './views'
 const PLUS = '<path d="M12 5v14M5 12h14"/>'
 
 export const meetingName = (meeting: Meeting): string =>
-  `${shortDateLabel(meeting.date)} ${MEETING_KIND_LABEL[meeting.kind]}${meeting.place ? ` · ${meeting.place}` : ''}`
+  `${shortDateLabel(meeting.date)} ${meetingKindLabel(meeting)}${meeting.place ? ` · ${meeting.place}` : ''}`
 
 function eventOptions(events: readonly SwimEvent[], selected: SwimEvent | null, counts?: Map<string, number>): string {
   return events
@@ -82,7 +82,7 @@ export function recordsHtml(view: RecordsView): string {
         ${errorHtml(view.error)}
         <section class="card soft stack-s">
           <p>아직 기록이 없습니다.</p>
-          <p class="small muted">혼자 잰 기록을 넣거나, 기록회에서 운영자가 넣은 기록이 여기에 모입니다.</p>
+          <p class="small muted">혼자 잰 기록을 넣거나, 정기모임에서 운영자가 넣은 기록이 여기에 모입니다.</p>
         </section>
         ${add('')}
       </div>`
@@ -174,7 +174,7 @@ export function recordsHtml(view: RecordsView): string {
 function sourceLabel(record: SwimRecord, meetings: ReadonlyMap<string, Meeting>): string {
   if (record.source === 'self') return '개인 입력'
   const meeting = record.meetingId ? meetings.get(record.meetingId) : undefined
-  return meeting ? `모임 · ${MEETING_KIND_LABEL[meeting.kind]}${meeting.place ? ` · ${meeting.place}` : ''}` : '모임 기록'
+  return meeting ? `모임 · ${meetingKindLabel(meeting)}${meeting.place ? ` · ${meeting.place}` : ''}` : '모임 기록'
 }
 
 // ── 기록 넣기 · 고치기 ───────────────────────────────────────
@@ -220,7 +220,7 @@ export function recordFormHtml(view: RecordFormView): string {
       ${errorHtml(view.error)}
       <button class="button primary" type="submit">저장</button>
       ${remove}
-      <p class="hint">여기서 넣은 기록은 '개인 입력'으로 남습니다. 기록회 기록은 운영자가 넣습니다.</p>
+      <p class="hint">여기서 넣은 기록은 '개인 입력'으로 남습니다. 모임 기록은 운영자가 넣습니다.</p>
     </form>`
 }
 
@@ -240,10 +240,21 @@ export interface AdminRecordsView {
   error: string | null
 }
 
+/** 회원 전원의 기록을 엑셀로. 모임이 없어도 개인 입력은 있을 수 있어 늘 보인다. */
+export function downloadRecordsHtml(): string {
+  return `<section class="card download-card">
+      <div>
+        <h2>회원 기록 내려받기</h2>
+        <p class="small muted">전원의 개인 입력 · 모임 기록과 회원별 최고기록을 엑셀(.xlsx) 파일 하나로</p>
+      </div>
+      <button type="button" class="button small-button" data-action="download-records">엑셀 내려받기</button>
+    </section>`
+}
+
 export function adminRecordsHtml(view: AdminRecordsView): string {
   const head = adminHeadHtml('records', '모임 기록')
   if (!view.selected) {
-    return `${head}<div class="page-body"><section class="card soft"><p>기록을 넣을 모임이 없습니다. <a href="#/admin/meetings">모임을 먼저 만드세요.</a></p></section></div>`
+    return `${head}<div class="page-body">${downloadRecordsHtml()}<section class="card soft"><p>기록을 넣을 모임이 없습니다. <a href="#/admin/meetings">모임을 먼저 만드세요.</a></p></section></div>`
   }
 
   const key = eventKey(view.event)
@@ -280,6 +291,7 @@ export function adminRecordsHtml(view: AdminRecordsView): string {
       <input type="hidden" name="meeting" value="${view.selected.id}" />
       <input type="hidden" name="event" value="${key}" />
       <div class="page-body">
+        ${downloadRecordsHtml()}
         <div class="grid-2">
           <div class="field">
             <label for="records-meeting">모임</label>

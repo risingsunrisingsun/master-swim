@@ -274,7 +274,9 @@ export class LocalBackend implements Backend {
   async createMeeting(input: MeetingInput): Promise<Meeting> {
     await this.requireAdmin()
     const state = this.load()
-    const meeting: Meeting = { id: crypto.randomUUID(), ...input, cancelled: false, checkedAt: null }
+    const label = input.kind === 'custom' ? input.label.trim() : ''
+    if (input.kind === 'custom' && !label) throw new UserFacingError('모임 이름을 넣어 주세요.')
+    const meeting: Meeting = { id: crypto.randomUUID(), ...input, label, cancelled: false, checkedAt: null }
     state.meetings.push(meeting)
     this.save(state)
     return { ...meeting }
@@ -309,6 +311,11 @@ export class LocalBackend implements Backend {
       .concat(presentMemberIds.map((id) => prefix + id))
     meeting.checkedAt = new Date().toISOString()
     this.save(state)
+  }
+
+  async allRecords(): Promise<SwimRecord[]> {
+    await this.requireAdmin()
+    return (this.load().records ?? []).map((r) => ({ ...r }))
   }
 
   async meetingRecords(meetingId: string): Promise<SwimRecord[]> {
@@ -411,7 +418,7 @@ function addDays(date: string, days: number): string {
 }
 
 /**
- * 데모 데이터. 지난 6개월 + 다음 달까지 화·목 훈련, 매달 마지막 토요일 기록회.
+ * 데모 데이터. 지난 6개월 + 다음 달까지 화·목 훈련, 매달 마지막 토요일 자수모임.
  * 지난 모임은 출석이 집계돼 있고, 가장 최근 모임 하나는 **집계 전**으로 남겨
  * 운영자 화면에서 바로 체크해 볼 수 있게 한다.
  */
@@ -455,11 +462,11 @@ function seed(today: string, random: () => number): State {
       const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
       const date = isoOf(y, m, d)
       if (weekday === 2 || weekday === 4) {
-        meetings.push({ id: `mt-${date}`, date, kind: 'training', place: '[수영장 이름]', cancelled: false, checkedAt: null })
+        meetings.push({ id: `mt-${date}`, date, kind: 'training', label: '', place: '[수영장 이름]', cancelled: false, checkedAt: null })
       }
       if (weekday === 6) lastSaturday = date
     }
-    meetings.push({ id: `mt-${lastSaturday}`, date: lastSaturday, kind: 'record', place: '[수영장 이름]', cancelled: false, checkedAt: null })
+    meetings.push({ id: `mt-${lastSaturday}`, date: lastSaturday, kind: 'record', label: '', place: '[수영장 이름]', cancelled: false, checkedAt: null })
   }
   meetings.sort((a, b) => a.date.localeCompare(b.date))
 
@@ -491,7 +498,7 @@ function seed(today: string, random: () => number): State {
 }
 
 /**
- * 기록회마다 회원 전원의 자유형 50m, 홍길동은 그 사이 개인 입력 몇 개.
+ * 자수모임마다 회원 전원의 자유형 50m, 홍길동은 그 사이 개인 입력 몇 개.
  * 홍길동의 기록은 들쭉날쭉 줄어든다 — 차트의 PB 마커와 출처 구분이 한 화면에 보이게.
  */
 function seedRecords(past: Meeting[], members: StoredMember[], random: () => number): SwimRecord[] {

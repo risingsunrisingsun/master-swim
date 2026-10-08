@@ -6,6 +6,7 @@ const meeting = (date: string, extra: Partial<Meeting> = {}): Meeting => ({
   id: date,
   date,
   kind: 'training',
+  label: '',
   place: '',
   cancelled: false,
   checkedAt: `${date}T22:00:00Z`,

@@ -18,6 +18,7 @@ import {
   personalBest,
   recordsOf,
 } from './core/records'
+import { exportFileName, recordSheets } from './core/export'
 import { BIRTH_YEAR_MAX, BIRTH_YEAR_MIN, parseRoster, readBirthYear, readSex, ROSTER_MAX, type RosterEntry } from './core/roster'
 import { type Bracket, BRACKETS, formulaPlanAt, planProblem, prescribe } from './core/sets'
 import {
@@ -32,7 +33,8 @@ import {
   timeFields,
   timeProblem,
 } from './core/time'
-import { type MeetingKind, type Member, SEX_LABEL, type SwimEvent } from './core/types'
+import { buildXlsx, XLSX_MIME } from './core/xlsx'
+import { MEETING_LABEL_MAX, type MeetingKind, type Member, SEX_LABEL, type SwimEvent } from './core/types'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config'
 import { type Backend, type MeetingEntry, UserFacingError } from './data/backend'
 import { DEMO_ADMIN, DEMO_INVITE, DEMO_MEMBER, LocalBackend } from './data/local'
@@ -298,7 +300,9 @@ async function adminScreen(route: Route, today: string): Promise<string> {
 
   if (route.path === '/admin/meetings') {
     const meetings = (await backend.meetings()).sort((a, b) => b.date.localeCompare(a.date))
-    return adminMeetingsHtml({ today, meetings, error: flash.error })
+    // 전에 직접 입력한 이름 — 최근 모임 것부터, 겹치지 않게.
+    const customLabels = [...new Set(meetings.filter((m) => m.kind === 'custom' && m.label).map((m) => m.label))].slice(0, 10)
+    return adminMeetingsHtml({ today, meetings, customLabels, error: flash.error })
   }
 
   if (route.path === '/admin/records') {
@@ -318,7 +322,7 @@ async function adminScreen(route: Route, today: string): Promise<string> {
     ])
     const values = new Map<string, { minutes: string; seconds: string }>()
     for (const r of saved) if (sameEvent(r, event)) values.set(r.memberId, timeFields(r.timeCs, event.distance))
-    // 출석한 회원이 위로 — 기록회 당일 위에서부터 차례로 넣는다.
+    // 출석한 회원이 위로 — 모임 당일 위에서부터 차례로 넣는다.
     const roster = members
       .filter((m) => m.status !== 'inactive')
       .sort((a, b) => Number(present.has(b.id)) - Number(present.has(a.id)) || byName(a, b))
@@ -587,17 +591,25 @@ const submitHandlers: Record<string, (form: HTMLFormElement) => Promise<void>> =
 
   'meeting-form': async (form) => {
     const date = field(form, 'date')
-    const kind = field(form, 'kind') as MeetingKind
-    if (!isValidIso(date) || (kind !== 'training' && kind !== 'record')) {
-      flashError = '날짜를 확인해 주세요.'
-    } else {
-      try {
-        await backend.createMeeting({ date, kind, place: field(form, 'place').trim() })
-      } catch (error) {
-        flashError = message(error)
-      }
+    const chosen = field(form, 'kind')
+    // `custom:이름` 은 전에 직접 넣은 이름을 목록에서 고른 것, `custom` 은 지금 칸에 넣는 것.
+    const kind: MeetingKind = chosen === 'training' || chosen === 'record' ? chosen : 'custom'
+    const label =
+      kind !== 'custom' ? '' : chosen.startsWith('custom:') ? chosen.slice('custom:'.length) : field(form, 'label').trim()
+    const problem = !isValidIso(date)
+      ? '날짜를 확인해 주세요.'
+      : kind === 'custom' && !label
+        ? '모임 이름을 넣어 주세요.'
+        : label.length > MEETING_LABEL_MAX
+          ? `모임 이름은 ${MEETING_LABEL_MAX}자까지입니다.`
+          : null
+    if (problem) return showFormError(form, problem)
+    try {
+      await backend.createMeeting({ date, kind, label, place: field(form, 'place').trim() })
+      void render()
+    } catch (error) {
+      showFormError(form, message(error))
     }
-    void render()
   },
 
   'member-form': async (form) => {
@@ -830,6 +842,33 @@ const clickHandlers: Record<string, (button: HTMLButtonElement) => Promise<void>
     }
   },
 
+  'download-records': async (button) => {
+    const label = button.textContent
+    const card = button.closest('section')
+    card?.querySelector('.form-error')?.remove()
+    button.disabled = true
+    button.textContent = '만드는 중…'
+    try {
+      const [members, records, meetings] = await Promise.all([backend.members(), backend.allRecords(), backend.meetings()])
+      if (records.length === 0) {
+        button.textContent = '아직 기록이 없습니다'
+        return
+      }
+      const bytes = buildXlsx(recordSheets(members, records, meetings))
+      saveFile(new Blob([bytes], { type: XLSX_MIME }), exportFileName(todayIso()))
+      button.textContent = `${records.length}건 내려받음`
+    } catch (error) {
+      button.textContent = label
+      const box = document.createElement('p')
+      box.className = 'form-error'
+      box.setAttribute('role', 'alert')
+      box.textContent = message(error)
+      card?.append(box)
+    } finally {
+      button.disabled = false
+    }
+  },
+
   'goal-shortcut': (button) => {
     const form = button.closest('form')
     const cs = Number(button.dataset.cs)
@@ -879,6 +918,15 @@ app.addEventListener('change', (event) => {
     navigateFrom(target)
     return
   }
+  if (target instanceof HTMLSelectElement && target.id === 'meeting-kind') {
+    // '직접 입력…' 을 고르면 이름 칸을 연다.
+    const box = target.form?.querySelector<HTMLElement>('.custom-label-field')
+    if (box) {
+      box.hidden = target.value !== 'custom'
+      if (!box.hidden) box.querySelector('input')?.focus()
+    }
+    return
+  }
   if (target instanceof HTMLSelectElement && target.id === 'record-event') {
     refoldRecordTime(target)
     return
@@ -891,6 +939,19 @@ app.addEventListener('input', (event) => {
   updateReadout(target.closest<HTMLElement>('.time-inputs'))
   if (target.classList.contains('sec-input') || target.classList.contains('min-input')) updateFilledCount()
 })
+
+/** 만든 파일을 내려받게 한다. 폰에서는 브라우저가 열기 · 공유를 묻는다. */
+function saveFile(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.append(link)
+  link.click()
+  link.remove()
+  // 바로 풀면 일부 브라우저(사파리)가 받기 전에 끊는다.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
 
 /** 종목 · 모임을 고르는 select 는 주소를 바꾼다 — 뒤로 가기가 그대로 먹는다. */
 function navigateFrom(select: HTMLSelectElement): void {

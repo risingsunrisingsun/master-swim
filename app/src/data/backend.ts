@@ -102,6 +102,8 @@ export interface Backend {
   /** 체크 결과를 통째로 저장하고 모임을 "집계됨"으로 표시한다. */
   saveAttendance(meetingId: string, presentMemberIds: readonly string[]): Promise<void>
 
+  /** 회원 전원의 기록 — 운영자 내려받기용. */
+  allRecords(): Promise<SwimRecord[]>
   /** 그 모임에서 운영자가 넣은 기록. */
   meetingRecords(meetingId: string): Promise<SwimRecord[]>
   /** 그 모임 · 그 종목의 기록을 통째로 바꾼다. */

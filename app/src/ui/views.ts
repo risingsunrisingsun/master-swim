@@ -10,7 +10,15 @@ import { formatCode, PASSWORD_MIN } from '../core/invite'
 import type { GoalGap } from '../core/records'
 import { eventKey, eventLabel, formatTime } from '../core/time'
 import { ROSTER_MAX, type RosterProblem } from '../core/roster'
-import { type Meeting, MEETING_KIND_LABEL, type Member, SEX_LABEL, type SwimRecord } from '../core/types'
+import {
+  type Meeting,
+  MEETING_KIND_LABEL,
+  MEETING_LABEL_MAX,
+  meetingKindLabel,
+  type Member,
+  SEX_LABEL,
+  type SwimRecord,
+} from '../core/types'
 
 export function esc(text: string): string {
   return text
@@ -166,7 +174,7 @@ export function homeHtml(view: HomeView): string {
 
   const next = view.next
     ? `<span class="big">${shortDateLabel(view.next.date)}</span>
-       <span class="muted small">${MEETING_KIND_LABEL[view.next.kind]}${view.next.place ? ` · ${esc(view.next.place)}` : ''}</span>`
+       <span class="muted small">${esc(meetingKindLabel(view.next))}${view.next.place ? ` · ${esc(view.next.place)}` : ''}</span>`
     : `<span class="muted">예정된 모임이 없습니다.</span>`
 
   return `<header class="page-head row">
@@ -317,7 +325,7 @@ const STATUS_LABEL: Record<MeetingStatus, string> = {
 }
 
 function rowNote(row: MeetingRow): string {
-  const kind = MEETING_KIND_LABEL[row.meeting.kind]
+  const kind = esc(meetingKindLabel(row.meeting))
   if (row.status === 'cancelled') return `${kind} · 취소`
   if (row.status === 'before-join') return `${kind} · 가입 전`
   return kind
@@ -439,7 +447,7 @@ export function adminAttendanceHtml(view: AdminAttendanceView): string {
   const options = view.meetings
     .map((m) => {
       const state = m.checkedAt ? '' : ' · 집계 전'
-      return `<option value="${m.id}"${m.id === view.selected?.id ? ' selected' : ''}>${shortDateLabel(m.date)} · ${MEETING_KIND_LABEL[m.kind]}${state}</option>`
+      return `<option value="${m.id}"${m.id === view.selected?.id ? ' selected' : ''}>${shortDateLabel(m.date)} · ${esc(meetingKindLabel(m))}${state}</option>`
     })
     .join('')
 
@@ -485,6 +493,8 @@ export interface AdminMeetingsView {
   today: string
   /** 최신이 위. */
   meetings: Meeting[]
+  /** 전에 직접 입력한 모임 이름, 최근 것부터. 종류 목록에 바로 고를 수 있게 넣는다. */
+  customLabels: string[]
   error: string | null
 }
 
@@ -498,7 +508,7 @@ export function adminMeetingsHtml(view: AdminMeetingsView): string {
         : `<button type="button" class="button small-button" data-action="cancel-meeting" data-id="${m.id}">취소</button>`
       return `<li class="list-row">
         <span class="list-date">${shortDateLabel(m.date)}</span>
-        <span class="list-note">${MEETING_KIND_LABEL[m.kind]}${m.place ? ` · ${esc(m.place)}` : ''}</span>
+        <span class="list-note">${esc(meetingKindLabel(m))}${m.place ? ` · ${esc(m.place)}` : ''}</span>
         <span class="chip chip-${chip}">${state}</span>
         ${action}
       </li>`
@@ -517,10 +527,17 @@ export function adminMeetingsHtml(view: AdminMeetingsView): string {
           <div class="field">
             <label for="meeting-kind">종류</label>
             <select id="meeting-kind" name="kind">
-              <option value="training">정기 훈련</option>
-              <option value="record">기록회</option>
+              <option value="training">${MEETING_KIND_LABEL.training}</option>
+              <option value="record">${MEETING_KIND_LABEL.record}</option>
+              ${view.customLabels.map((label) => `<option value="custom:${esc(label)}">${esc(label)}</option>`).join('')}
+              <option value="custom">직접 입력…</option>
             </select>
           </div>
+        </div>
+        <div class="field custom-label-field" hidden>
+          <label for="meeting-label">모임 이름 <span class="muted">(${MEETING_LABEL_MAX}자까지)</span></label>
+          <input id="meeting-label" name="label" maxlength="${MEETING_LABEL_MAX}" placeholder="예: 바다수영 · 송년회" />
+          <p class="hint">한 번 넣은 이름은 다음부터 종류 목록에 나옵니다.</p>
         </div>
         <div class="field">
           <label for="meeting-place">장소 <span class="muted">(선택)</span></label>
