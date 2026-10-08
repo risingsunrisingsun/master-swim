@@ -7,20 +7,22 @@
 import { monthHistory, monthSummary, nextMeeting } from './core/attendance'
 import { addMonths, isValidIso, monthOf, todayIso } from './core/dates'
 import { isCodeShape, normalizeCode, passwordProblem } from './core/invite'
+import { parseRoster, ROSTER_MAX } from './core/roster'
 import type { MeetingKind, Member } from './core/types'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config'
 import { type Backend, UserFacingError } from './data/backend'
 import { DEMO_ADMIN, DEMO_INVITE, DEMO_MEMBER, LocalBackend } from './data/local'
 import { SupabaseBackend } from './data/supabase'
 import {
-  type AdminMembersView,
   adminAttendanceHtml,
   adminMeetingsHtml,
   adminMembersHtml,
   attendanceHtml,
+  type BulkDraft,
   comingSoonHtml,
   demoBannerHtml,
   homeHtml,
+  type IssuedCode,
   type LoginMode,
   loginHtml,
   type Tab,
@@ -45,7 +47,8 @@ let loginError: string | null = null
 let lastLoginName = ''
 let flashError: string | null = null
 let flashSaved = false
-let issued: AdminMembersView['issued'] = null
+let issued: IssuedCode[] = []
+let bulkDraft: BulkDraft | null = null
 
 function takeFlash(): { error: string | null; saved: boolean } {
   const flash = { error: flashError, saved: flashSaved }
@@ -190,10 +193,12 @@ async function adminScreen(route: Route, today: string): Promise<string> {
       today,
       members,
       issued,
+      bulk: bulkDraft,
       appUrl: location.origin + location.pathname,
       error: flash.error,
     })
-    issued = null
+    issued = []
+    bulkDraft = null
     return view
   }
 
@@ -308,11 +313,50 @@ const submitHandlers: Record<string, (form: HTMLFormElement) => Promise<void>> =
       if (!isValidIso(joinedOn)) throw new UserFacingError('가입일을 확인해 주세요.')
       const member = await backend.createMember({ displayName: field(form, 'name'), role, joinedOn })
       const invite = await backend.issueInvite(member.id)
-      issued = { member, ...invite }
+      issued = [{ member, ...invite }]
     } catch (error) {
       flashError = message(error)
     }
     void render()
+  },
+
+  'bulk-member-form': async (form) => {
+    const text = field(form, 'names')
+    const joinedOn = field(form, 'joined')
+    bulkDraft = { text, joinedOn, problems: [] }
+    try {
+      if (!isValidIso(joinedOn)) throw new UserFacingError('가입일을 확인해 주세요.')
+      const existing = (await backend.members()).map((m) => m.displayName)
+      const { names, problems } = parseRoster(text, existing)
+      if (problems.length > 0) {
+        bulkDraft.problems = problems
+        return
+      }
+      if (names.length === 0) throw new UserFacingError('이름을 한 줄에 한 명씩 넣어 주세요.')
+      if (names.length > ROSTER_MAX) throw new UserFacingError(`한 번에 ${ROSTER_MAX}명까지 넣을 수 있습니다.`)
+
+      // 한 명씩 차례로. 중간에 끊기면 거기서 멈추고, 남은 이름을 칸에 되돌려 다시 누르게 한다.
+      for (const [index, name] of names.entries()) {
+        let member: Member | null = null
+        try {
+          member = await backend.createMember({ displayName: name, role: 'member', joinedOn })
+          issued.push({ member, ...(await backend.issueInvite(member.id)) })
+        } catch (error) {
+          const rest = names.slice(member ? index + 1 : index)
+          bulkDraft = rest.length > 0 ? { text: rest.join('\n'), joinedOn, problems: [] } : null
+          flashError =
+            `${name} 에서 멈췄습니다 — ${message(error)}` +
+            (index > 0 ? ` 앞의 ${index}명은 추가됐습니다.` : '') +
+            (member ? ` ${name} 님은 추가됐지만 초대코드가 없습니다. 명단에서 초대코드를 눌러 주세요.` : '')
+          return
+        }
+      }
+      bulkDraft = null
+    } catch (error) {
+      flashError = message(error)
+    } finally {
+      void render()
+    }
   },
 }
 
@@ -337,7 +381,7 @@ const clickHandlers: Record<string, (button: HTMLButtonElement) => Promise<void>
     try {
       const member = (await backend.members()).find((m) => m.id === id)
       if (!member) return
-      issued = { member, ...(await backend.issueInvite(id)) }
+      issued = [{ member, ...(await backend.issueInvite(id)) }]
     } catch (error) {
       flashError = message(error)
     }
@@ -357,6 +401,15 @@ const clickHandlers: Record<string, (button: HTMLButtonElement) => Promise<void>
       // 클립보드 권한이 없는 브라우저 — 골라 두기라도 해서 길게 눌러 복사하게 한다.
       text.select()
       button.textContent = '골라 두었습니다 · 길게 눌러 복사하세요'
+    }
+  },
+
+  'copy-text': async (button) => {
+    try {
+      await navigator.clipboard.writeText(button.dataset.text ?? '')
+      button.textContent = '복사함'
+    } catch {
+      button.textContent = '아래 전체 문구에서 복사하세요'
     }
   },
 

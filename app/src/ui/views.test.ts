@@ -68,12 +68,35 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
     const html = adminMembersHtml({
       today: TODAY,
       members: [evil],
-      issued: { member: evil, code: 'TEAM2345', expiresOn: '2026-11-04' },
+      issued: [{ member: evil, code: 'TEAM2345', expiresOn: '2026-11-04' }],
+      bulk: null,
       appUrl: 'https://example.org/',
       error: null,
     })
     expect(html).not.toContain('<img src=x')
     expect(html).toContain('TEAM-2345')
+  })
+
+  test('일괄 추가 — 코드 목록과 막힌 명단', () => {
+    const evil = member({ displayName: EVIL })
+    const html = adminMembersHtml({
+      today: TODAY,
+      members: [evil],
+      issued: [
+        { member: evil, code: 'TEAM2345', expiresOn: '2026-11-04' },
+        { member: member({ displayName: '김철수' }), code: 'SWIM6789', expiresOn: '2026-11-04' },
+      ],
+      bulk: { text: EVIL, joinedOn: TODAY, problems: [{ line: 1, name: EVIL, reason: '이미 등록된 이름입니다' }] },
+      appUrl: 'https://example.org/',
+      error: null,
+    })
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('2명 추가')
+    expect(html).toContain('TEAM-2345')
+    expect(html).toContain('SWIM-6789')
+    expect(html).toContain('1째 줄')
+    // 막혔으면 접힌 칸을 열어 둔다.
+    expect(html).toContain('<details class="card" open>')
   })
 
   test('로그인 이름 되살리기', () => {

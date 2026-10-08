@@ -7,6 +7,7 @@
 import { type MeetingRow, type MeetingStatus, type MonthSummary, percent } from '../core/attendance'
 import { longDateLabel, monthLabel, shortDateLabel } from '../core/dates'
 import { formatCode } from '../core/invite'
+import { ROSTER_MAX, type RosterProblem } from '../core/roster'
 import { type Meeting, MEETING_KIND_LABEL, type Member } from '../core/types'
 
 export function esc(text: string): string {
@@ -438,10 +439,25 @@ export function adminMeetingsHtml(view: AdminMeetingsView): string {
     </div>`
 }
 
+export interface IssuedCode {
+  member: Member
+  code: string
+  expiresOn: string
+}
+
+export interface BulkDraft {
+  text: string
+  joinedOn: string
+  problems: RosterProblem[]
+}
+
 export interface AdminMembersView {
   today: string
   members: Member[]
-  issued: { member: Member; code: string; expiresOn: string } | null
+  /** 방금 발급한 코드. 한 명 추가면 하나, 일괄 추가면 여럿. */
+  issued: IssuedCode[]
+  /** 일괄 추가가 막혔을 때 붙여 넣은 글을 되살린다. */
+  bulk: BulkDraft | null
   /** 초대 문구에 넣을 앱 주소. */
   appUrl: string
   error: string | null
@@ -457,16 +473,72 @@ const MEMBER_STATUS_LABEL: Record<Member['status'], string> = {
   inactive: '중지',
 }
 
-export function adminMembersHtml(view: AdminMembersView): string {
-  const issued = view.issued
-    ? `<section class="card issued" aria-live="polite">
-        <p class="small">${esc(view.issued.member.displayName)} 님 초대코드 · ${shortDateLabel(view.issued.expiresOn)}까지</p>
-        <p class="code">${formatCode(view.issued.code)}</p>
+function issuedHtml(issued: IssuedCode[], appUrl: string): string {
+  const [first] = issued
+  if (!first) return ''
+  const message = (i: IssuedCode) => inviteMessage(i.member.displayName, i.code, i.expiresOn, appUrl)
+
+  if (issued.length === 1) {
+    return `<section class="card issued" aria-live="polite">
+        <p class="small">${esc(first.member.displayName)} 님 초대코드 · ${shortDateLabel(first.expiresOn)}까지</p>
+        <p class="code">${formatCode(first.code)}</p>
         <p class="small muted">이 코드는 다시 볼 수 없습니다. 지금 보내세요.</p>
-        <textarea id="invite-message" readonly rows="3" aria-label="보낼 문구">${esc(inviteMessage(view.issued.member.displayName, view.issued.code, view.issued.expiresOn, view.appUrl))}</textarea>
+        <textarea id="invite-message" readonly rows="3" aria-label="보낼 문구">${esc(message(first))}</textarea>
         <button type="button" class="button primary" data-action="copy-invite">문구 복사</button>
       </section>`
+  }
+
+  // 한 사람씩 카톡으로 보내는 경우가 많다. 줄마다 복사 버튼을 두고, 누른 줄은 표시가 남는다.
+  const rows = issued
+    .map(
+      (i) => `<li class="member-row">
+        <div class="member-name">
+          <strong>${esc(i.member.displayName)}</strong>
+          <span class="issued-code">${formatCode(i.code)}</span>
+        </div>
+        <button type="button" class="button small-button" data-action="copy-text" data-text="${esc(message(i))}">복사</button>
+      </li>`,
+    )
+    .join('')
+  return `<section class="card issued stack" aria-live="polite">
+      <h2>${issued.length}명 추가 · 초대코드</h2>
+      <p class="small muted">${shortDateLabel(first.expiresOn)}까지 쓸 수 있습니다. 이 코드는 다시 볼 수 없으니 이 화면을 닫기 전에 보내세요.</p>
+      <ul class="list">${rows}</ul>
+      <textarea id="invite-message" readonly rows="6" aria-label="전체 문구">${esc(issued.map(message).join('\n\n'))}</textarea>
+      <button type="button" class="button primary" data-action="copy-invite">전체 문구 복사</button>
+    </section>`
+}
+
+function bulkFormHtml(today: string, bulk: BulkDraft | null): string {
+  const problems = bulk?.problems.length
+    ? `<div class="form-error" role="alert">
+        <p>아래 이름을 고친 뒤 다시 눌러 주세요. 아직 아무도 추가하지 않았습니다.</p>
+        <ul class="problem-list">${bulk.problems
+          .map((p) => `<li>${p.line}째 줄 <strong>${esc(p.name)}</strong> — ${esc(p.reason)}</li>`)
+          .join('')}</ul>
+      </div>`
     : ''
+  return `<details class="card"${bulk ? ' open' : ''}>
+      <summary><h2>여러 명 한꺼번에 추가</h2></summary>
+      <form id="bulk-member-form" class="stack">
+        <div class="field">
+          <label for="bulk-names">이름 <span class="muted">(한 줄에 한 명 · 최대 ${ROSTER_MAX}명)</span></label>
+          <textarea id="bulk-names" name="names" rows="8" required placeholder="홍길동&#10;김철수&#10;이영희">${esc(bulk?.text ?? '')}</textarea>
+          <p class="hint">카페 명단을 그대로 붙여 넣어도 됩니다. 앞의 번호(1. 2.)와 쉼표는 알아서 나눕니다.</p>
+        </div>
+        <div class="field">
+          <label for="bulk-joined">가입일 <span class="muted">(이 날 이전 모임은 달성률에서 뺍니다)</span></label>
+          <input id="bulk-joined" name="joined" type="date" required value="${bulk?.joinedOn ?? today}" />
+        </div>
+        ${problems}
+        <button class="button primary" type="submit">모두 추가하고 초대코드 받기</button>
+        <p class="hint">모두 일반 회원으로 들어갑니다. 운영자는 위에서 한 명씩 추가하세요.</p>
+      </form>
+    </details>`
+}
+
+export function adminMembersHtml(view: AdminMembersView): string {
+  const issued = issuedHtml(view.issued, view.appUrl)
 
   const rows = view.members
     .map((m) => {
@@ -513,6 +585,7 @@ export function adminMembersHtml(view: AdminMembersView): string {
         ${errorHtml(view.error)}
         <button class="button primary" type="submit">추가하고 초대코드 받기</button>
       </form>
+      ${bulkFormHtml(view.today, view.bulk)}
       <section class="card list-card">
         <ul class="list">${rows}</ul>
       </section>
