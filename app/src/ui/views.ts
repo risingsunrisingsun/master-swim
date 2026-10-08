@@ -6,9 +6,11 @@
  */
 import { type MeetingRow, type MeetingStatus, type MonthSummary, percent } from '../core/attendance'
 import { longDateLabel, monthLabel, shortDateLabel } from '../core/dates'
-import { formatCode } from '../core/invite'
+import { formatCode, PASSWORD_MIN } from '../core/invite'
+import type { GoalGap } from '../core/records'
+import { eventKey, eventLabel, formatTime } from '../core/time'
 import { ROSTER_MAX, type RosterProblem } from '../core/roster'
-import { type Meeting, MEETING_KIND_LABEL, type Member } from '../core/types'
+import { type Meeting, MEETING_KIND_LABEL, type Member, SEX_LABEL, type SwimRecord } from '../core/types'
 
 export function esc(text: string): string {
   return text
@@ -130,7 +132,7 @@ export function loginHtml(view: LoginView): string {
     <div class="segmented" role="tablist">${tab('login', '로그인')}${tab('join', '초대코드로 가입')}</div>
     ${form}
     ${demo}
-    <p class="hint center">나인틴 카페 회원만 가입할 수 있습니다.<br />비밀번호를 잊었나요? 운영자에게 새 초대코드를 받으세요.</p>
+    <p class="hint center">나인틴 카페 회원만 가입할 수 있습니다.<br />비밀번호를 잊었나요? 운영자에게 재설정을 부탁하세요.</p>
   </section>`
 }
 
@@ -141,6 +143,12 @@ export interface HomeView {
   today: string
   month: MonthSummary
   next: Meeting | null
+  /** 가장 최근에 새로 쓴 최고기록. */
+  pb: SwimRecord | null
+  /** 가장 최근에 정한 목표와 남은 초. */
+  goal: GoalGap | null
+  /** 운영자가 정해 준 비밀번호를 아직 쓰는 중. */
+  tempPassword: boolean
 }
 
 export function homeHtml(view: HomeView): string {
@@ -169,6 +177,11 @@ export function homeHtml(view: HomeView): string {
       <img src="./mark.png" alt="나인틴" width="40" height="40" />
     </header>
     <div class="page-body">
+      ${
+        view.tempPassword
+          ? `<a class="card notice" href="#/account"><strong>비밀번호를 바꿔 주세요</strong><span class="small">운영자가 정해 준 비밀번호를 쓰고 있어요. 내 계정에서 나만 아는 비밀번호로 바꿀 수 있습니다.</span></a>`
+          : ''
+      }
       <a class="card hero" href="#/attendance">
         <div class="row baseline">
           <h2>${monthLabel(month.month)} 훈련 참여</h2>
@@ -180,8 +193,89 @@ export function homeHtml(view: HomeView): string {
         <h2 class="muted small">다음 정기모임</h2>
         ${next}
       </section>
+      ${homeRecordsHtml(view)}
+      <div class="row center-row">
+        <a class="button quiet" href="#/account">내 계정 · 비밀번호</a>
+        <button type="button" class="button quiet" data-action="sign-out">로그아웃</button>
+      </div>
+    </div>`
+}
+
+function homeRecordsHtml(view: HomeView): string {
+  const { pb, goal } = view
+  if (!pb && !goal) {
+    return `<a class="card soft" href="#/records/new">
+        <p class="small muted">기록을 넣으면 최고기록과 목표까지 남은 초가 여기에 보입니다.</p>
+      </a>`
+  }
+
+  const remaining = goal?.remainingCs
+  const goalCard = goal
+    ? `<a class="card" href="#/sets?e=${eventKey(goal.goal)}">
+        <h2 class="muted small">목표까지 · ${eventLabel(goal.goal)}</h2>
+        ${
+          remaining === null || remaining === undefined
+            ? `<span class="muted">이 종목 기록을 넣으면 남은 초가 보입니다.</span>`
+            : remaining > 0
+              ? `<p class="goal-number"><span class="num">${(remaining / 100).toFixed(2)}</span><span class="unit">초</span></p>
+                 <span class="small muted">최고 ${formatTime(goal.best!.timeCs)} → 목표 ${formatTime(goal.goal.targetCs)}</span>`
+              : `<span class="big">목표 ${formatTime(goal.goal.targetCs)} 달성</span>`
+        }
+      </a>`
+    : ''
+
+  const pbCard = pb
+    ? `<a class="card" href="#/records?e=${eventKey(pb)}">
+        <h2 class="muted small">최근 최고기록</h2>
+        <span class="big">${eventLabel(pb)} <span class="num">${formatTime(pb.timeCs)}</span></span>
+        <span class="small muted">${shortDateLabel(pb.date)} · ${pb.source === 'meeting' ? '모임 기록' : '개인 입력'}</span>
+      </a>`
+    : ''
+
+  return goalCard + pbCard
+}
+
+// ── 내 계정 ──────────────────────────────────────────────────
+
+export interface AccountView {
+  member: Member
+  saved: boolean
+  error: string | null
+}
+
+export function accountHtml(view: AccountView): string {
+  const { member } = view
+  const status = view.saved ? `<p class="form-ok" role="status">비밀번호를 바꿨습니다. 다음 로그인부터 새 비밀번호를 씁니다.</p>` : ''
+  return `<header class="page-head row">
+      <h1>내 계정</h1>
+      <a class="small" href="#/home">홈으로</a>
+    </header>
+    <div class="page-body">
+      <section class="card">
+        <p class="big">${esc(member.displayName)}</p>
+        <p class="small muted">${member.role === 'admin' ? '운영자' : '회원'} · ${shortDateLabel(member.joinedOn)} 가입</p>
+      </section>
+      <form id="password-form" class="card stack" novalidate>
+        <h2>비밀번호 바꾸기</h2>
+        <input type="text" name="username" autocomplete="username" value="${esc(member.displayName)}" hidden />
+        <div class="field">
+          <label for="pw-current">지금 비밀번호</label>
+          <input id="pw-current" name="current" type="password" autocomplete="current-password" required />
+        </div>
+        <div class="field">
+          <label for="pw-next">새 비밀번호 <span class="muted">(${PASSWORD_MIN}자 이상)</span></label>
+          <input id="pw-next" name="password" type="password" autocomplete="new-password" required />
+        </div>
+        <div class="field">
+          <label for="pw-confirm">새 비밀번호 확인</label>
+          <input id="pw-confirm" name="confirm" type="password" autocomplete="new-password" required />
+        </div>
+        ${status}
+        ${errorHtml(view.error)}
+        <button class="button primary" type="submit">비밀번호 바꾸기</button>
+      </form>
       <section class="card soft">
-        <p class="small muted">기록 추이와 단축 세트는 다음 업데이트에서 열립니다.</p>
+        <p class="small muted">비밀번호를 잊었다면 운영자에게 새 초대코드를 받아 로그인 화면의 '초대코드로 가입'에서 다시 정합니다. 운영자는 다른 운영자에게 받습니다.</p>
       </section>
       <button type="button" class="button quiet" data-action="sign-out">로그아웃</button>
     </div>`
@@ -304,12 +398,14 @@ export function comingSoonHtml(title: string, text: string): string {
 
 // ── 운영자 ───────────────────────────────────────────────────
 
-export type AdminTab = 'attendance' | 'meetings' | 'members'
+export type AdminTab = 'attendance' | 'records' | 'meetings' | 'members' | 'sets'
 
 const ADMIN_TABS: [AdminTab, string][] = [
   ['attendance', '출석'],
+  ['records', '기록'],
   ['meetings', '모임'],
   ['members', '회원'],
+  ['sets', '세트'],
 ]
 
 export function adminHeadHtml(active: AdminTab, title: string): string {
@@ -439,11 +535,13 @@ export function adminMeetingsHtml(view: AdminMeetingsView): string {
     </div>`
 }
 
-export interface IssuedCode {
-  member: Member
-  code: string
-  expiresOn: string
-}
+/**
+ * 방금 회원에게 보낼 것. 초대코드를 냈거나, 운영자가 비밀번호를 정해 줬거나.
+ * 둘 다 이 화면을 떠나면 다시 볼 수 없다 — DB 에는 해시만 남는다.
+ */
+export type IssuedCode =
+  | { kind: 'invite'; member: Member; code: string; expiresOn: string }
+  | { kind: 'password'; member: Member; password: string }
 
 export interface BulkDraft {
   text: string
@@ -454,7 +552,7 @@ export interface BulkDraft {
 export interface AdminMembersView {
   today: string
   members: Member[]
-  /** 방금 발급한 코드. 한 명 추가면 하나, 일괄 추가면 여럿. */
+  /** 방금 발급한 코드 · 정한 비밀번호. 한 명 추가면 하나, 일괄 추가면 여럿. */
   issued: IssuedCode[]
   /** 일괄 추가가 막혔을 때 붙여 넣은 글을 되살린다. */
   bulk: BulkDraft | null
@@ -467,23 +565,45 @@ export function inviteMessage(name: string, code: string, expiresOn: string, app
   return `[나인틴] ${name} 님 초대코드: ${formatCode(code)}\n${shortDateLabel(expiresOn)}까지 쓸 수 있어요.\n${appUrl} 에서 '초대코드로 가입'을 누르세요.`
 }
 
+export function passwordMessage(name: string, password: string, appUrl: string): string {
+  return `[나인틴] ${name} 님 계정이 준비됐어요.\n${appUrl} 에서 이름 '${name}', 비밀번호 ${password} 로 로그인하세요.\n처음 들어가면 '내 계정'에서 나만 아는 비밀번호로 바꿔 주세요.`
+}
+
 const MEMBER_STATUS_LABEL: Record<Member['status'], string> = {
   invited: '가입 전',
   active: '사용 중',
   inactive: '중지',
 }
 
-function issuedHtml(issued: IssuedCode[], appUrl: string): string {
+/** `남 · 1985년생` — 비어 있으면 빈 글자. */
+export function profileLabel(member: Member): string {
+  return [member.sex ? SEX_LABEL[member.sex] : '', member.birthYear ? `${member.birthYear}년생` : '']
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function issuedMessage(i: IssuedCode, appUrl: string): string {
+  return i.kind === 'invite'
+    ? inviteMessage(i.member.displayName, i.code, i.expiresOn, appUrl)
+    : passwordMessage(i.member.displayName, i.password, appUrl)
+}
+
+export function issuedHtml(issued: IssuedCode[], appUrl: string): string {
   const [first] = issued
   if (!first) return ''
-  const message = (i: IssuedCode) => inviteMessage(i.member.displayName, i.code, i.expiresOn, appUrl)
+  const message = (i: IssuedCode) => issuedMessage(i, appUrl)
 
   if (issued.length === 1) {
-    return `<section class="card issued" aria-live="polite">
-        <p class="small">${esc(first.member.displayName)} 님 초대코드 · ${shortDateLabel(first.expiresOn)}까지</p>
+    const head =
+      first.kind === 'invite'
+        ? `<p class="small">${esc(first.member.displayName)} 님 초대코드 · ${shortDateLabel(first.expiresOn)}까지</p>
         <p class="code">${formatCode(first.code)}</p>
-        <p class="small muted">이 코드는 다시 볼 수 없습니다. 지금 보내세요.</p>
-        <textarea id="invite-message" readonly rows="3" aria-label="보낼 문구">${esc(message(first))}</textarea>
+        <p class="small muted">이 코드는 다시 볼 수 없습니다. 지금 보내세요.</p>`
+        : `<p class="small">${esc(first.member.displayName)} 님 비밀번호를 정했습니다</p>
+        <p class="small muted">이름과 이 비밀번호로 바로 로그인됩니다. 비밀번호는 다시 볼 수 없으니 지금 보내세요.</p>`
+    return `<section class="card issued" aria-live="polite">
+        ${head}
+        <textarea id="invite-message" readonly rows="4" aria-label="보낼 문구">${esc(message(first))}</textarea>
         <button type="button" class="button primary" data-action="copy-invite">문구 복사</button>
       </section>`
   }
@@ -494,25 +614,47 @@ function issuedHtml(issued: IssuedCode[], appUrl: string): string {
       (i) => `<li class="member-row">
         <div class="member-name">
           <strong>${esc(i.member.displayName)}</strong>
-          <span class="issued-code">${formatCode(i.code)}</span>
+          ${i.kind === 'invite' ? `<span class="issued-code">${formatCode(i.code)}</span>` : '<span class="small muted">비밀번호로 바로 로그인</span>'}
         </div>
         <button type="button" class="button small-button" data-action="copy-text" data-text="${esc(message(i))}">복사</button>
       </li>`,
     )
     .join('')
+  const invites = issued.filter((i) => i.kind === 'invite')
+  const expiry = invites[0]?.kind === 'invite' ? `초대코드는 ${shortDateLabel(invites[0].expiresOn)}까지 쓸 수 있습니다. ` : ''
   return `<section class="card issued stack" aria-live="polite">
-      <h2>${issued.length}명 추가 · 초대코드</h2>
-      <p class="small muted">${shortDateLabel(first.expiresOn)}까지 쓸 수 있습니다. 이 코드는 다시 볼 수 없으니 이 화면을 닫기 전에 보내세요.</p>
+      <h2>${issued.length}명 추가 · 보낼 문구</h2>
+      <p class="small muted">${expiry}코드와 비밀번호는 다시 볼 수 없으니 이 화면을 닫기 전에 보내세요.</p>
       <ul class="list">${rows}</ul>
       <textarea id="invite-message" readonly rows="6" aria-label="전체 문구">${esc(issued.map(message).join('\n\n'))}</textarea>
       <button type="button" class="button primary" data-action="copy-invite">전체 문구 복사</button>
     </section>`
 }
 
+function sexOptions(selected: Member['sex']): string {
+  return `<option value=""${selected === null ? ' selected' : ''}>선택 안 함</option>
+    <option value="M"${selected === 'M' ? ' selected' : ''}>남</option>
+    <option value="F"${selected === 'F' ? ' selected' : ''}>여</option>`
+}
+
+/** 성별 · 출생연도 두 칸. 회원 추가와 회원 정보가 같이 쓴다. */
+function profileFieldsHtml(prefix: string, member: Pick<Member, 'sex' | 'birthYear'> | null): string {
+  return `<div class="grid-2">
+      <div class="field">
+        <label for="${prefix}-sex">성별 <span class="muted">(선택)</span></label>
+        <select id="${prefix}-sex" name="sex">${sexOptions(member?.sex ?? null)}</select>
+      </div>
+      <div class="field">
+        <label for="${prefix}-birth">출생연도 <span class="muted">(선택)</span></label>
+        <input id="${prefix}-birth" name="birthYear" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1985" value="${member?.birthYear ?? ''}" />
+      </div>
+    </div>`
+}
+
 function bulkFormHtml(today: string, bulk: BulkDraft | null): string {
   const problems = bulk?.problems.length
     ? `<div class="form-error" role="alert">
-        <p>아래 이름을 고친 뒤 다시 눌러 주세요. 아직 아무도 추가하지 않았습니다.</p>
+        <p>아래 줄을 고친 뒤 다시 눌러 주세요. 아직 아무도 추가하지 않았습니다.</p>
         <ul class="problem-list">${bulk.problems
           .map((p) => `<li>${p.line}째 줄 <strong>${esc(p.name)}</strong> — ${esc(p.reason)}</li>`)
           .join('')}</ul>
@@ -522,16 +664,21 @@ function bulkFormHtml(today: string, bulk: BulkDraft | null): string {
       <summary><h2>여러 명 한꺼번에 추가</h2></summary>
       <form id="bulk-member-form" class="stack">
         <div class="field">
-          <label for="bulk-names">이름 <span class="muted">(한 줄에 한 명 · 최대 ${ROSTER_MAX}명)</span></label>
-          <textarea id="bulk-names" name="names" rows="8" required placeholder="홍길동&#10;김철수&#10;이영희">${esc(bulk?.text ?? '')}</textarea>
-          <p class="hint">카페 명단을 그대로 붙여 넣어도 됩니다. 앞의 번호(1. 2.)와 쉼표는 알아서 나눕니다.</p>
+          <label for="bulk-names">명단 <span class="muted">(한 줄에 한 명 · 최대 ${ROSTER_MAX}명)</span></label>
+          <textarea id="bulk-names" name="names" rows="8" required spellcheck="false" placeholder="홍길동&#10;김철수, 남, 1985&#10;이영희, 여, 1990, swim1234">${esc(bulk?.text ?? '')}</textarea>
+          <p class="hint">이름 뒤에 쉼표로 <strong>성별, 출생연도, 초기 비밀번호</strong>를 붙일 수 있습니다. 모두 선택이고 순서는 상관없습니다. 스프레드시트에서 복사해도 됩니다. 앞의 번호(1. 2.)는 알아서 뗍니다.</p>
+        </div>
+        <div class="field">
+          <label for="bulk-password">공통 초기 비밀번호 <span class="muted">(선택 · ${PASSWORD_MIN}자 이상)</span></label>
+          <input id="bulk-password" name="password" autocomplete="off" spellcheck="false" />
+          <p class="hint">줄에 비밀번호가 없는 사람에게 씁니다. 둘 다 없으면 초대코드를 받습니다.</p>
         </div>
         <div class="field">
           <label for="bulk-joined">가입일 <span class="muted">(이 날 이전 모임은 달성률에서 뺍니다)</span></label>
           <input id="bulk-joined" name="joined" type="date" required value="${bulk?.joinedOn ?? today}" />
         </div>
         ${problems}
-        <button class="button primary" type="submit">모두 추가하고 초대코드 받기</button>
+        <button class="button primary" type="submit">모두 추가</button>
         <p class="hint">모두 일반 회원으로 들어갑니다. 운영자는 위에서 한 명씩 추가하세요.</p>
       </form>
     </details>`
@@ -547,15 +694,16 @@ export function adminMembersHtml(view: AdminMembersView): string {
           ? `<button type="button" class="button small-button" data-action="activate-member" data-id="${m.id}">다시 사용</button>`
           : `<button type="button" class="button small-button" data-action="deactivate-member" data-id="${m.id}">중지</button>`
       const invite =
-        m.status === 'inactive'
-          ? ''
-          : `<button type="button" class="button small-button" data-action="issue-invite" data-id="${m.id}">${m.status === 'invited' ? '초대코드' : '비번 재설정'}</button>`
+        m.status === 'invited'
+          ? `<button type="button" class="button small-button" data-action="issue-invite" data-id="${m.id}">초대코드</button>`
+          : ''
+      const profile = profileLabel(m)
       return `<li class="member-row">
         <div class="member-name">
           <strong>${esc(m.displayName)}</strong>
-          <span class="small muted">${m.role === 'admin' ? '운영자 · ' : ''}${MEMBER_STATUS_LABEL[m.status]}</span>
+          <span class="small muted">${m.role === 'admin' ? '운영자 · ' : ''}${MEMBER_STATUS_LABEL[m.status]}${profile ? ` · ${profile}` : ''}</span>
         </div>
-        <div class="row">${invite}${toggle}</div>
+        <div class="row">${invite}<a class="button small-button" href="#/admin/member?id=${m.id}">정보 · 비번</a>${toggle}</div>
       </li>`
     })
     .join('')
@@ -582,12 +730,68 @@ export function adminMembersHtml(view: AdminMembersView): string {
             </select>
           </div>
         </div>
+        ${profileFieldsHtml('member', null)}
+        <div class="field">
+          <label for="member-password">초기 비밀번호 <span class="muted">(선택 · ${PASSWORD_MIN}자 이상)</span></label>
+          <input id="member-password" name="password" autocomplete="off" spellcheck="false" />
+          <p class="hint">넣으면 이름과 이 비밀번호로 바로 로그인됩니다. 비우면 초대코드를 받습니다.</p>
+        </div>
         ${errorHtml(view.error)}
-        <button class="button primary" type="submit">추가하고 초대코드 받기</button>
+        <button class="button primary" type="submit">추가</button>
       </form>
       ${bulkFormHtml(view.today, view.bulk)}
       <section class="card list-card">
         <ul class="list">${rows}</ul>
       </section>
+    </div>`
+}
+
+// ── 운영자: 회원 한 명 ───────────────────────────────────────
+
+export interface AdminMemberView {
+  member: Member
+  /** 방금 정한 비밀번호. 보낼 문구를 띄운다. */
+  issued: IssuedCode | null
+  appUrl: string
+  saved: boolean
+  error: string | null
+}
+
+export function adminMemberHtml(view: AdminMemberView): string {
+  const { member } = view
+  const status = view.saved ? `<p class="form-ok" role="status">저장했습니다.</p>` : ''
+  const password =
+    member.status === 'inactive'
+      ? `<section class="card soft"><p class="small">사용 중지된 회원입니다. 명단에서 '다시 사용'을 누른 뒤 비밀번호를 정할 수 있습니다.</p></section>`
+      : `<form id="member-password-form" class="card stack" novalidate>
+          <h2>비밀번호 직접 정하기</h2>
+          <input type="hidden" name="id" value="${member.id}" />
+          <div class="field">
+            <label for="admin-pw">새 비밀번호 <span class="muted">(${PASSWORD_MIN}자 이상)</span></label>
+            <input id="admin-pw" name="password" autocomplete="off" spellcheck="false" />
+          </div>
+          <button class="button primary" type="submit">${member.status === 'invited' ? '계정 만들기' : '비밀번호 바꾸기'}</button>
+          <button type="button" class="button" data-action="issue-invite" data-id="${member.id}">대신 초대코드 보내기</button>
+          <p class="hint">${
+            member.status === 'invited'
+              ? '아직 가입 전이라 계정이 바로 생기고, 이름과 이 비밀번호로 로그인됩니다.'
+              : '비밀번호를 잊은 회원에게 씁니다. 지금 비밀번호는 바로 쓸 수 없게 됩니다.'
+          } 회원은 로그인 뒤 '내 계정'에서 바꾸라는 안내를 받습니다. 초대코드를 보내면 회원이 직접 비밀번호를 정합니다.</p>
+        </form>`
+
+  return `${adminHeadHtml('members', member.displayName)}
+    <div class="page-body">
+      <a class="small" href="#/admin/members">← 회원 명단</a>
+      ${view.issued ? issuedHtml([view.issued], view.appUrl) : ''}
+      ${status}${errorHtml(view.error)}
+      <form id="profile-form" class="card stack" novalidate>
+        <h2>회원 정보</h2>
+        <input type="hidden" name="id" value="${member.id}" />
+        <p class="small muted">${member.role === 'admin' ? '운영자' : '회원'} · ${MEMBER_STATUS_LABEL[member.status]} · ${shortDateLabel(member.joinedOn)} 가입</p>
+        ${profileFieldsHtml('profile', member)}
+        <p class="hint">세트 반복 수와 기록 화면의 국내 마스터즈 상위 % 에 씁니다. 비워 두면 세트는 남자 기준으로 계산하고 상위 % 는 숨깁니다.</p>
+        <button class="button" type="submit">정보 저장</button>
+      </form>
+      ${password}
     </div>`
 }

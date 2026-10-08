@@ -18,6 +18,9 @@
 - `0001_members_meetings_attendance.sql` — 테이블 · RLS · 함수
 - `0002_table_grants.sql` — 테이블 권한. 빠뜨리면 Edge Function 이 `permission denied` 로
   막혀 가입이 「잠시 후 다시 시도해 주세요」(500)로만 끝난다.
+- `0003_records_goals_sets.sql` — 기록 · 목표 · 세트 코치 조정 테이블과 `save_meeting_records`.
+  **앱을 배포하기 전에** 실행한다. 없으면 홈 · 기록 · 세트 화면이 「저장하지 못했습니다」로 막힌다.
+- `0004_member_profile.sql` — 회원 성별 · 출생연도(운영자가 넣는 선택값). 이것도 배포 전에.
 
 ## 3. Edge Function
 
@@ -26,7 +29,12 @@ Supabase CLI 로 배포한다. 이 함수는 **로그인 전에** 불리므로 J
 ```sh
 npx supabase login
 npx supabase functions deploy redeem-invite --project-ref <프로젝트 ref> --no-verify-jwt
+npx supabase functions deploy set-passwords --project-ref <프로젝트 ref> --no-verify-jwt
 ```
+
+`set-passwords` 는 운영자가 회원 비밀번호를 직접 정하는 함수다(일괄 추가 · 회원 정보 화면).
+로그인한 운영자만 부를 수 있고, 그 검사는 함수 안에서 한다 — 게이트웨이 JWT 검사를 끈 이유는
+redeem-invite 와 같게 두기 위해서이고, 토큰 없이 부르면 401 이다.
 
 `SUPABASE_URL` · `SUPABASE_SERVICE_ROLE_KEY` 는 Supabase 가 함수에 자동으로 넣는다.
 내부 이메일 도메인을 바꾸려면 **Edge Functions → Secrets** 에 `AUTH_EMAIL_DOMAIN` 을 둔다

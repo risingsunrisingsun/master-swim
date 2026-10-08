@@ -88,7 +88,11 @@ Deno.serve(async (request) => {
   }
 
   if (member.user_id) {
-    const { error } = await admin.auth.admin.updateUserById(member.user_id, { password })
+    // 운영자가 정해 준 비밀번호였다면 그 표시도 끈다 — 이제 회원이 정한 비밀번호다.
+    const { error } = await admin.auth.admin.updateUserById(member.user_id, {
+      password,
+      user_metadata: { temp_password: false },
+    })
     if (error) {
       console.error('password update failed', error)
       await release()

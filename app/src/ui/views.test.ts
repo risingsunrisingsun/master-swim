@@ -2,6 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { monthHistory, monthSummary } from '../core/attendance'
 import type { Meeting, Member } from '../core/types'
 import {
+  accountHtml,
+  adminMemberHtml,
+  passwordMessage,
   adminAttendanceHtml,
   adminMembersHtml,
   attendanceHtml,
@@ -21,6 +24,8 @@ const member = (extra: Partial<Member> = {}): Member => ({
   role: 'member',
   status: 'active',
   joinedOn: '2026-01-01',
+  sex: null,
+  birthYear: null,
   ...extra,
 })
 
@@ -47,8 +52,21 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
       today: TODAY,
       month: monthSummary('2026-10', [], new Set(), '2026-01-01', TODAY),
       next: meeting('2026-10-30', { place: EVIL, checkedAt: null }),
+      pb: null,
+      goal: null,
+      tempPassword: true,
     })
     expect(html).not.toContain('<img src=x')
+    expect(html).toContain('href="#/account"')
+    expect(html).toContain('비밀번호를 바꿔 주세요')
+  })
+
+  test('내 계정', () => {
+    const html = accountHtml({ member: member({ displayName: EVIL }), saved: true, error: EVIL })
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('id="password-form"')
+    expect(html).toContain('autocomplete="current-password"')
+    expect(html).toContain('비밀번호를 바꿨습니다')
   })
 
   test('출석 체크 명단', () => {
@@ -68,7 +86,7 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
     const html = adminMembersHtml({
       today: TODAY,
       members: [evil],
-      issued: [{ member: evil, code: 'TEAM2345', expiresOn: '2026-11-04' }],
+      issued: [{ kind: 'invite', member: evil, code: 'TEAM2345', expiresOn: '2026-11-04' }],
       bulk: null,
       appUrl: 'https://example.org/',
       error: null,
@@ -83,15 +101,19 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
       today: TODAY,
       members: [evil],
       issued: [
-        { member: evil, code: 'TEAM2345', expiresOn: '2026-11-04' },
-        { member: member({ displayName: '김철수' }), code: 'SWIM6789', expiresOn: '2026-11-04' },
+        { kind: 'invite', member: evil, code: 'TEAM2345', expiresOn: '2026-11-04' },
+        { member: member({ displayName: '김철수' }), kind: 'invite', code: 'SWIM6789', expiresOn: '2026-11-04' },
+        { member: member({ displayName: '이영희' }), kind: 'password', password: 'pw<b>123' },
       ],
       bulk: { text: EVIL, joinedOn: TODAY, problems: [{ line: 1, name: EVIL, reason: '이미 등록된 이름입니다' }] },
       appUrl: 'https://example.org/',
       error: null,
     })
     expect(html).not.toContain('<img src=x')
-    expect(html).toContain('2명 추가')
+    expect(html).toContain('3명 추가')
+    expect(html).toContain('비밀번호로 바로 로그인')
+    expect(html).toContain('비밀번호 pw&lt;b&gt;123 로 로그인')
+    expect(html).not.toContain('pw<b>')
     expect(html).toContain('TEAM-2345')
     expect(html).toContain('SWIM-6789')
     expect(html).toContain('1째 줄')
@@ -154,4 +176,40 @@ test('초대 문구', () => {
   expect(inviteMessage('홍길동', 'TEAM2345', '2026-11-04', 'https://x.org/')).toBe(
     "[나인틴] 홍길동 님 초대코드: TEAM-2345\n11/4 수까지 쓸 수 있어요.\nhttps://x.org/ 에서 '초대코드로 가입'을 누르세요.",
   )
+})
+
+describe('회원 정보 · 비밀번호', () => {
+  test('비밀번호 문구', () => {
+    expect(passwordMessage('홍길동', 'swim1234', 'https://x.org/')).toContain("이름 '홍길동', 비밀번호 swim1234 로 로그인")
+  })
+
+  test('명단에 성별 · 출생연도, 회원 화면 링크', () => {
+    const html = adminMembersHtml({
+      today: TODAY,
+      members: [member({ sex: 'F', birthYear: 1985 }), member({ id: 'm2', status: 'invited' })],
+      issued: [],
+      bulk: null,
+      appUrl: 'https://x.org/',
+      error: null,
+    })
+    expect(html).toContain('여 · 1985년생')
+    expect(html).toContain('href="#/admin/member?id=m1"')
+    expect(html).toContain('id="member-password"')
+    // 초대코드 버튼은 가입 전 회원에게만
+    expect(html.match(/data-action="issue-invite"/g)).toHaveLength(1)
+  })
+
+  test('회원 한 명 화면 — 저장된 값, 이스케이프, 가입 전이면 계정 만들기', () => {
+    const html = adminMemberHtml({
+      member: member({ displayName: EVIL, status: 'invited', sex: 'M', birthYear: 1979 }),
+      issued: null,
+      appUrl: 'https://x.org/',
+      saved: false,
+      error: null,
+    })
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('<option value="M" selected>')
+    expect(html).toContain('value="1979"')
+    expect(html).toContain('계정 만들기')
+  })
 })

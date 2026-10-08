@@ -7,8 +7,20 @@
  */
 import { addMonths, isoOf, monthOf, todayIso } from '../core/dates'
 import { generateCode, INVITE_DAYS, isCodeShape, normalizeCode } from '../core/invite'
-import type { Meeting, MeetingInput, Member } from '../core/types'
-import { type Backend, type IssuedInvite, type NewMemberInput, UserFacingError } from './backend'
+import type { Bracket, SetOverride, SetPlan } from '../core/sets'
+import { sameEvent } from '../core/time'
+import type { Goal, Meeting, MeetingInput, Member, RecordInput, SwimEvent, SwimRecord } from '../core/types'
+import {
+  type Backend,
+  type IssuedInvite,
+  type MeetingEntry,
+  type MemberProfile,
+  type NewMemberInput,
+  type PasswordEntry,
+  type PasswordResult,
+  UserFacingError,
+} from './backend'
+import { PASSWORD_MIN } from '../core/invite'
 
 /** localStorage 와 같은 모양. 테스트는 Map 으로 대신한다. */
 export interface KeyValue {
@@ -22,6 +34,8 @@ const SESSION_KEY = 'nineteen-demo-session'
 
 interface StoredMember extends Member {
   password: string | null
+  /** 운영자가 정해 준 비밀번호를 아직 쓰는 중. */
+  tempPassword?: boolean
 }
 
 interface Invite {
@@ -37,6 +51,10 @@ interface State {
   /** `${meetingId}|${memberId}` — 참석만 담는다. */
   present: string[]
   invites: Invite[]
+  /** 아래 셋은 기록 · 세트가 들어오며 생겼다. 그 전에 심은 데모 데이터에는 없다. */
+  records?: SwimRecord[]
+  goals?: (Goal & { memberId: string })[]
+  overrides?: SetOverride[]
 }
 
 export const DEMO_ADMIN = { name: '운영자', password: 'demo1234' }
@@ -80,6 +98,7 @@ export class LocalBackend implements Backend {
     if (!member || member.status === 'inactive') throw new UserFacingError('사용이 중지된 계정입니다.')
 
     member.password = password
+    member.tempPassword = false
     member.status = 'active'
     invite.usedAt = this.today()
     this.save(state)
@@ -89,6 +108,22 @@ export class LocalBackend implements Backend {
 
   async signOut(): Promise<void> {
     this.store.removeItem(SESSION_KEY)
+  }
+
+  async changePassword(current: string, next: string): Promise<void> {
+    const me = await this.requireMember()
+    const state = this.load()
+    const member = state.members.find((m) => m.id === me.id)
+    if (!member || member.password !== current) throw new UserFacingError('지금 비밀번호가 맞지 않습니다.')
+    if (current === next) throw new UserFacingError('지금 비밀번호와 다른 비밀번호를 넣어 주세요.')
+    member.password = next
+    member.tempPassword = false
+    this.save(state)
+  }
+
+  async passwordIsTemporary(): Promise<boolean> {
+    const me = await this.me()
+    return this.load().members.find((m) => m.id === me?.id)?.tempPassword === true
   }
 
   async meetings(): Promise<Meeting[]> {
@@ -104,6 +139,54 @@ export class LocalBackend implements Backend {
         .present.filter((key) => key.endsWith(suffix))
         .map((key) => key.slice(0, -suffix.length)),
     )
+  }
+
+  async myRecords(): Promise<SwimRecord[]> {
+    const me = await this.requireMember()
+    return (this.load().records ?? []).filter((r) => r.memberId === me.id).map((r) => ({ ...r }))
+  }
+
+  async addRecord(input: RecordInput): Promise<void> {
+    const me = await this.requireMember()
+    const state = this.load()
+    const records = (state.records ??= [])
+    records.push({ id: crypto.randomUUID(), memberId: me.id, ...input, note: input.note.trim(), source: 'self', meetingId: null })
+    this.save(state)
+  }
+
+  async updateRecord(id: string, input: RecordInput): Promise<void> {
+    const state = this.load()
+    const record = await this.ownSelfRecord(state, id, '고칠')
+    Object.assign(record, { ...input, note: input.note.trim() })
+    this.save(state)
+  }
+
+  async deleteRecord(id: string): Promise<void> {
+    const state = this.load()
+    const record = await this.ownSelfRecord(state, id, '지울')
+    state.records = (state.records ?? []).filter((r) => r !== record)
+    this.save(state)
+  }
+
+  async myGoals(): Promise<Goal[]> {
+    const me = await this.requireMember()
+    return (this.load().goals ?? [])
+      .filter((g) => g.memberId === me.id)
+      .map(({ memberId: _memberId, ...goal }) => goal)
+  }
+
+  async saveGoal(event: SwimEvent, targetCs: number): Promise<void> {
+    const me = await this.requireMember()
+    const state = this.load()
+    const goals = (state.goals ?? []).filter((g) => !(g.memberId === me.id && sameEvent(g, event)))
+    goals.push({ memberId: me.id, stroke: event.stroke, distance: event.distance, targetCs, updatedAt: new Date().toISOString() })
+    state.goals = goals
+    this.save(state)
+  }
+
+  async setOverrides(): Promise<SetOverride[]> {
+    await this.requireMember()
+    return structuredClone(this.load().overrides ?? [])
   }
 
   async members(): Promise<Member[]> {
@@ -125,6 +208,8 @@ export class LocalBackend implements Backend {
       role: input.role,
       status: 'invited',
       joinedOn: input.joinedOn,
+      sex: input.sex,
+      birthYear: input.birthYear,
       password: null,
     }
     state.members.push(member)
@@ -154,6 +239,36 @@ export class LocalBackend implements Backend {
     state.invites.push({ code, memberId, expiresOn, usedAt: null })
     this.save(state)
     return { code, expiresOn }
+  }
+
+  async updateMemberProfile(memberId: string, profile: MemberProfile): Promise<void> {
+    await this.requireAdmin()
+    const state = this.load()
+    const member = state.members.find((m) => m.id === memberId)
+    if (!member) throw new UserFacingError('회원을 찾을 수 없습니다.')
+    member.sex = profile.sex
+    member.birthYear = profile.birthYear
+    this.save(state)
+  }
+
+  async setPasswords(entries: readonly PasswordEntry[]): Promise<PasswordResult[]> {
+    await this.requireAdmin()
+    const state = this.load()
+    const results = entries.map(({ memberId, password }): PasswordResult => {
+      const member = state.members.find((m) => m.id === memberId)
+      if (!member) return { memberId, error: '회원을 찾을 수 없습니다.' }
+      if (member.status === 'inactive') return { memberId, error: '사용이 중지된 회원입니다.' }
+      if (password.length < PASSWORD_MIN) return { memberId, error: `비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.` }
+      member.password = password
+      member.tempPassword = true
+      member.status = 'active'
+      for (const invite of state.invites) {
+        if (invite.memberId === memberId && invite.usedAt === null) invite.usedAt = this.today()
+      }
+      return { memberId, error: null }
+    })
+    this.save(state)
+    return results
   }
 
   async createMeeting(input: MeetingInput): Promise<Meeting> {
@@ -196,7 +311,63 @@ export class LocalBackend implements Backend {
     this.save(state)
   }
 
+  async meetingRecords(meetingId: string): Promise<SwimRecord[]> {
+    await this.requireAdmin()
+    return (this.load().records ?? []).filter((r) => r.meetingId === meetingId && r.source === 'meeting')
+  }
+
+  async saveMeetingRecords(meetingId: string, event: SwimEvent, entries: readonly MeetingEntry[]): Promise<void> {
+    await this.requireAdmin()
+    const state = this.load()
+    const meeting = state.meetings.find((m) => m.id === meetingId && !m.cancelled)
+    if (!meeting) throw new UserFacingError('모임을 찾을 수 없습니다.')
+    state.records = (state.records ?? [])
+      .filter((r) => !(r.meetingId === meetingId && r.source === 'meeting' && sameEvent(r, event)))
+      .concat(
+        entries.map((e) => ({
+          id: crypto.randomUUID(),
+          memberId: e.memberId,
+          stroke: event.stroke,
+          distance: event.distance,
+          timeCs: e.timeCs,
+          date: meeting.date,
+          source: 'meeting' as const,
+          meetingId,
+          note: '',
+        })),
+      )
+    this.save(state)
+  }
+
+  async saveSetOverride(event: SwimEvent, bracket: Bracket, plan: SetPlan): Promise<void> {
+    await this.requireAdmin()
+    const state = this.load()
+    const rest = (state.overrides ?? []).filter((o) => !(sameEvent(o, event) && o.bracket === bracket))
+    state.overrides = [
+      ...rest,
+      { stroke: event.stroke, distance: event.distance, bracket, plan: structuredClone(plan), updatedAt: new Date().toISOString() },
+    ]
+    this.save(state)
+  }
+
+  async deleteSetOverride(event: SwimEvent, bracket: Bracket): Promise<void> {
+    await this.requireAdmin()
+    const state = this.load()
+    state.overrides = (state.overrides ?? []).filter((o) => !(sameEvent(o, event) && o.bracket === bracket))
+    this.save(state)
+  }
+
   // ── 내부 ───────────────────────────────────────────────
+
+  /** RLS 의 records_update · records_delete 와 같은 규칙 — 내 개인 입력만. */
+  private async ownSelfRecord(state: State, id: string, verb: string): Promise<SwimRecord> {
+    const me = await this.requireMember()
+    const record = (state.records ?? []).find((r) => r.id === id)
+    if (!record || record.memberId !== me.id || record.source !== 'self') {
+      throw new UserFacingError(`${verb} 수 없는 기록입니다. 모임 기록은 운영자가 고칩니다.`)
+    }
+    return record
+  }
 
   private async requireMember(): Promise<Member> {
     const me = await this.me()
@@ -250,7 +421,17 @@ function seed(today: string, random: () => number): State {
   const names = ['홍길동', '회원 02', '회원 03', '회원 04', '회원 05', '회원 06', '회원 07', '회원 08']
 
   const members: StoredMember[] = [
-    { id: 'demo-admin', displayName: DEMO_ADMIN.name, role: 'admin', status: 'active', joinedOn, password: DEMO_ADMIN.password },
+    {
+      id: 'demo-admin',
+      displayName: DEMO_ADMIN.name,
+      role: 'admin',
+      status: 'active',
+      joinedOn,
+      // 기존 회원처럼 성별 · 출생연도가 비어 있다.
+      sex: null,
+      birthYear: null,
+      password: DEMO_ADMIN.password,
+    },
     ...names.map((displayName, i): StoredMember => ({
       id: `demo-${i + 1}`,
       displayName,
@@ -258,6 +439,8 @@ function seed(today: string, random: () => number): State {
       // 회원 08 은 초대만 받은 상태 — 가입 흐름을 시험해 볼 수 있다.
       status: i === names.length - 1 ? 'invited' : 'active',
       joinedOn,
+      sex: i % 3 === 1 ? 'F' : 'M',
+      birthYear: 1975 + i * 3,
       password: i === 0 ? DEMO_MEMBER.password : i === names.length - 1 ? null : DEMO_MEMBER.password,
     })),
   ]
@@ -299,5 +482,56 @@ function seed(today: string, random: () => number): State {
     { code: DEMO_INVITE, memberId: `demo-${names.length}`, expiresOn: addDays(today, INVITE_DAYS), usedAt: null },
   ]
 
-  return { members, meetings, present, invites }
+  const records = seedRecords(past, members, random)
+  const goals = [
+    { memberId: 'demo-1', stroke: 'free' as const, distance: 50 as const, targetCs: 3100, updatedAt: `${today}T00:00:00.000Z` },
+  ]
+
+  return { members, meetings, present, invites, records, goals, overrides: [] }
+}
+
+/**
+ * 기록회마다 회원 전원의 자유형 50m, 홍길동은 그 사이 개인 입력 몇 개.
+ * 홍길동의 기록은 들쭉날쭉 줄어든다 — 차트의 PB 마커와 출처 구분이 한 화면에 보이게.
+ */
+function seedRecords(past: Meeting[], members: StoredMember[], random: () => number): SwimRecord[] {
+  const records: SwimRecord[] = []
+  const swimmers = members.filter((m) => m.status === 'active' && m.role === 'member')
+  const recordMeetings = past.filter((m) => m.kind === 'record' && m.checkedAt !== null)
+  recordMeetings.forEach((meeting, round) => {
+    swimmers.forEach((member, i) => {
+      const base = 3350 + i * 150 - round * 30
+      records.push({
+        id: `rec-${meeting.id}-${member.id}`,
+        memberId: member.id,
+        stroke: 'free',
+        distance: 50,
+        timeCs: Math.round(base + random() * 60),
+        date: meeting.date,
+        source: 'meeting',
+        meetingId: meeting.id,
+        note: '',
+      })
+    })
+  })
+  const hong = swimmers[0]
+  if (hong) {
+    past
+      .filter((m) => m.kind === 'training')
+      .filter((_, i) => i % 6 === 2)
+      .forEach((meeting, i) => {
+        records.push({
+          id: `rec-self-${meeting.id}`,
+          memberId: hong.id,
+          stroke: i % 3 === 2 ? 'back' : 'free',
+          distance: 50,
+          timeCs: Math.round((i % 3 === 2 ? 3900 : 3420) - i * 12 + random() * 80),
+          date: meeting.date,
+          source: 'self',
+          meetingId: null,
+          note: i === 0 ? '혼자 잰 기록' : '',
+        })
+      })
+  }
+  return records
 }
