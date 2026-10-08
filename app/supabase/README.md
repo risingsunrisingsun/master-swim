@@ -66,6 +66,13 @@ NINETEEN_SUPABASE_URL=https://<ref>.supabase.co NINETEEN_SUPABASE_ANON_KEY=<anon
 
 anon 키는 공개돼도 된다 — RLS 가 지킨다. **service_role 키는 앱·저장소 어디에도 넣지 않는다.**
 
+### GitHub Pages 배포
+
+main 에 푸시하면 `.github/workflows/deploy.yml` 이 v1 과 함께 `app/` 아래로 배포한다
+(<https://risingsunrisingsun.github.io/master-swim/app/>). 키는 저장소
+**Settings → Secrets and variables → Actions → Variables** 의
+`NINETEEN_SUPABASE_URL` · `NINETEEN_SUPABASE_ANON_KEY` 에서 읽는다. 비어 있으면 배포가 멈춘다.
+
 ## 무료 티어 주의
 
 1주일 동안 요청이 없으면 프로젝트가 일시정지된다. 방학처럼 쉬는 달 뒤에는 대시보드에서

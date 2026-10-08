@@ -12,7 +12,7 @@
 const sw = globalThis as unknown as ServiceWorkerGlobalScope
 
 /** 배포할 때마다 올린다. 값이 바뀌면 옛 캐시가 정리된다. */
-const CACHE = 'masters-swim-v18'
+const CACHE = 'masters-swim-v19'
 
 const SHELL = [
   './',
@@ -60,8 +60,15 @@ sw.addEventListener('activate', (event) => {
   )
 })
 
+/**
+ * v2 회원 앱은 같은 사이트의 `app/` 아래에 따로 산다. 이 워커의 범위 안이지만 손대지 않는다 —
+ * 여기서 캐시 우선으로 붙잡으면 v1 을 써 본 폰에는 v2 업데이트가 영영 닿지 않는다.
+ */
+const V2_PREFIX = new URL('./app/', sw.registration.scope).href
+
 sw.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
+  if (event.request.url.startsWith(V2_PREFIX)) return
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

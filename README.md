@@ -17,6 +17,8 @@ bun run app:test
 
 Supabase 연결 절차는 [`app/supabase/README.md`](./app/supabase/README.md).
 
+배포 주소: <https://risingsunrisingsun.github.io/master-swim/app/> — main 에 푸시하면 v1 과 함께 배포된다.
+
 ## 명령
 
 ```sh

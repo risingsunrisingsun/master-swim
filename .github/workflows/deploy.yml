@@ -33,6 +33,22 @@ jobs:
 
       - run: bun run build
 
+      # v2 회원 앱(app/)을 같은 사이트의 app/ 아래에 싣는다.
+      # 키가 비면 데모 모드(이 기기에만 저장)로 빌드되므로, 그때는 배포를 멈춘다.
+      # 값은 저장소 Settings → Secrets and variables → Actions → Variables 에 둔다.
+      # anon 키는 번들에 그대로 실리는 공개 값이라 Secret 이 아니어도 된다.
+      - name: Build v2 (app/)
+        env:
+          NINETEEN_SUPABASE_URL: ${{ vars.NINETEEN_SUPABASE_URL }}
+          NINETEEN_SUPABASE_ANON_KEY: ${{ vars.NINETEEN_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$NINETEEN_SUPABASE_URL" ] || [ -z "$NINETEEN_SUPABASE_ANON_KEY" ]; then
+            echo "::error::저장소 Variables 에 NINETEEN_SUPABASE_URL · NINETEEN_SUPABASE_ANON_KEY 가 없습니다."
+            exit 1
+          fi
+          bun run app:build
+          cp -r app/dist dist/app
+
       # 저장소 Settings → Pages → Source 를 "GitHub Actions" 로 한 번 바꿔둬야 한다.
       # `enablement: true` 로 자동화할 수 없다 — 그 옵션은 PUT /repos/.../pages 를
       # 호출하는데 admin 권한이 필요하고, 워크플로의 GITHUB_TOKEN 은 admin 이 아니다.
