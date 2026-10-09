@@ -35,7 +35,8 @@ import {
 } from './core/time'
 import { buildXlsx, XLSX_MIME } from './core/xlsx'
 import { MEETING_LABEL_MAX, type MeetingInput, type MeetingKind, type Member, SEX_LABEL, type SwimEvent } from './core/types'
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config'
+import { NAVER_CLIENT_ID, SUPABASE_ANON_KEY, SUPABASE_URL } from './config'
+import { authorizeUrl, NAVER_STATE_KEY, newState, readCallback } from './core/naver'
 import { type Backend, type MeetingEntry, UserFacingError } from './data/backend'
 import { DEMO_ADMIN, DEMO_INVITE, DEMO_MEMBER, LocalBackend } from './data/local'
 import { SupabaseBackend } from './data/supabase'
@@ -56,6 +57,7 @@ import {
   type IssuedCode,
   type LoginMode,
   loginHtml,
+  naverDemoHtml,
   type Tab,
   tabbarHtml,
 } from './ui/views'
@@ -75,6 +77,8 @@ const HISTORY_MONTHS = 6
 
 let me: Member | null | undefined
 let loginError: string | null = null
+/** 네이버로 들어왔는데 가입 신청만 남은 경우의 안내. 로그인 화면에 한 번 띄운다. */
+let loginNotice: string | null = null
 let lastLoginName = ''
 let flashError: string | null = null
 let flashSaved = false
@@ -128,19 +132,27 @@ async function render(): Promise<void> {
   try {
     if (!me) {
       const mode: LoginMode = route.path === '/join' ? 'join' : 'login'
-      if (route.path !== '/login' && route.path !== '/join') {
-        location.replace('#/login')
-        return
+      if (route.path === '/naver-demo' && backend.demo) {
+        html = naverDemoHtml(loginError)
+        loginError = null
+      } else {
+        if (route.path !== '/login' && route.path !== '/join') {
+          location.replace('#/login')
+          return
+        }
+        html = loginHtml({
+          mode,
+          error: loginError,
+          name: lastLoginName,
+          demoAccounts: backend.demo
+            ? { admin: DEMO_ADMIN.name, member: DEMO_MEMBER.name, password: DEMO_MEMBER.password, invite: DEMO_INVITE }
+            : null,
+          naver: NAVER_CLIENT_ID ? 'real' : backend.demo ? 'demo' : null,
+          notice: loginNotice,
+        })
+        loginError = null
+        loginNotice = null
       }
-      html = loginHtml({
-        mode,
-        error: loginError,
-        name: lastLoginName,
-        demoAccounts: backend.demo
-          ? { admin: DEMO_ADMIN.name, member: DEMO_MEMBER.name, password: DEMO_MEMBER.password, invite: DEMO_INVITE }
-          : null,
-      })
-      loginError = null
     } else {
       ;[html, tab] = await screen(route, me)
     }
@@ -170,7 +182,7 @@ async function render(): Promise<void> {
 async function screen(route: Route, member: Member): Promise<[string, Tab]> {
   const today = todayIso()
 
-  if (route.path === '/login' || route.path === '/join') {
+  if (route.path === '/login' || route.path === '/join' || route.path === '/naver-demo') {
     location.replace('#/home')
     return ['', 'home']
   }
@@ -419,8 +431,10 @@ async function adminScreen(route: Route, today: string): Promise<string> {
   }
 
   if (route.path === '/admin/members') {
-    const members = (await backend.members()).sort(byName)
+    const [all, requests] = await Promise.all([backend.members(), backend.joinRequests()])
+    const members = all.sort(byName)
     const view = adminMembersHtml({
+      requests,
       today,
       members,
       issued,
@@ -500,6 +514,10 @@ async function busy(form: HTMLFormElement, work: () => Promise<void>): Promise<v
 }
 
 const submitHandlers: Record<string, (form: HTMLFormElement) => Promise<void>> = {
+  'naver-demo-form': async (form) => {
+    await finishNaver(`demo:${field(form, 'name').trim()}`, 'demo')
+  },
+
   'login-form': async (form) => {
     lastLoginName = field(form, 'name').trim()
     try {
@@ -1015,6 +1033,79 @@ const clickHandlers: Record<string, (button: HTMLButtonElement) => Promise<void>
     void render()
   },
 
+  'naver-login': () => {
+    // state 는 이 기기에서 만든 난수 — 돌아왔을 때 같은지 본다(남이 만든 링크 막기).
+    const state = newState((bytes) => crypto.getRandomValues(bytes))
+    try {
+      sessionStorage.setItem(NAVER_STATE_KEY, state)
+    } catch {
+      // 저장이 막힌 브라우저 — 돌아와서 확인을 못 하므로 진행하지 않는다.
+      loginError = '이 브라우저에서는 네이버 로그인을 쓸 수 없습니다. 이름과 비밀번호로 들어와 주세요.'
+      void render()
+      return
+    }
+    location.href = authorizeUrl(NAVER_CLIENT_ID, appBaseUrl(), state)
+  },
+
+  'approve-request': async (button) => {
+    const id = button.dataset.id
+    const row = button.closest<HTMLElement>('.request-row')
+    const target = row?.querySelector<HTMLSelectElement>('select[name="target"]')?.value
+    if (!id || !target) return
+    try {
+      let memberId = target
+      if (target === 'new') {
+        const request = (await backend.joinRequests()).find((r) => r.id === id)
+        if (!request) throw new UserFacingError('가입 신청을 찾을 수 없습니다.')
+        const member = await backend.createMember({
+          displayName: request.name,
+          role: 'member',
+          joinedOn: todayIso(),
+          sex: request.sex,
+          birthYear: request.birthYear,
+        })
+        memberId = member.id
+      }
+      await backend.approveJoinRequest(id, memberId)
+    } catch (error) {
+      flashError = message(error)
+    }
+    void render()
+  },
+
+  'reject-request': async (button) => {
+    if (button.dataset.armed !== 'yes') {
+      button.dataset.armed = 'yes'
+      button.textContent = '한 번 더 누르면 거절'
+      return
+    }
+    const id = button.dataset.id
+    if (!id) return
+    try {
+      await backend.rejectJoinRequest(id)
+    } catch (error) {
+      flashError = message(error)
+    }
+    void render()
+  },
+
+  'unlink-naver': async (button) => {
+    if (button.dataset.armed !== 'yes') {
+      button.dataset.armed = 'yes'
+      button.textContent = '한 번 더 누르면 끊습니다'
+      return
+    }
+    const id = button.dataset.id
+    if (!id) return
+    try {
+      await backend.unlinkNaver(id)
+      flashSaved = true
+    } catch (error) {
+      flashError = message(error)
+    }
+    void render()
+  },
+
   'sign-out': async () => {
     await backend.signOut()
     me = null
@@ -1156,5 +1247,57 @@ async function memberActive(id: string | undefined, active: boolean): Promise<vo
   void render()
 }
 
-window.addEventListener('hashchange', () => void render())
-void render()
+/** 앱 주소(쿼리 · 해시 없이). 네이버에 등록한 Callback URL 과 똑같아야 한다. */
+function appBaseUrl(): string {
+  return location.origin + location.pathname
+}
+
+/** 네이버 결과를 받아 들어오거나, 가입 신청 안내를 띄운다. */
+async function finishNaver(code: string, state: string): Promise<void> {
+  try {
+    const result = await backend.naverSignIn(code, state)
+    if (result.kind === 'member') {
+      me = result.member
+      go('#/home')
+      return
+    }
+    me = null
+    loginNotice = `${result.name} 님, 가입 신청을 보냈습니다. 카페 명단에서 이름을 찾지 못해 운영진 확인이 필요해요. 승인되면 다시 네이버로 로그인하세요.`
+  } catch (error) {
+    loginError = message(error)
+  }
+  go('#/login')
+}
+
+/**
+ * 네이버에서 돌아왔으면 먼저 처리한다. 주소의 `?code=…` 는 바로 지운다 —
+ * 새로고침 때 같은 code 를 또 보내지 않고, 화면 주소에 남지도 않게.
+ */
+async function boot(): Promise<void> {
+  const callback = readCallback(location.search)
+  if (callback) {
+    history.replaceState(null, '', `${appBaseUrl()}#/login`)
+    let expected: string | null = null
+    try {
+      expected = sessionStorage.getItem(NAVER_STATE_KEY)
+      sessionStorage.removeItem(NAVER_STATE_KEY)
+    } catch {
+      expected = null
+    }
+    if (callback.error || !callback.code) {
+      loginError = '네이버 로그인을 마치지 못했습니다. 동의를 취소했다면 다시 눌러 주세요.'
+    } else if (!expected || callback.state !== expected) {
+      loginError = '네이버 로그인을 확인하지 못했습니다. 이 화면에서 다시 시작해 주세요.'
+    } else {
+      app.innerHTML = `<p class="loading">네이버로 들어가는 중…</p>`
+      await finishNaver(callback.code, callback.state)
+      window.addEventListener('hashchange', () => void render())
+      void render()
+      return
+    }
+  }
+  window.addEventListener('hashchange', () => void render())
+  void render()
+}
+
+void boot()

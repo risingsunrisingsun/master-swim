@@ -22,6 +22,19 @@ export interface Member {
   sex: Sex | null
   /** 마스터즈 연령부 계산용. 나이는 해마다 바뀌므로 출생연도를 둔다. */
   birthYear: number | null
+  /** 네이버 로그인에 연결됐는지(ADR-0012). 네이버 id 자체는 화면에 두지 않는다. */
+  naverLinked: boolean
+}
+
+/** 네이버로 들어왔지만 명단과 자동으로 이어지지 않은 사람. 운영자가 승인한다. */
+export interface JoinRequest {
+  id: string
+  /** 네이버 실명. */
+  name: string
+  nickname: string
+  sex: Sex | null
+  birthYear: number | null
+  createdAt: string
 }
 
 export type Sex = 'M' | 'F'

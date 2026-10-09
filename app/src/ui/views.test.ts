@@ -9,6 +9,7 @@ import {
   adminMeetingHtml,
   adminMeetingsHtml,
   adminMembersHtml,
+  naverDemoHtml,
   attendanceHtml,
   esc,
   homeHtml,
@@ -28,6 +29,7 @@ const member = (extra: Partial<Member> = {}): Member => ({
   joinedOn: '2026-01-01',
   sex: null,
   birthYear: null,
+  naverLinked: false,
   ...extra,
 })
 
@@ -95,6 +97,7 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
       issued: [{ kind: 'invite', member: evil, code: 'TEAM2345', expiresOn: '2026-11-04' }],
       bulk: null,
       appUrl: 'https://example.org/',
+      requests: [],
       error: null,
     })
     expect(html).not.toContain('<img src=x')
@@ -113,6 +116,7 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
       ],
       bulk: { text: EVIL, joinedOn: TODAY, problems: [{ line: 1, name: EVIL, reason: '이미 등록된 이름입니다' }] },
       appUrl: 'https://example.org/',
+      requests: [],
       error: null,
     })
     expect(html).not.toContain('<img src=x')
@@ -128,7 +132,7 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
   })
 
   test('로그인 이름 되살리기', () => {
-    expect(loginHtml({ mode: 'login', error: EVIL, name: EVIL, demoAccounts: null })).not.toContain('<img src=x')
+    expect(loginHtml({ mode: 'login', error: EVIL, name: EVIL, demoAccounts: null, naver: null, notice: EVIL })).not.toContain('<img src=x')
   })
 })
 
@@ -197,6 +201,7 @@ describe('회원 정보 · 비밀번호', () => {
       issued: [],
       bulk: null,
       appUrl: 'https://x.org/',
+      requests: [],
       error: null,
     })
     expect(html).toContain('여 · 1985년생')
@@ -416,5 +421,60 @@ describe('모임 고치기 · 지우기', () => {
     })
     expect(html).toContain('<option value="record" selected>')
     expect(html).toContain('출석 · 기록 · 참석 여부 답이 없습니다')
+  })
+})
+
+describe('네이버 로그인 화면', () => {
+  const base = { mode: 'login' as const, error: null, name: '', demoAccounts: null, notice: null }
+
+  test('Client ID 가 있으면 네이버 버튼, 없으면 없다', () => {
+    expect(loginHtml({ ...base, naver: 'real' })).toContain('data-action="naver-login"')
+    expect(loginHtml({ ...base, naver: 'demo' })).toContain('href="#/naver-demo"')
+    expect(loginHtml({ ...base, naver: null })).not.toContain('naver-button')
+  })
+
+  test('가입 신청 안내', () => {
+    expect(loginHtml({ ...base, naver: 'real', notice: '가입 신청을 보냈습니다' })).toContain('가입 신청을 보냈습니다')
+  })
+
+  test('데모 화면', () => {
+    expect(naverDemoHtml(EVIL)).toContain('id="naver-demo-form"')
+    expect(naverDemoHtml(EVIL)).not.toContain('<img src=x')
+  })
+
+  test('운영 — 가입 신청 카드: 새 회원 · 기존 회원 연결 · 거절, 비슷한 이름이 위로', () => {
+    const html = adminMembersHtml({
+      today: TODAY,
+      members: [
+        member({ id: 'z', displayName: '가나다' }),
+        member({ id: 'k', displayName: '김민수A' }),
+        member({ id: 'n', displayName: '네이버됨', naverLinked: true }),
+      ],
+      issued: [],
+      bulk: null,
+      appUrl: 'https://x.org/',
+      requests: [{ id: 'r1', name: '김민수', nickname: EVIL, sex: 'M', birthYear: 1985, createdAt: '2026-10-09T01:00:00Z' }],
+      error: null,
+    })
+    expect(html).toContain('네이버 가입 신청 1건')
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('<option value="new">새 회원으로 추가</option>')
+    expect(html.indexOf('value="k"')).toBeLessThan(html.indexOf('value="z"'))
+    expect(html).not.toContain('<option value="n"') // 이미 네이버에 연결된 회원은 고를 수 없다
+    expect(html).toContain('data-action="approve-request" data-id="r1"')
+    expect(html).toContain('네이버됨</strong>')
+    expect(html).toContain('사용 중 · 네이버')
+  })
+
+  test('회원 한 명 — 연결돼 있으면 끊기 버튼', () => {
+    const html = adminMemberHtml({
+      member: member({ naverLinked: true }),
+      isSelf: false,
+      issued: null,
+      appUrl: 'https://x.org/',
+      saved: false,
+      error: null,
+    })
+    expect(html).toContain('data-action="unlink-naver"')
   })
 })

@@ -23,6 +23,7 @@
 - `0004_member_profile.sql` — 회원 성별 · 출생연도(운영자가 넣는 선택값). 이것도 배포 전에.
 - `0005_meeting_custom_label.sql` — 모임 종류 직접 입력(`kind = 'custom'` + `label`). 배포 전에.
 - `0006_rsvps.sql` — 회원이 미리 하는 참석 여부 답(`rsvps`, `set_rsvp`). 출석과 별개. 배포 전에.
+- `0007_naver_login.sql` — 네이버 로그인(`members.naver_id`, `join_requests`, `approve_join_request`). ADR-0012.
 
 ## 3. Edge Function
 
@@ -32,6 +33,7 @@ Supabase CLI 로 배포한다. 이 함수는 **로그인 전에** 불리므로 J
 npx supabase login
 npx supabase functions deploy redeem-invite --project-ref <프로젝트 ref> --no-verify-jwt
 npx supabase functions deploy set-passwords --project-ref <프로젝트 ref> --no-verify-jwt
+npx supabase functions deploy naver-login --project-ref <프로젝트 ref> --no-verify-jwt
 ```
 
 `set-passwords` 는 운영자가 회원 비밀번호를 직접 정하는 함수다(일괄 추가 · 회원 정보 화면).
@@ -45,6 +47,18 @@ redeem-invite 와 같게 두기 위해서이고, 토큰 없이 부르면 401 이
 > **확인 필요** — Supabase Auth 가 `.invalid` 도메인을 거절하면 가입이 500 으로 실패한다.
 > 그때는 `AUTH_EMAIL_DOMAIN` 을 운영자가 소유한 도메인의 하위 도메인으로 바꾼다.
 > 메일은 보내지 않으므로 MX 설정은 필요 없다.
+
+## 3-1. 네이버 로그인 (ADR-0012)
+
+1. <https://developers.naver.com> → **Application → 애플리케이션 등록**
+   - 사용 API: **네이버 로그인**. 받을 정보: **이름**(필수), 별명 · 성별 · 출생연도(선택)
+   - 서비스 환경: **PC웹 · 모바일웹**, 서비스 URL `https://risingsunrisingsun.github.io`
+   - **Callback URL: `https://risingsunrisingsun.github.io/master-swim/app/`** — 한 글자라도 다르면 실패한다
+2. **Client ID** 는 공개값이다. 저장소 Variables 의 `NINETEEN_NAVER_CLIENT_ID` 와 함수 Secrets 의
+   `NAVER_CLIENT_ID` 두 곳에 넣는다.
+3. **Client Secret** 은 비밀이다. **Edge Functions → Secrets** 의 `NAVER_CLIENT_SECRET` 에만 넣는다.
+4. "개발 중" 상태에서는 **멤버관리 → 테스터 ID** 에 등록한 네이버 아이디만 로그인된다. 운영진이
+   시험해 본 뒤 **검수 요청**을 해서 "서비스 적용"이 되면 모든 회원이 쓸 수 있다.
 
 ## 4. 첫 운영자
 

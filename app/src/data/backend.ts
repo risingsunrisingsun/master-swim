@@ -8,6 +8,7 @@
 import type { Bracket, SetOverride, SetPlan } from '../core/sets'
 import type {
   Goal,
+  JoinRequest,
   Meeting,
   MeetingInput,
   Member,
@@ -63,6 +64,9 @@ export interface MeetingEntry {
   timeCs: number
 }
 
+/** 네이버 로그인 결과. 명단에 이어졌으면 회원, 아니면 가입 신청이 남았다. */
+export type NaverResult = { kind: 'member'; member: Member } | { kind: 'pending'; name: string }
+
 export interface Backend {
   /** 데모 모드면 true. 화면 위에 띠를 붙인다. */
   readonly demo: boolean
@@ -73,6 +77,11 @@ export interface Backend {
   /** 초대코드로 가입하거나, 이미 가입한 회원이면 비밀번호를 바꾼다. 로그인까지 마친다. */
   redeemInvite(code: string, password: string): Promise<Member>
   signOut(): Promise<void>
+  /**
+   * 네이버에서 돌아온 code · state 로 들어온다(ADR-0012). 명단 이름과 네이버 실명이 같으면
+   * 자동 연결, 아니면 가입 신청을 남긴다. 데모 모드에서는 code 가 `demo:실명` 이다.
+   */
+  naverSignIn(code: string, state: string): Promise<NaverResult>
   /** 로그인한 본인의 비밀번호 바꾸기. 지금 비밀번호를 한 번 더 확인한다. */
   changePassword(current: string, next: string): Promise<void>
   /** 운영자가 정해 준 비밀번호를 아직 쓰는 중이면 true. 홈이 바꾸라고 알린다. */
@@ -106,6 +115,14 @@ export interface Backend {
   createMember(input: NewMemberInput): Promise<Member>
   setMemberActive(memberId: string, active: boolean): Promise<void>
   issueInvite(memberId: string): Promise<IssuedInvite>
+  /** 승인 기다리는 네이버 가입 신청, 오래된 순. */
+  joinRequests(): Promise<JoinRequest[]>
+  /** 신청을 명단의 회원에 잇는다. 새 사람이면 회원을 먼저 만들고 그 id 로 부른다. */
+  approveJoinRequest(requestId: string, memberId: string): Promise<void>
+  /** 거절. 그 네이버 계정은 다시 로그인해도 신청이 새로 생기지 않는다. */
+  rejectJoinRequest(requestId: string): Promise<void>
+  /** 잘못 이어진 네이버 연결을 끊는다. 그 회원은 다음 네이버 로그인 때 다시 판정된다. */
+  unlinkNaver(memberId: string): Promise<void>
   /** 이름 · 역할 · 성별 · 출생연도. 운영자는 자기 역할을 바꿀 수 없다 — 운영자가 0명이 되지 않게. */
   updateMemberProfile(memberId: string, profile: MemberProfile): Promise<void>
   /**

@@ -40,6 +40,7 @@ const member = (id: string, displayName: string): Member => ({
   joinedOn: '2026-01-01',
   sex: null,
   birthYear: null,
+  naverLinked: false,
 })
 
 describe('나의 기록', () => {

@@ -4,19 +4,30 @@
  */
 import { createClient, FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js'
 import { type Bracket, parsePlan, type SetOverride, type SetPlan } from '../core/sets'
-import type { Goal, Meeting, MeetingInput, Member, RecordInput, Rsvp, SwimEvent, SwimRecord } from '../core/types'
+import type {
+  Goal,
+  JoinRequest,
+  Meeting,
+  MeetingInput,
+  Member,
+  RecordInput,
+  Rsvp,
+  SwimEvent,
+  SwimRecord,
+} from '../core/types'
 import {
   type Backend,
   type IssuedInvite,
   type MeetingEntry,
   type MemberProfile,
+  type NaverResult,
   type NewMemberInput,
   type PasswordEntry,
   type PasswordResult,
   UserFacingError,
 } from './backend'
 
-const MEMBER_COLUMNS = 'id, display_name, role, status, joined_on, sex, birth_year'
+const MEMBER_COLUMNS = 'id, display_name, role, status, joined_on, sex, birth_year, naver_id'
 const MEETING_COLUMNS = 'id, date, kind, label, place, cancelled, checked_at'
 const RECORD_COLUMNS = 'id, member_id, stroke, distance, time_cs, date, source, meeting_id, note'
 
@@ -28,6 +39,7 @@ interface MemberRow {
   joined_on: string
   sex: Member['sex']
   birth_year: number | null
+  naver_id: string | null
 }
 
 interface MeetingRow {
@@ -72,6 +84,7 @@ const toMember = (row: MemberRow): Member => ({
   joinedOn: row.joined_on,
   sex: row.sex,
   birthYear: row.birth_year,
+  naverLinked: row.naver_id !== null,
 })
 
 const toMeeting = (row: MeetingRow): Meeting => ({
@@ -145,6 +158,31 @@ export class SupabaseBackend implements Backend {
 
   async signOut(): Promise<void> {
     await this.client.auth.signOut()
+  }
+
+  async naverSignIn(code: string, state: string): Promise<NaverResult> {
+    const { data, error } = await this.client.functions.invoke<
+      { status: 'member'; tokenHash: string } | { status: 'pending'; name: string }
+    >('naver-login', { body: { code, state } })
+    if (error) {
+      if (error instanceof FunctionsHttpError) {
+        const body = await error.context.json().catch(() => null)
+        if (body && typeof body.error === 'string') throw new UserFacingError(body.error)
+      }
+      throw new UserFacingError('서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    }
+    if (!data) throw new UserFacingError('네이버 로그인을 다시 시도해 주세요.')
+    if (data.status === 'pending') return { kind: 'pending', name: data.name }
+
+    // 함수가 만든 일회용 토큰으로 세션을 받는다. 메일은 오가지 않는다.
+    const { error: otpError } = await this.client.auth.verifyOtp({ token_hash: data.tokenHash, type: 'magiclink' })
+    if (otpError) throw new UserFacingError('로그인하지 못했습니다. 다시 시도해 주세요.')
+    const member = await this.me()
+    if (!member) {
+      await this.client.auth.signOut()
+      throw new UserFacingError('사용이 중지된 계정입니다. 운영자에게 문의하세요.')
+    }
+    return { kind: 'member', member }
   }
 
   async changePassword(current: string, next: string): Promise<void> {
@@ -336,6 +374,46 @@ export class SupabaseBackend implements Backend {
     const row = (data as { code: string; expires_on: string }[])[0]
     if (!row) throw new UserFacingError('초대코드를 만들지 못했습니다.')
     return { code: row.code, expiresOn: row.expires_on }
+  }
+
+  async joinRequests(): Promise<JoinRequest[]> {
+    const { data, error } = await this.client
+      .from('join_requests')
+      .select('id, name, nickname, sex, birth_year, created_at')
+      .eq('status', 'pending')
+      .order('created_at')
+    if (error) throw failure(error)
+    return (
+      data as { id: string; name: string; nickname: string; sex: Member['sex']; birth_year: number | null; created_at: string }[]
+    ).map((row) => ({
+      id: row.id,
+      name: row.name,
+      nickname: row.nickname,
+      sex: row.sex,
+      birthYear: row.birth_year,
+      createdAt: row.created_at,
+    }))
+  }
+
+  async approveJoinRequest(requestId: string, memberId: string): Promise<void> {
+    const { error } = await this.client.rpc('approve_join_request', { p_request: requestId, p_member: memberId })
+    if (error) throw failure(error)
+  }
+
+  async rejectJoinRequest(requestId: string): Promise<void> {
+    const { data, error } = await this.client
+      .from('join_requests')
+      .update({ status: 'rejected' })
+      .eq('id', requestId)
+      .select('id')
+    if (error) throw failure(error)
+    if (data.length === 0) throw new UserFacingError('가입 신청을 찾을 수 없습니다.')
+  }
+
+  async unlinkNaver(memberId: string): Promise<void> {
+    const { data, error } = await this.client.from('members').update({ naver_id: null }).eq('id', memberId).select('id')
+    if (error) throw failure(error)
+    if (data.length === 0) throw new UserFacingError('운영자만 연결을 끊을 수 있습니다.')
   }
 
   async updateMemberProfile(memberId: string, profile: MemberProfile): Promise<void> {

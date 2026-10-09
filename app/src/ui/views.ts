@@ -11,6 +11,7 @@ import type { GoalGap } from '../core/records'
 import { eventKey, eventLabel, formatTime } from '../core/time'
 import { ROSTER_MAX, type RosterProblem } from '../core/roster'
 import {
+  type JoinRequest,
   type Meeting,
   MEETING_KIND_LABEL,
   MEETING_LABEL_MAX,
@@ -84,6 +85,18 @@ export interface LoginView {
   demoAccounts: { admin: string; member: string; password: string; invite: string } | null
   /** 직전에 쓴 이름. 비밀번호가 틀렸을 때 이름을 다시 치지 않게. */
   name: string
+  /** 네이버 로그인 버튼. real = 네이버로 보냄, demo = 데모용 흉내 화면, null = 없음. */
+  naver: 'real' | 'demo' | null
+  /** 네이버로 들어왔는데 명단에 없어 가입 신청이 남았을 때의 안내. */
+  notice: string | null
+}
+
+/** 네이버 로그인 버튼. 네이버 브랜드 색(#03C75A)과 N 표시. */
+function naverButtonHtml(mode: 'real' | 'demo'): string {
+  const inner = '<span class="naver-mark" aria-hidden="true">N</span>네이버로 로그인'
+  return mode === 'real'
+    ? `<button type="button" class="button naver-button" data-action="naver-login">${inner}</button>`
+    : `<a class="button naver-button" href="#/naver-demo">${inner} <span class="small">(데모)</span></a>`
 }
 
 export function loginHtml(view: LoginView): string {
@@ -137,10 +150,39 @@ export function loginHtml(view: LoginView): string {
       <h1 class="wordmark">NINETEEN</h1>
       <p class="muted">회원 전용 · 내 기록과 출석</p>
     </div>
+    ${view.notice ? `<p class="card notice small" role="status">${esc(view.notice)}</p>` : ''}
+    ${
+      view.naver
+        ? `<div class="stack-s">
+        ${naverButtonHtml(view.naver)}
+        <p class="hint center">카페 명단에 있는 이름이면 바로 들어갑니다. 아니면 운영진이 승인한 뒤 들어갈 수 있어요.</p>
+      </div>
+      <p class="divider"><span>또는 이름과 비밀번호로</span></p>`
+        : ''
+    }
     <div class="segmented" role="tablist">${tab('login', '로그인')}${tab('join', '초대코드로 가입')}</div>
     ${form}
     ${demo}
     <p class="hint center">나인틴 카페 회원만 가입할 수 있습니다.<br />비밀번호를 잊었나요? 운영자에게 재설정을 부탁하세요.</p>
+  </section>`
+}
+
+/** 데모 모드에서 네이버 대신 실명을 넣어 보는 화면. 판정은 실제와 같다. */
+export function naverDemoHtml(error: string | null): string {
+  return `<section class="login">
+    <div class="brand">
+      <h1>네이버 로그인 (데모)</h1>
+      <p class="muted small">실제로는 네이버 화면이 뜹니다. 여기서는 네이버 실명만 넣어 흉내 냅니다.</p>
+    </div>
+    <form id="naver-demo-form" class="stack" novalidate>
+      <div class="field">
+        <label for="naver-demo-name">네이버 실명</label>
+        <input id="naver-demo-name" name="name" required placeholder="명단에 있는 이름이면 자동 연결" />
+      </div>
+      ${errorHtml(error)}
+      <button class="button naver-button" type="submit"><span class="naver-mark" aria-hidden="true">N</span>동의하고 계속</button>
+      <a class="small center" href="#/login">돌아가기</a>
+    </form>
   </section>`
 }
 
@@ -719,7 +761,55 @@ export interface AdminMembersView {
   bulk: BulkDraft | null
   /** 초대 문구에 넣을 앱 주소. */
   appUrl: string
+  /** 승인 기다리는 네이버 가입 신청. */
+  requests: JoinRequest[]
   error: string | null
+}
+
+/**
+ * 네이버 가입 신청 카드. 신청마다 "새 회원으로 추가" 또는 "명단의 회원과 연결"을 골라 승인한다.
+ * 동명이인(김민수A)처럼 이름이 달라 자동 연결되지 않은 기존 회원을 여기서 잇는다.
+ */
+function joinRequestsHtml(requests: readonly JoinRequest[], members: readonly Member[]): string {
+  if (requests.length === 0) return ''
+  const linkable = members.filter((m) => m.status !== 'inactive' && !m.naverLinked)
+  const rows = requests
+    .map((r) => {
+      const detail = [
+        r.nickname ? `별명 ${esc(r.nickname)}` : '',
+        r.sex ? SEX_LABEL[r.sex] : '',
+        r.birthYear ? `${r.birthYear}년생` : '',
+        `${shortDateLabel(r.createdAt.slice(0, 10))} 신청`,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+      // 이름이 비슷한 회원(김민수 → 김민수A)을 위로 올린다.
+      const similar = (m: Member) => (m.displayName.startsWith(r.name) || r.name.startsWith(m.displayName) ? 0 : 1)
+      const options = [...linkable]
+        .sort((a, b) => similar(a) - similar(b) || a.displayName.localeCompare(b.displayName, 'ko'))
+        .map((m) => `<option value="${m.id}">${esc(m.displayName)}</option>`)
+        .join('')
+      return `<li class="request-row" data-request="${r.id}">
+          <div class="member-name">
+            <strong>${esc(r.name)}</strong>
+            <span class="small muted">${detail}</span>
+          </div>
+          <select name="target" aria-label="${esc(r.name)} 승인 방법">
+            <option value="new">새 회원으로 추가</option>
+            ${options ? `<optgroup label="명단의 회원과 연결">${options}</optgroup>` : ''}
+          </select>
+          <div class="row">
+            <button type="button" class="button small-button primary-small" data-action="approve-request" data-id="${r.id}">승인</button>
+            <button type="button" class="button small-button" data-action="reject-request" data-id="${r.id}">거절</button>
+          </div>
+        </li>`
+    })
+    .join('')
+  return `<section class="card issued stack-s">
+      <h2>네이버 가입 신청 ${requests.length}건</h2>
+      <p class="small muted">명단에 같은 이름이 없어 자동으로 들어오지 못한 사람입니다. 카페 회원이 맞으면 승인하세요. 승인하면 그 사람이 네이버로 다시 로그인할 때 들어옵니다.</p>
+      <ul class="list">${rows}</ul>
+    </section>`
 }
 
 export function inviteMessage(name: string, code: string, expiresOn: string, appUrl: string): string {
@@ -847,6 +937,7 @@ function bulkFormHtml(today: string, bulk: BulkDraft | null): string {
 
 export function adminMembersHtml(view: AdminMembersView): string {
   const issued = issuedHtml(view.issued, view.appUrl)
+  const requests = joinRequestsHtml(view.requests, view.members)
 
   const rows = view.members
     .map((m) => {
@@ -862,7 +953,7 @@ export function adminMembersHtml(view: AdminMembersView): string {
       return `<li class="member-row">
         <div class="member-name">
           <strong>${esc(m.displayName)}</strong>
-          <span class="small muted">${m.role === 'admin' ? '운영자 · ' : ''}${MEMBER_STATUS_LABEL[m.status]}${profile ? ` · ${profile}` : ''}</span>
+          <span class="small muted">${m.role === 'admin' ? '운영자 · ' : ''}${MEMBER_STATUS_LABEL[m.status]}${m.naverLinked ? ' · 네이버' : ''}${profile ? ` · ${profile}` : ''}</span>
         </div>
         <div class="row">${invite}<a class="button small-button" href="#/admin/member?id=${m.id}">수정 · 비번</a>${toggle}</div>
       </li>`
@@ -871,6 +962,7 @@ export function adminMembersHtml(view: AdminMembersView): string {
 
   return `${adminHeadHtml('members', '회원 명단')}
     <div class="page-body">
+      ${requests}
       ${issued}
       <form id="member-form" class="card stack">
         <h2>회원 추가</h2>
@@ -972,6 +1064,16 @@ export function adminMemberHtml(view: AdminMemberView): string {
         <p class="hint">성별 · 출생연도는 세트 반복 수와 기록 화면의 국내 마스터즈 상위 % 에 씁니다. 비워 두면 세트는 남자 기준으로 계산하고 상위 % 는 숨깁니다.</p>
         <button class="button" type="submit">정보 저장</button>
       </form>
+      <section class="card stack-s">
+        <h2>네이버 로그인</h2>
+        ${
+          member.naverLinked
+            ? `<p class="small">네이버 계정에 연결돼 있습니다. 이 회원은 네이버로 로그인합니다.</p>
+               <p class="small muted">다른 사람의 네이버가 잘못 이어졌다면 끊으세요. 끊으면 다음 네이버 로그인 때 다시 판정합니다.</p>
+               <button type="button" class="button danger-quiet" data-action="unlink-naver" data-id="${member.id}">네이버 연결 끊기</button>`
+            : '<p class="small muted">아직 연결 전입니다. 네이버 실명이 이 이름과 같으면 첫 네이버 로그인 때 자동으로 이어집니다. 이름이 다르면 가입 신청에서 이 회원과 연결하세요.</p>'
+        }
+      </section>
       ${password}
     </div>`
 }

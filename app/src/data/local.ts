@@ -9,12 +9,14 @@ import { addMonths, isoOf, monthOf, todayIso } from '../core/dates'
 import { generateCode, INVITE_DAYS, isCodeShape, normalizeCode } from '../core/invite'
 import type { Bracket, SetOverride, SetPlan } from '../core/sets'
 import { sameEvent } from '../core/time'
-import type { Goal, Meeting, MeetingInput, Member, RecordInput, Rsvp, SwimEvent, SwimRecord } from '../core/types'
+import { rosterMatch } from '../core/naver'
+import type { Goal, JoinRequest, Meeting, MeetingInput, Member, RecordInput, Rsvp, SwimEvent, SwimRecord } from '../core/types'
 import {
   type Backend,
   type IssuedInvite,
   type MeetingEntry,
   type MemberProfile,
+  type NaverResult,
   type NewMemberInput,
   type PasswordEntry,
   type PasswordResult,
@@ -32,10 +34,17 @@ export interface KeyValue {
 const KEY = 'nineteen-demo-v1'
 const SESSION_KEY = 'nineteen-demo-session'
 
-interface StoredMember extends Member {
+interface StoredMember extends Omit<Member, 'naverLinked'> {
   password: string | null
   /** 운영자가 정해 준 비밀번호를 아직 쓰는 중. */
   tempPassword?: boolean
+  /** 네이버 연결. 데모에서는 `naver-실명` 이다. */
+  naverId?: string | null
+}
+
+interface StoredJoinRequest extends JoinRequest {
+  naverId: string
+  status: 'pending' | 'rejected'
 }
 
 interface Invite {
@@ -57,6 +66,8 @@ interface State {
   overrides?: SetOverride[]
   /** 참석 여부 답. 이것도 나중에 생겼다. */
   rsvps?: Rsvp[]
+  /** 네이버 가입 신청. */
+  joinRequests?: StoredJoinRequest[]
 }
 
 export const DEMO_ADMIN = { name: '운영자', password: 'demo1234' }
@@ -110,6 +121,44 @@ export class LocalBackend implements Backend {
 
   async signOut(): Promise<void> {
     this.store.removeItem(SESSION_KEY)
+  }
+
+  /** 데모: 네이버 대신 `demo:실명` 을 code 로 받는다. 판정은 Edge Function 과 같다. */
+  async naverSignIn(code: string, _state: string): Promise<NaverResult> {
+    const name = code.startsWith('demo:') ? code.slice('demo:'.length).trim() : ''
+    if (!name) throw new UserFacingError('네이버 로그인을 확인하지 못했습니다. 다시 시도해 주세요.')
+    const naverId = `naver-${name}`
+    const state = this.load()
+    let member = state.members.find((m) => m.naverId === naverId)
+    if (!member) {
+      const match = rosterMatch(state.members.map((m) => ({ ...m, naverLinked: Boolean(m.naverId) })), name)
+      member = match ? state.members.find((m) => m.id === match.id) : undefined
+      if (member) member.naverId = naverId
+    }
+    if (!member) {
+      const requests = (state.joinRequests ??= [])
+      const existing = requests.find((r) => r.naverId === naverId)
+      if (existing?.status === 'rejected') throw new UserFacingError('가입 신청이 승인되지 않았습니다. 운영진에게 문의하세요.')
+      if (!existing) {
+        requests.push({
+          id: crypto.randomUUID(),
+          naverId,
+          name,
+          nickname: '',
+          sex: null,
+          birthYear: null,
+          createdAt: new Date().toISOString(),
+          status: 'pending',
+        })
+      }
+      this.save(state)
+      return { kind: 'pending', name }
+    }
+    if (member.status === 'inactive') throw new UserFacingError('사용이 중지된 계정입니다. 운영자에게 문의하세요.')
+    member.status = 'active'
+    this.save(state)
+    this.store.setItem(SESSION_KEY, member.id)
+    return { kind: 'member', member: strip(member) }
   }
 
   async changePassword(current: string, next: string): Promise<void> {
@@ -265,6 +314,46 @@ export class LocalBackend implements Backend {
     state.invites.push({ code, memberId, expiresOn, usedAt: null })
     this.save(state)
     return { code, expiresOn }
+  }
+
+  async joinRequests(): Promise<JoinRequest[]> {
+    await this.requireAdmin()
+    return (this.load().joinRequests ?? [])
+      .filter((r) => r.status === 'pending')
+      .map(({ naverId: _n, status: _s, ...request }) => request)
+  }
+
+  async approveJoinRequest(requestId: string, memberId: string): Promise<void> {
+    await this.requireAdmin()
+    const state = this.load()
+    const request = (state.joinRequests ?? []).find((r) => r.id === requestId)
+    if (!request) throw new UserFacingError('가입 신청을 찾을 수 없습니다.')
+    const member = state.members.find((m) => m.id === memberId && m.status !== 'inactive')
+    if (!member) throw new UserFacingError('연결할 회원을 찾을 수 없습니다.')
+    if (member.naverId) throw new UserFacingError('그 회원은 이미 다른 네이버 계정에 연결돼 있습니다.')
+    member.naverId = request.naverId
+    member.sex ??= request.sex
+    member.birthYear ??= request.birthYear
+    state.joinRequests = (state.joinRequests ?? []).filter((r) => r.id !== requestId)
+    this.save(state)
+  }
+
+  async rejectJoinRequest(requestId: string): Promise<void> {
+    await this.requireAdmin()
+    const state = this.load()
+    const request = (state.joinRequests ?? []).find((r) => r.id === requestId)
+    if (!request) throw new UserFacingError('가입 신청을 찾을 수 없습니다.')
+    request.status = 'rejected'
+    this.save(state)
+  }
+
+  async unlinkNaver(memberId: string): Promise<void> {
+    await this.requireAdmin()
+    const state = this.load()
+    const member = state.members.find((m) => m.id === memberId)
+    if (!member) throw new UserFacingError('회원을 찾을 수 없습니다.')
+    member.naverId = null
+    this.save(state)
   }
 
   async updateMemberProfile(memberId: string, profile: MemberProfile): Promise<void> {
@@ -469,8 +558,8 @@ export class LocalBackend implements Backend {
   }
 }
 
-function strip({ password: _password, ...member }: StoredMember): Member {
-  return member
+function strip({ password: _password, tempPassword: _temp, naverId, ...member }: StoredMember): Member {
+  return { ...member, naverLinked: Boolean(naverId) }
 }
 
 function addDays(date: string, days: number): string {

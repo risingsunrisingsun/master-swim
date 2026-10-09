@@ -247,6 +247,58 @@ a {
   align-items: center;
 }
 
+/* ── 네이버 로그인 ─────────────────── */
+
+.button.naver-button {
+  min-height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  background: #03c75a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 17px;
+  text-decoration: none;
+  width: 100%;
+}
+
+.naver-mark {
+  font-family: Arial, sans-serif;
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
+.request-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.button.primary-small {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  font-weight: 700;
+}
+
 .card.notice {
   background: var(--orange-tint);
   border-color: #f3c9ad;

@@ -20,6 +20,8 @@ for (const name of SHARED_ICONS) await cp(`${HERE}/../web/${name}`, `${OUT}/${na
 
 const url = process.env.NINETEEN_SUPABASE_URL ?? ''
 const anonKey = process.env.NINETEEN_SUPABASE_ANON_KEY ?? ''
+// 네이버 로그인 Client ID(공개값). 비어 있으면 네이버 버튼 없이 빌드된다.
+const naverClientId = process.env.NINETEEN_NAVER_CLIENT_ID ?? ''
 
 const result = await Bun.build({
   entrypoints: [`${HERE}/src/main.ts`],
@@ -30,6 +32,7 @@ const result = await Bun.build({
   define: {
     __SUPABASE_URL__: JSON.stringify(url),
     __SUPABASE_ANON_KEY__: JSON.stringify(anonKey),
+    __NAVER_CLIENT_ID__: JSON.stringify(naverClientId),
   },
 })
 

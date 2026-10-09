@@ -41,6 +41,8 @@ jobs:
         env:
           NINETEEN_SUPABASE_URL: ${{ vars.NINETEEN_SUPABASE_URL }}
           NINETEEN_SUPABASE_ANON_KEY: ${{ vars.NINETEEN_SUPABASE_ANON_KEY }}
+          # 네이버 로그인 Client ID(공개값). 없으면 네이버 버튼 없이 배포된다 — 막지 않는다.
+          NINETEEN_NAVER_CLIENT_ID: ${{ vars.NINETEEN_NAVER_CLIENT_ID }}
         run: |
           if [ -z "$NINETEEN_SUPABASE_URL" ] || [ -z "$NINETEEN_SUPABASE_ANON_KEY" ]; then
             echo "::error::저장소 Variables 에 NINETEEN_SUPABASE_URL · NINETEEN_SUPABASE_ANON_KEY 가 없습니다."

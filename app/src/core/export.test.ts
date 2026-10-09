@@ -11,6 +11,7 @@ const member = (id: string, displayName: string, extra: Partial<Member> = {}): M
   joinedOn: '2026-01-01',
   sex: null,
   birthYear: null,
+  naverLinked: false,
   ...extra,
 })
 

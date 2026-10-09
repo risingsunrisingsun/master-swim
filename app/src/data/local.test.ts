@@ -418,3 +418,63 @@ describe('모임 고치기 · 지우기', () => {
     await expect(backend.updateMeeting(any.id, { date: TODAY, kind: 'training', label: '', place: '' })).rejects.toThrow('운영자')
   })
 })
+
+describe('네이버 로그인 (데모 규칙 = Edge Function 규칙)', () => {
+  test('명단 이름과 같으면 자동 연결, 다음부터는 이름이 바뀌어도 네이버 id 로 들어온다', async () => {
+    const result = await backend.naverSignIn(`demo:${DEMO_MEMBER.name}`, 's')
+    expect(result.kind).toBe('member')
+    expect((await backend.me())?.id).toBe('demo-1')
+    await backend.signOut()
+
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    expect((await backend.members()).find((m) => m.id === 'demo-1')?.naverLinked).toBe(true)
+    await backend.signOut()
+    // 다시 같은 네이버로 — 그대로 들어온다.
+    expect((await backend.naverSignIn(`demo:${DEMO_MEMBER.name}`, 's')).kind).toBe('member')
+  })
+
+  test('명단에 없으면 가입 신청, 승인하면 들어온다', async () => {
+    const first = await backend.naverSignIn('demo:김민수', 's')
+    expect(first).toEqual({ kind: 'pending', name: '김민수' })
+    expect(await backend.me()).toBeNull()
+    // 한 번 더 들어와도 신청은 하나
+    await backend.naverSignIn('demo:김민수', 's')
+
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    const requests = await backend.joinRequests()
+    expect(requests.map((r) => r.name)).toEqual(['김민수'])
+    const created = await backend.createMember({ displayName: '김민수A', role: 'member', joinedOn: TODAY, sex: null, birthYear: null })
+    await backend.approveJoinRequest(requests[0]!.id, created.id)
+    expect(await backend.joinRequests()).toEqual([])
+    await backend.signOut()
+
+    const again = await backend.naverSignIn('demo:김민수', 's')
+    expect(again.kind === 'member' && again.member.displayName).toBe('김민수A')
+  })
+
+  test('거절하면 다시 들어와도 막히고, 신청이 새로 생기지 않는다', async () => {
+    await backend.naverSignIn('demo:모르는사람', 's')
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    await backend.rejectJoinRequest((await backend.joinRequests())[0]!.id)
+    await backend.signOut()
+    await expect(backend.naverSignIn('demo:모르는사람', 's')).rejects.toThrow('승인되지 않았습니다')
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    expect(await backend.joinRequests()).toEqual([])
+  })
+
+  test('운영자가 연결을 끊으면 다음 네이버 로그인 때 다시 판정한다', async () => {
+    await backend.naverSignIn(`demo:${DEMO_MEMBER.name}`, 's')
+    await backend.signOut()
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    await backend.unlinkNaver('demo-1')
+    expect((await backend.members()).find((m) => m.id === 'demo-1')?.naverLinked).toBe(false)
+    await backend.signOut()
+    expect((await backend.naverSignIn(`demo:${DEMO_MEMBER.name}`, 's')).kind).toBe('member')
+  })
+
+  test('운영 기능은 운영자만', async () => {
+    await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+    await expect(backend.joinRequests()).rejects.toThrow('운영자')
+    await expect(backend.unlinkNaver('demo-2')).rejects.toThrow('운영자')
+  })
+})
