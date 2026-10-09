@@ -22,6 +22,7 @@
   **앱을 배포하기 전에** 실행한다. 없으면 홈 · 기록 · 세트 화면이 「저장하지 못했습니다」로 막힌다.
 - `0004_member_profile.sql` — 회원 성별 · 출생연도(운영자가 넣는 선택값). 이것도 배포 전에.
 - `0005_meeting_custom_label.sql` — 모임 종류 직접 입력(`kind = 'custom'` + `label`). 배포 전에.
+- `0006_rsvps.sql` — 회원이 미리 하는 참석 여부 답(`rsvps`, `set_rsvp`). 출석과 별개. 배포 전에.
 
 ## 3. Edge Function
 

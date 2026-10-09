@@ -4,7 +4,7 @@
  * 계산은 `core/`, HTML 은 `ui/views.ts`, 저장은 `data/` 에 있다. 여기서는 경로를 읽고
  * 데이터를 모아 그리고, 입력을 받아 저장소로 보낸다.
  */
-import { monthHistory, monthSummary, nextMeeting } from './core/attendance'
+import { monthHistory, monthSummary, upcomingMeetings } from './core/attendance'
 import { addMonths, isValidIso, monthOf, todayIso } from './core/dates'
 import { isCodeShape, normalizeCode, PASSWORD_MIN, passwordProblem } from './core/invite'
 import {
@@ -182,9 +182,14 @@ async function screen(route: Route, member: Member): Promise<[string, Tab]> {
       const requested = route.query.get('m') ?? ''
       const current = monthOf(today)
       const month = /^\d{4}-\d{2}$/.test(requested) && requested <= current ? requested : current
-      const [meetings, present] = await Promise.all([backend.meetings(), backend.myPresentMeetingIds()])
+      const [meetings, present, rsvps] = await Promise.all([
+        backend.meetings(),
+        backend.myPresentMeetingIds(),
+        backend.myRsvps(),
+      ])
       return [
         attendanceHtml({
+          rsvps,
           today,
           summary: monthSummary(month, meetings, present, member.joinedOn, today),
           history: monthHistory(month, HISTORY_MONTHS, meetings, present, member.joinedOn, today),
@@ -272,19 +277,23 @@ async function screen(route: Route, member: Member): Promise<[string, Tab]> {
       return [accountHtml({ member, saved: flash.saved, error: flash.error }), 'home']
     }
     default: {
-      const [meetings, present, records, goals, tempPassword] = await Promise.all([
+      const [meetings, present, records, goals, tempPassword, rsvps] = await Promise.all([
         backend.meetings(),
         backend.myPresentMeetingIds(),
         backend.myRecords(),
         backend.myGoals(),
         backend.passwordIsTemporary(),
+        backend.myRsvps(),
       ])
+      const upcoming = upcomingMeetings(meetings, today)
       return [
         homeHtml({
           member,
           today,
           month: monthSummary(monthOf(today), meetings, present, member.joinedOn, today),
-          next: nextMeeting(meetings, today),
+          upcoming,
+          selected: upcoming.find((m) => m.id === route.query.get('m')) ?? upcoming[0] ?? null,
+          rsvps,
           pb: latestPb(records),
           goal: latestGoalGap(goals, records),
           tempPassword,
@@ -302,7 +311,21 @@ async function adminScreen(route: Route, today: string): Promise<string> {
     const meetings = (await backend.meetings()).sort((a, b) => b.date.localeCompare(a.date))
     // 전에 직접 입력한 이름 — 최근 모임 것부터, 겹치지 않게.
     const customLabels = [...new Set(meetings.filter((m) => m.kind === 'custom' && m.label).map((m) => m.label))].slice(0, 10)
-    return adminMeetingsHtml({ today, meetings, customLabels, error: flash.error })
+    // 예정 모임에 미리 한 답을 이름으로 묶는다.
+    const upcomingIds = meetings.filter((m) => !m.cancelled && m.date >= today).map((m) => m.id)
+    const [members, rsvps] = await Promise.all([backend.members(), backend.rsvpsFor(upcomingIds)])
+    const names = new Map(members.map((m) => [m.id, m.displayName]))
+    const answers = new Map<string, { going: string[]; notGoing: string[] }>()
+    for (const r of rsvps) {
+      const entry = answers.get(r.meetingId) ?? { going: [], notGoing: [] }
+      ;(r.going ? entry.going : entry.notGoing).push(names.get(r.memberId) ?? '(알 수 없음)')
+      answers.set(r.meetingId, entry)
+    }
+    for (const entry of answers.values()) {
+      entry.going.sort((a, b) => a.localeCompare(b, 'ko'))
+      entry.notGoing.sort((a, b) => a.localeCompare(b, 'ko'))
+    }
+    return adminMeetingsHtml({ today, meetings, customLabels, answers, error: flash.error })
   }
 
   if (route.path === '/admin/records') {
@@ -386,15 +409,17 @@ async function adminScreen(route: Route, today: string): Promise<string> {
     .filter((m) => !m.cancelled && m.date <= today)
     .sort((a, b) => b.date.localeCompare(a.date))
   const selected = meetings.find((m) => m.id === route.query.get('id')) ?? meetings[0] ?? null
-  const [members, present] = await Promise.all([
+  const [members, present, rsvps] = await Promise.all([
     backend.members(),
     selected ? backend.presentMemberIds(selected.id) : Promise.resolve(new Set<string>()),
+    selected ? backend.rsvpsFor([selected.id]) : Promise.resolve([]),
   ])
   return adminAttendanceHtml({
     meetings,
     selected,
     roster: members.filter((m) => m.status !== 'inactive').sort(byName),
     present,
+    rsvps: new Map(rsvps.map((r) => [r.memberId, r.going])),
     saved: flash.saved,
     error: flash.error,
   })
@@ -791,6 +816,28 @@ app.addEventListener('submit', (event) => {
 
 const clickHandlers: Record<string, (button: HTMLButtonElement) => Promise<void> | void> = {
   'check-all': () => setAllChecked(true),
+  // 미리 참석이라고 답한 사람만 체크한다. 나머지는 운영자가 보고 더하거나 뺀다.
+  'check-going': () => {
+    for (const box of app.querySelectorAll<HTMLInputElement>('input[name="present"]')) {
+      box.checked = box.dataset.going === 'yes'
+    }
+    updatePresentCount()
+  },
+
+  rsvp: async (button) => {
+    const id = button.dataset.id
+    if (!id) return
+    // 이미 눌린 버튼을 다시 누르면 답을 지운다.
+    const going = button.getAttribute('aria-pressed') === 'true' ? null : button.dataset.going === 'yes'
+    const group = button.closest('.rsvp')
+    for (const b of group?.querySelectorAll('button') ?? []) b.disabled = true
+    try {
+      await backend.setRsvp(id, going)
+    } catch (error) {
+      flashError = message(error)
+    }
+    void render()
+  },
   'check-none': () => setAllChecked(false),
 
   'cancel-meeting': (button) => meetingCancelled(button.dataset.id, true),
@@ -970,6 +1017,7 @@ function navigateFrom(select: HTMLSelectElement): void {
   const routes: Record<string, string> = {
     records: `#/records?e=${value}&p=${data.period ?? 'all'}`,
     sets: `#/sets?e=${value}`,
+    home: `#/home?m=${value}`,
     'admin-records': `#/admin/records?id=${value}&e=${data.event ?? ''}`,
     'admin-records-event': `#/admin/records?id=${data.meeting ?? ''}&e=${value}`,
     'admin-sets': `#/admin/sets?e=${value}&b=1`,

@@ -4,7 +4,7 @@
  */
 import { createClient, FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js'
 import { type Bracket, parsePlan, type SetOverride, type SetPlan } from '../core/sets'
-import type { Goal, Meeting, MeetingInput, Member, RecordInput, SwimEvent, SwimRecord } from '../core/types'
+import type { Goal, Meeting, MeetingInput, Member, RecordInput, Rsvp, SwimEvent, SwimRecord } from '../core/types'
 import {
   type Backend,
   type IssuedInvite,
@@ -267,6 +267,32 @@ export class SupabaseBackend implements Backend {
       }
     }
     return overrides
+  }
+
+  async myRsvps(): Promise<Map<string, boolean>> {
+    const me = await this.requireMe()
+    const { data, error } = await this.client.from('rsvps').select('meeting_id, going').eq('member_id', me.id)
+    if (error) throw failure(error)
+    return new Map((data as { meeting_id: string; going: boolean }[]).map((row) => [row.meeting_id, row.going]))
+  }
+
+  async setRsvp(meetingId: string, going: boolean | null): Promise<void> {
+    const { error } = await this.client.rpc('set_rsvp', { p_meeting: meetingId, p_going: going })
+    if (error) throw failure(error)
+  }
+
+  async rsvpsFor(meetingIds: readonly string[]): Promise<Rsvp[]> {
+    if (meetingIds.length === 0) return []
+    const { data, error } = await this.client
+      .from('rsvps')
+      .select('meeting_id, member_id, going')
+      .in('meeting_id', [...meetingIds])
+    if (error) throw failure(error)
+    return (data as { meeting_id: string; member_id: string; going: boolean }[]).map((row) => ({
+      meetingId: row.meeting_id,
+      memberId: row.member_id,
+      going: row.going,
+    }))
   }
 
   async members(): Promise<Member[]> {

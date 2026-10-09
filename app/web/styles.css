@@ -197,6 +197,56 @@ a {
   flex-basis: 100%;
 }
 
+/* ── 참석 여부 ─────────────────────── */
+
+.rsvp {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.rsvp-button {
+  min-height: 48px;
+  font-weight: 700;
+}
+
+.rsvp-button.is-going {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+.rsvp-button.is-not {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.chip-going {
+  color: #fff;
+  background: var(--blue);
+}
+
+.list-row.wrap {
+  flex-wrap: wrap;
+}
+
+.rsvp-detail {
+  flex-basis: 100%;
+  margin-left: 76px;
+  font-size: 13px;
+}
+
+.rsvp-detail summary {
+  cursor: pointer;
+  color: var(--blue-dark);
+  font-weight: 500;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
 .card.notice {
   background: var(--orange-tint);
   border-color: #f3c9ad;

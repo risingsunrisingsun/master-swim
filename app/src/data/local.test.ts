@@ -336,3 +336,41 @@ test('전체 기록은 운영자만', async () => {
   const all = await backend.allRecords()
   expect(new Set(all.map((r) => r.memberId)).size).toBeGreaterThan(1)
 })
+
+describe('참석 여부', () => {
+  test('예정 모임에 답하고, 바꾸고, 지운다 — 운영자는 모아 본다', async () => {
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    const future = await backend.createMeeting({ date: '2026-11-20', kind: 'training', label: '', place: '' })
+    const past = await backend.createMeeting({ date: '2026-10-01', kind: 'training', label: '', place: '' })
+    const cancelled = await backend.createMeeting({ date: '2026-11-21', kind: 'training', label: '', place: '' })
+    await backend.setMeetingCancelled(cancelled.id, true)
+    await backend.signOut()
+
+    await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+    await backend.setRsvp(future.id, true)
+    expect((await backend.myRsvps()).get(future.id)).toBe(true)
+    await backend.setRsvp(future.id, false)
+    expect((await backend.myRsvps()).get(future.id)).toBe(false)
+    await expect(backend.setRsvp(past.id, true)).rejects.toThrow('지난 모임')
+    await expect(backend.setRsvp(cancelled.id, true)).rejects.toThrow('취소된 모임')
+    await expect(backend.rsvpsFor([future.id])).rejects.toThrow('운영자')
+    await backend.signOut()
+
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    expect(await backend.rsvpsFor([future.id])).toEqual([{ meetingId: future.id, memberId: 'demo-1', going: false }])
+    await backend.signOut()
+
+    await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+    await backend.setRsvp(future.id, null)
+    expect((await backend.myRsvps()).has(future.id)).toBe(false)
+  })
+
+  test('오늘 모임에도 답할 수 있다', async () => {
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    const today = await backend.createMeeting({ date: TODAY, kind: 'training', label: '', place: '' })
+    await backend.signOut()
+    await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+    await backend.setRsvp(today.id, true)
+    expect((await backend.myRsvps()).get(today.id)).toBe(true)
+  })
+})

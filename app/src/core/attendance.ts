@@ -114,6 +114,13 @@ export function percent(rate: number): number {
 }
 
 /** 오늘 이후(오늘 포함) 첫 모임. 취소된 모임은 건너뛴다. */
+/** 오늘을 포함해 앞으로 열릴 모임(취소 제외), 가까운 순. 회원이 참석 여부를 답할 수 있는 모임이다. */
+export function upcomingMeetings(meetings: readonly Meeting[], today: string): Meeting[] {
+  return meetings
+    .filter((meeting) => !meeting.cancelled && meeting.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
 export function nextMeeting(meetings: readonly Meeting[], today: string): Meeting | null {
   return (
     meetings

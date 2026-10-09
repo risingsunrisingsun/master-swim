@@ -9,7 +9,7 @@ import { addMonths, isoOf, monthOf, todayIso } from '../core/dates'
 import { generateCode, INVITE_DAYS, isCodeShape, normalizeCode } from '../core/invite'
 import type { Bracket, SetOverride, SetPlan } from '../core/sets'
 import { sameEvent } from '../core/time'
-import type { Goal, Meeting, MeetingInput, Member, RecordInput, SwimEvent, SwimRecord } from '../core/types'
+import type { Goal, Meeting, MeetingInput, Member, RecordInput, Rsvp, SwimEvent, SwimRecord } from '../core/types'
 import {
   type Backend,
   type IssuedInvite,
@@ -55,6 +55,8 @@ interface State {
   records?: SwimRecord[]
   goals?: (Goal & { memberId: string })[]
   overrides?: SetOverride[]
+  /** 참석 여부 답. 이것도 나중에 생겼다. */
+  rsvps?: Rsvp[]
 }
 
 export const DEMO_ADMIN = { name: '운영자', password: 'demo1234' }
@@ -187,6 +189,30 @@ export class LocalBackend implements Backend {
   async setOverrides(): Promise<SetOverride[]> {
     await this.requireMember()
     return structuredClone(this.load().overrides ?? [])
+  }
+
+  async myRsvps(): Promise<Map<string, boolean>> {
+    const me = await this.requireMember()
+    return new Map((this.load().rsvps ?? []).filter((r) => r.memberId === me.id).map((r) => [r.meetingId, r.going]))
+  }
+
+  async setRsvp(meetingId: string, going: boolean | null): Promise<void> {
+    const me = await this.requireMember()
+    const state = this.load()
+    // set_rsvp 함수와 같은 규칙 — 지난 모임 · 취소된 모임에는 답하지 못한다.
+    const meeting = state.meetings.find((m) => m.id === meetingId)
+    if (!meeting || meeting.cancelled || meeting.date < this.today()) {
+      throw new UserFacingError('지난 모임이나 취소된 모임에는 답할 수 없습니다.')
+    }
+    const rest = (state.rsvps ?? []).filter((r) => !(r.meetingId === meetingId && r.memberId === me.id))
+    state.rsvps = going === null ? rest : [...rest, { meetingId, memberId: me.id, going }]
+    this.save(state)
+  }
+
+  async rsvpsFor(meetingIds: readonly string[]): Promise<Rsvp[]> {
+    await this.requireAdmin()
+    const wanted = new Set(meetingIds)
+    return (this.load().rsvps ?? []).filter((r) => wanted.has(r.meetingId)).map((r) => ({ ...r }))
   }
 
   async members(): Promise<Member[]> {
@@ -504,7 +530,18 @@ function seed(today: string, random: () => number): State {
     { memberId: 'demo-1', stroke: 'free' as const, distance: 50 as const, targetCs: 3100, updatedAt: `${today}T00:00:00.000Z` },
   ]
 
-  return { members, meetings, present, invites, records, goals, overrides: [] }
+  // 다가오는 모임 둘에 회원 몇이 미리 답해 둔다 — 홈 · 운영 화면에서 바로 보이게.
+  const rsvps: Rsvp[] = meetings
+    .filter((m) => m.date >= today && !m.cancelled)
+    .slice(0, 2)
+    .flatMap((meeting, i) =>
+      members
+        .filter((m) => m.status === 'active' && m.role === 'member' && m.id !== 'demo-1')
+        .slice(0, 5 - i * 2)
+        .map((m, j) => ({ meetingId: meeting.id, memberId: m.id, going: j !== 1 })),
+    )
+
+  return { members, meetings, present, invites, records, goals, overrides: [], rsvps }
 }
 
 /**

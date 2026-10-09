@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { meetingStatus, monthHistory, monthSummary, nextMeeting, percent } from './attendance'
+import { meetingStatus, monthHistory, monthSummary, nextMeeting, percent, upcomingMeetings } from './attendance'
 import type { Meeting } from './types'
 
 const meeting = (date: string, extra: Partial<Meeting> = {}): Meeting => ({
@@ -108,4 +108,14 @@ describe('nextMeeting', () => {
 test('percent 는 반올림', () => {
   expect(percent(2 / 3)).toBe(67)
   expect(percent(1 / 8)).toBe(13)
+})
+
+test('upcomingMeetings — 오늘 포함, 취소 제외, 가까운 순', () => {
+  const list = [
+    meeting('2026-11-04'),
+    meeting('2026-10-28'),
+    meeting('2026-10-30', { cancelled: true }),
+    meeting('2026-10-27'),
+  ]
+  expect(upcomingMeetings(list, TODAY).map((m) => m.date)).toEqual(['2026-10-28', '2026-11-04'])
 })

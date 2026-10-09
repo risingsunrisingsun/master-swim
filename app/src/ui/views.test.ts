@@ -53,7 +53,9 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
       member: member({ displayName: EVIL }),
       today: TODAY,
       month: monthSummary('2026-10', [], new Set(), '2026-01-01', TODAY),
-      next: meeting('2026-10-30', { place: EVIL, checkedAt: null }),
+      upcoming: [meeting('2026-10-30', { place: EVIL, checkedAt: null })],
+      selected: meeting('2026-10-30', { place: EVIL, checkedAt: null }),
+      rsvps: new Map(),
       pb: null,
       goal: null,
       tempPassword: true,
@@ -77,6 +79,7 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
       selected: meeting('2026-10-27'),
       roster: [member({ displayName: EVIL })],
       present: new Set(),
+      rsvps: new Map(),
       saved: false,
       error: null,
     })
@@ -154,6 +157,7 @@ describe('출석 화면', () => {
     history: monthHistory('2026-10', 6, meetings, present, '2026-01-01', TODAY),
     prevMonth: '2026-09',
     nextMonth: null,
+    rsvps: new Map(),
   })
 
   test('사실 문장', () => {
@@ -235,7 +239,7 @@ describe('회원 정보 · 비밀번호', () => {
 
 describe('모임 종류 — 자수모임 · 직접 입력', () => {
   test('기록회는 자수모임으로 보인다', () => {
-    const html = adminMeetingsHtml({ today: TODAY, meetings: [meeting('2026-10-25', { kind: 'record' })], customLabels: [], error: null })
+    const html = adminMeetingsHtml({ today: TODAY, meetings: [meeting('2026-10-25', { kind: 'record' })], customLabels: [], answers: new Map(), error: null })
     expect(html).toContain('자수모임')
     expect(html).not.toContain('기록회')
     expect(html).toContain('<option value="custom">직접 입력…</option>')
@@ -244,14 +248,16 @@ describe('모임 종류 — 자수모임 · 직접 입력', () => {
 
   test('직접 넣은 이름은 이스케이프되고, 종류 목록에 다시 나온다', () => {
     const custom = meeting('2026-10-25', { kind: 'custom', label: EVIL })
-    const html = adminMeetingsHtml({ today: TODAY, meetings: [custom], customLabels: [EVIL], error: null })
+    const html = adminMeetingsHtml({ today: TODAY, meetings: [custom], customLabels: [EVIL], answers: new Map(), error: null })
     expect(html).not.toContain('<img src=x')
     expect(html).toContain('value="custom:&lt;img')
     const home = homeHtml({
       member: member(),
       today: TODAY,
       month: monthSummary('2026-10', [], new Set(), '2026-01-01', TODAY),
-      next: { ...custom, date: '2026-10-30', checkedAt: null },
+      upcoming: [{ ...custom, date: '2026-10-30', checkedAt: null }],
+      selected: { ...custom, date: '2026-10-30', checkedAt: null },
+      rsvps: new Map(),
       pb: null,
       goal: null,
       tempPassword: false,
@@ -263,8 +269,101 @@ describe('모임 종류 — 자수모임 · 직접 입력', () => {
       history: [],
       prevMonth: '2026-09',
       nextMonth: null,
+      rsvps: new Map(),
     })
     expect(attendance).not.toContain('<img src=x')
     expect(attendance).toContain('&lt;img src=x')
+  })
+})
+
+describe('참석 여부', () => {
+  const upcoming = [
+    meeting('2026-10-28', { checkedAt: null }),
+    meeting('2026-10-30', { checkedAt: null, kind: 'record', place: EVIL }),
+  ]
+  const home = (selected: Meeting, rsvps: Map<string, boolean>) =>
+    homeHtml({
+      member: member(),
+      today: TODAY,
+      month: monthSummary('2026-10', [], new Set(), '2026-01-01', TODAY),
+      upcoming,
+      selected,
+      rsvps,
+      pb: null,
+      goal: null,
+      tempPassword: false,
+    })
+
+  test('여러 개면 드롭다운, 고른 모임에 참석 · 불참 버튼', () => {
+    const html = home(upcoming[1]!, new Map([['2026-10-28', true]]))
+    expect(html).toContain('id="home-meeting" data-nav="home"')
+    expect(html).toContain('<option value="2026-10-30" selected>')
+    expect(html).toContain('10/28 수 · 정기 훈련 · 참석</option>')
+    expect(html).toContain('다가오는 모임')
+    expect(html).toContain('data-action="rsvp" data-id="2026-10-30" data-going="yes" aria-pressed="false"')
+    expect(html).toContain('참석 여부를 알려 주세요')
+    expect(html).not.toContain('<img src=x')
+  })
+
+  test('답한 버튼은 눌린 상태, 하나뿐이면 드롭다운이 없다', () => {
+    const one = homeHtml({
+      member: member(),
+      today: TODAY,
+      month: monthSummary('2026-10', [], new Set(), '2026-01-01', TODAY),
+      upcoming: [upcoming[0]!],
+      selected: upcoming[0]!,
+      rsvps: new Map([['2026-10-28', false]]),
+      pb: null,
+      goal: null,
+      tempPassword: false,
+    })
+    expect(one).not.toContain('id="home-meeting"')
+    expect(one).toContain('10/28 수 · 오늘')
+    expect(one).toContain('data-going="no" aria-pressed="true"')
+    expect(one).toContain('불참으로 답했어요')
+  })
+
+  test('운영 출석 체크 — 미리 한 답과 참석 예정자 체크 버튼', () => {
+    const html = adminAttendanceHtml({
+      meetings: [meeting('2026-10-27')],
+      selected: meeting('2026-10-27'),
+      roster: [member(), member({ id: 'm2', displayName: '김철수' })],
+      present: new Set(),
+      rsvps: new Map([
+        ['m1', true],
+        ['m2', false],
+      ]),
+      saved: false,
+      error: null,
+    })
+    expect(html).toContain('참석 예정')
+    expect(html).toContain('불참 예정')
+    expect(html).toContain('value="m1" data-going="yes"')
+    expect(html).toContain('data-action="check-going"')
+  })
+
+  test('운영 모임 목록 — 예정 모임의 답 요약, 이름 이스케이프', () => {
+    const html = adminMeetingsHtml({
+      today: TODAY,
+      meetings: [meeting('2026-10-30', { checkedAt: null }), meeting('2026-11-04', { checkedAt: null })],
+      customLabels: [],
+      answers: new Map([['2026-10-30', { going: [EVIL, '홍길동'], notGoing: ['김철수'] }]]),
+      error: null,
+    })
+    expect(html).toContain('참석 2 · 불참 1')
+    expect(html.match(/rsvp-detail/g)).toHaveLength(1)
+    expect(html).not.toContain('<img src=x')
+  })
+
+  test('출석 화면 — 예정 모임에 내 답', () => {
+    const html = attendanceHtml({
+      today: TODAY,
+      summary: monthSummary('2026-10', [meeting('2026-10-30', { checkedAt: null })], new Set(), '2026-01-01', TODAY),
+      history: [],
+      prevMonth: '2026-09',
+      nextMonth: null,
+      rsvps: new Map([['2026-10-30', true]]),
+    })
+    expect(html).toContain('예정 · 참석')
   })
 })

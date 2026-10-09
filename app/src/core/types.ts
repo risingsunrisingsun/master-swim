@@ -56,6 +56,16 @@ export interface Meeting {
   checkedAt: string | null
 }
 
+/**
+ * 회원이 모임 전에 미리 하는 답. **출석이 아니다** — 출석은 운영자가 모임 뒤에 체크하고
+ * 달성률은 출석만 본다. 답하지 않은 회원은 행이 없다.
+ */
+export interface Rsvp {
+  meetingId: string
+  memberId: string
+  going: boolean
+}
+
 export interface MeetingInput {
   date: string
   kind: MeetingKind

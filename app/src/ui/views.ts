@@ -150,7 +150,12 @@ export interface HomeView {
   member: Member
   today: string
   month: MonthSummary
-  next: Meeting | null
+  /** 오늘 포함 앞으로 열릴 모임, 가까운 순. */
+  upcoming: Meeting[]
+  /** 홈 카드에 보이는 모임. 고르지 않았으면 가장 가까운 모임. */
+  selected: Meeting | null
+  /** 내 참석 여부 답. 모임 id → 참석/불참. */
+  rsvps: ReadonlyMap<string, boolean>
   /** 가장 최근에 새로 쓴 최고기록. */
   pb: SwimRecord | null
   /** 가장 최근에 정한 목표와 남은 초. */
@@ -172,10 +177,7 @@ export function homeHtml(view: HomeView): string {
       : `<p class="hero-number"><span class="num">${percent(month.rate)}</span><span class="unit">%</span></p>
          <div class="dots" style="--n:${Math.max(counted.length, 1)}" aria-hidden="true">${dots}</div>`
 
-  const next = view.next
-    ? `<span class="big">${shortDateLabel(view.next.date)}</span>
-       <span class="muted small">${esc(meetingKindLabel(view.next))}${view.next.place ? ` · ${esc(view.next.place)}` : ''}</span>`
-    : `<span class="muted">예정된 모임이 없습니다.</span>`
+  const next = upcomingCardHtml(view)
 
   return `<header class="page-head row">
       <div>
@@ -197,16 +199,61 @@ export function homeHtml(view: HomeView): string {
         </div>
         ${rate}
       </a>
-      <section class="card">
-        <h2 class="muted small">다음 정기모임</h2>
-        ${next}
-      </section>
+      ${next}
       ${homeRecordsHtml(view)}
       <div class="row center-row">
         <a class="button quiet" href="#/account">내 계정 · 비밀번호</a>
         <button type="button" class="button quiet" data-action="sign-out">로그아웃</button>
       </div>
     </div>`
+}
+
+const RSVP_MARK = (going: boolean | undefined) => (going === undefined ? '' : going ? ' · 참석' : ' · 불참')
+
+/**
+ * 다가오는 모임 카드. 여럿이면 드롭다운으로 고르고, 고른 모임에 참석 · 불참을 답한다.
+ * 같은 버튼을 다시 누르면 답을 지운다.
+ */
+function upcomingCardHtml(view: HomeView): string {
+  const selected = view.selected
+  if (!selected) {
+    return `<section class="card">
+        <h2 class="muted small">다음 정기모임</h2>
+        <span class="muted">예정된 모임이 없습니다.</span>
+      </section>`
+  }
+
+  const picker =
+    view.upcoming.length > 1
+      ? `<select id="home-meeting" data-nav="home" aria-label="모임 고르기">${view.upcoming
+          .map(
+            (m) =>
+              `<option value="${m.id}"${m.id === selected.id ? ' selected' : ''}>${shortDateLabel(m.date)} · ${esc(meetingKindLabel(m))}${RSVP_MARK(view.rsvps.get(m.id))}</option>`,
+          )
+          .join('')}</select>`
+      : ''
+
+  const answer = view.rsvps.get(selected.id)
+  const button = (going: boolean, label: string) => {
+    const on = answer === going
+    return `<button type="button" class="button rsvp-button${on ? ` is-on ${going ? 'is-going' : 'is-not'}` : ''}" data-action="rsvp" data-id="${selected.id}" data-going="${going ? 'yes' : 'no'}" aria-pressed="${on}">${label}</button>`
+  }
+  const status =
+    answer === undefined
+      ? '참석 여부를 알려 주세요. 운영진이 인원을 가늠합니다.'
+      : `${answer ? '참석' : '불참'}으로 답했어요. 같은 버튼을 다시 누르면 취소됩니다.`
+
+  return `<section class="card stack-s">
+      <div class="row baseline">
+        <h2 class="muted small">${view.upcoming.length > 1 ? '다가오는 모임' : '다음 정기모임'}</h2>
+        ${view.upcoming.length > 1 ? `<span class="small muted">${view.upcoming.length}개</span>` : ''}
+      </div>
+      ${picker}
+      <span class="big">${shortDateLabel(selected.date)}${selected.date === view.today ? ' · 오늘' : ''}</span>
+      <span class="muted small">${esc(meetingKindLabel(selected))}${selected.place ? ` · ${esc(selected.place)}` : ''}</span>
+      <div class="rsvp" role="group" aria-label="참석 여부">${button(true, '참석')}${button(false, '불참')}</div>
+      <p class="small muted" aria-live="polite">${status}</p>
+    </section>`
 }
 
 function homeRecordsHtml(view: HomeView): string {
@@ -298,6 +345,8 @@ export interface AttendanceView {
   prevMonth: string
   /** 미래 달로는 넘기지 않는다. */
   nextMonth: string | null
+  /** 내 참석 여부 답 — 예정 모임에 함께 보인다. */
+  rsvps: ReadonlyMap<string, boolean>
 }
 
 const RING_R = 54
@@ -329,6 +378,14 @@ function rowNote(row: MeetingRow): string {
   if (row.status === 'cancelled') return `${kind} · 취소`
   if (row.status === 'before-join') return `${kind} · 가입 전`
   return kind
+}
+
+/** 예정 모임은 내 답을 붙여 보인다 — "예정 · 참석". 나머지는 상태 이름 그대로. */
+function upcomingLabel(row: MeetingRow, rsvps: ReadonlyMap<string, boolean>): string {
+  const label = STATUS_LABEL[row.status]
+  if (row.status !== 'upcoming') return label
+  const going = rsvps.get(row.meeting.id)
+  return going === undefined ? label : `${label} · ${going ? '참석' : '불참'}`
 }
 
 export function attendanceHtml(view: AttendanceView): string {
@@ -364,7 +421,7 @@ export function attendanceHtml(view: AttendanceView): string {
           (row) => `<li class="list-row">
             <span class="list-date">${shortDateLabel(row.meeting.date)}</span>
             <span class="list-note">${rowNote(row)}</span>
-            <span class="chip chip-${row.status}">${STATUS_LABEL[row.status]}</span>
+            <span class="chip chip-${row.status}">${upcomingLabel(row, view.rsvps)}</span>
           </li>`,
         )
         .join('')
@@ -434,6 +491,8 @@ export interface AdminAttendanceView {
   selected: Meeting | null
   roster: Member[]
   present: ReadonlySet<string>
+  /** 그 모임에 회원이 미리 한 답. 회원 id → 참석/불참. */
+  rsvps: ReadonlyMap<string, boolean>
   saved: boolean
   error: string | null
 }
@@ -453,11 +512,19 @@ export function adminAttendanceHtml(view: AdminAttendanceView): string {
 
   const rows = view.roster
     .map(
-      (member) => `<li><label class="check-row">
-        <input type="checkbox" name="present" value="${member.id}"${view.present.has(member.id) ? ' checked' : ''} />
+      (member) => {
+        const answer = view.rsvps.get(member.id)
+        const rsvp =
+          answer === undefined
+            ? ''
+            : `<span class="chip ${answer ? 'chip-going' : 'chip-absent'}">${answer ? '참석 예정' : '불참 예정'}</span>`
+        return `<li><label class="check-row">
+        <input type="checkbox" name="present" value="${member.id}"${view.present.has(member.id) ? ' checked' : ''}${answer ? ' data-going="yes"' : ''} />
         <span>${esc(member.displayName)}</span>
         ${member.status === 'invited' ? '<span class="chip chip-unchecked">가입 전</span>' : ''}
-      </label></li>`,
+        ${rsvp}
+      </label></li>`
+      },
     )
     .join('')
 
@@ -479,6 +546,7 @@ export function adminAttendanceHtml(view: AdminAttendanceView): string {
         <div class="row">
           <button type="button" class="button small-button" data-action="check-all">전체 선택</button>
           <button type="button" class="button small-button" data-action="check-none">전체 해제</button>
+          ${[...view.rsvps.values()].some(Boolean) ? '<button type="button" class="button small-button" data-action="check-going">참석 예정자 체크</button>' : ''}
         </div>
         <ul class="list check-list">${rows}</ul>
       </div>
@@ -495,6 +563,8 @@ export interface AdminMeetingsView {
   meetings: Meeting[]
   /** 전에 직접 입력한 모임 이름, 최근 것부터. 종류 목록에 바로 고를 수 있게 넣는다. */
   customLabels: string[]
+  /** 예정 모임마다 미리 답한 회원 이름. */
+  answers: ReadonlyMap<string, { going: string[]; notGoing: string[] }>
   error: string | null
 }
 
@@ -506,11 +576,21 @@ export function adminMeetingsHtml(view: AdminMeetingsView): string {
       const action = m.cancelled
         ? `<button type="button" class="button small-button" data-action="restore-meeting" data-id="${m.id}">되살리기</button>`
         : `<button type="button" class="button small-button" data-action="cancel-meeting" data-id="${m.id}">취소</button>`
-      return `<li class="list-row">
+      const answers = view.answers.get(m.id)
+      const summary =
+        answers && answers.going.length + answers.notGoing.length > 0
+          ? `<details class="rsvp-detail">
+              <summary>참석 ${answers.going.length} · 불참 ${answers.notGoing.length}</summary>
+              ${answers.going.length ? `<p class="small">참석: ${answers.going.map(esc).join(', ')}</p>` : ''}
+              ${answers.notGoing.length ? `<p class="small muted">불참: ${answers.notGoing.map(esc).join(', ')}</p>` : ''}
+            </details>`
+          : ''
+      return `<li class="list-row wrap">
         <span class="list-date">${shortDateLabel(m.date)}</span>
         <span class="list-note">${esc(meetingKindLabel(m))}${m.place ? ` · ${esc(m.place)}` : ''}</span>
         <span class="chip chip-${chip}">${state}</span>
         ${action}
+        ${summary}
       </li>`
     })
     .join('')

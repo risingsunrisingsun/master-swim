@@ -6,7 +6,18 @@
  * LocalBackend 는 같은 규칙을 코드로 흉내 낸다. 화면이 버튼을 숨기는 것은 편의일 뿐이다.
  */
 import type { Bracket, SetOverride, SetPlan } from '../core/sets'
-import type { Goal, Meeting, MeetingInput, Member, RecordInput, Role, Sex, SwimEvent, SwimRecord } from '../core/types'
+import type {
+  Goal,
+  Meeting,
+  MeetingInput,
+  Member,
+  RecordInput,
+  Role,
+  Rsvp,
+  Sex,
+  SwimEvent,
+  SwimRecord,
+} from '../core/types'
 
 /** 화면에 그대로 띄울 수 있는 문구를 담은 오류. */
 export class UserFacingError extends Error {}
@@ -71,6 +82,10 @@ export interface Backend {
   meetings(): Promise<Meeting[]>
   /** 내가 참석으로 체크된 모임 id. */
   myPresentMeetingIds(): Promise<Set<string>>
+  /** 내 참석 여부 답. 모임 id → 참석(true) · 불참(false). 답하지 않은 모임은 없다. */
+  myRsvps(): Promise<Map<string, boolean>>
+  /** 참석 여부 답하기. null 이면 답을 지운다. 지난 모임 · 취소된 모임은 거절한다. */
+  setRsvp(meetingId: string, going: boolean | null): Promise<void>
 
   /** 내 기록 전부(개인 입력 + 모임 기록). */
   myRecords(): Promise<SwimRecord[]>
@@ -101,6 +116,8 @@ export interface Backend {
 
   createMeeting(input: MeetingInput): Promise<Meeting>
   setMeetingCancelled(meetingId: string, cancelled: boolean): Promise<void>
+  /** 그 모임들에 회원이 미리 한 답(운영자). */
+  rsvpsFor(meetingIds: readonly string[]): Promise<Rsvp[]>
   /** 그 모임에 참석으로 체크된 회원 id. */
   presentMemberIds(meetingId: string): Promise<Set<string>>
   /** 체크 결과를 통째로 저장하고 모임을 "집계됨"으로 표시한다. */
