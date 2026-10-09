@@ -386,6 +386,34 @@ export class SupabaseBackend implements Backend {
     return toMeeting(data)
   }
 
+  async updateMeeting(meetingId: string, input: MeetingInput): Promise<void> {
+    const { data, error } = await this.client
+      .from('meetings')
+      .update({
+        date: input.date,
+        kind: input.kind,
+        label: input.kind === 'custom' ? input.label : '',
+        place: input.place,
+      })
+      .eq('id', meetingId)
+      .select('id')
+    if (error) throw failure(error)
+    if (data.length === 0) throw new UserFacingError('모임을 찾을 수 없습니다.')
+    // 모임 기록의 날짜는 모임 날짜다(save_meeting_records). 모임을 옮기면 같이 옮긴다.
+    const { error: recordError } = await this.client
+      .from('records')
+      .update({ date: input.date })
+      .eq('meeting_id', meetingId)
+      .eq('source', 'meeting')
+    if (recordError) throw failure(recordError)
+  }
+
+  async deleteMeeting(meetingId: string): Promise<void> {
+    const { data, error } = await this.client.from('meetings').delete().eq('id', meetingId).select('id')
+    if (error) throw failure(error)
+    if (data.length === 0) throw new UserFacingError('모임을 찾을 수 없습니다.')
+  }
+
   async setMeetingCancelled(meetingId: string, cancelled: boolean): Promise<void> {
     const { error } = await this.client.from('meetings').update({ cancelled }).eq('id', meetingId)
     if (error) throw failure(error)

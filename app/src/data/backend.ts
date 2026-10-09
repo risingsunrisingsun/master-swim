@@ -116,6 +116,13 @@ export interface Backend {
 
   createMeeting(input: MeetingInput): Promise<Meeting>
   setMeetingCancelled(meetingId: string, cancelled: boolean): Promise<void>
+  /** 날짜 · 종류 · 장소를 고친다. 날짜가 바뀌면 그 모임의 기록 날짜도 따라간다. */
+  updateMeeting(meetingId: string, input: MeetingInput): Promise<void>
+  /**
+   * 모임을 아주 지운다. 출석 · 참석 여부 답은 함께 지워지고, 그 모임의 기록은 남되
+   * 모임 연결만 끊긴다. 지난 모임의 기록을 남기고 싶으면 지우지 말고 취소한다.
+   */
+  deleteMeeting(meetingId: string): Promise<void>
   /** 그 모임들에 회원이 미리 한 답(운영자). */
   rsvpsFor(meetingIds: readonly string[]): Promise<Rsvp[]>
   /** 그 모임에 참석으로 체크된 회원 id. */

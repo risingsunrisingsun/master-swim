@@ -6,6 +6,7 @@ import {
   adminMemberHtml,
   passwordMessage,
   adminAttendanceHtml,
+  adminMeetingHtml,
   adminMeetingsHtml,
   adminMembersHtml,
   attendanceHtml,
@@ -239,7 +240,7 @@ describe('회원 정보 · 비밀번호', () => {
 
 describe('모임 종류 — 자수모임 · 직접 입력', () => {
   test('기록회는 자수모임으로 보인다', () => {
-    const html = adminMeetingsHtml({ today: TODAY, meetings: [meeting('2026-10-25', { kind: 'record' })], customLabels: [], answers: new Map(), error: null })
+    const html = adminMeetingsHtml({ today: TODAY, meetings: [meeting('2026-10-25', { kind: 'record' })], customLabels: [], answers: new Map(), notice: null, error: null })
     expect(html).toContain('자수모임')
     expect(html).not.toContain('기록회')
     expect(html).toContain('<option value="custom">직접 입력…</option>')
@@ -248,7 +249,7 @@ describe('모임 종류 — 자수모임 · 직접 입력', () => {
 
   test('직접 넣은 이름은 이스케이프되고, 종류 목록에 다시 나온다', () => {
     const custom = meeting('2026-10-25', { kind: 'custom', label: EVIL })
-    const html = adminMeetingsHtml({ today: TODAY, meetings: [custom], customLabels: [EVIL], answers: new Map(), error: null })
+    const html = adminMeetingsHtml({ today: TODAY, meetings: [custom], customLabels: [EVIL], answers: new Map(), notice: null, error: null })
     expect(html).not.toContain('<img src=x')
     expect(html).toContain('value="custom:&lt;img')
     const home = homeHtml({
@@ -348,6 +349,7 @@ describe('참석 여부', () => {
       meetings: [meeting('2026-10-30', { checkedAt: null }), meeting('2026-11-04', { checkedAt: null })],
       customLabels: [],
       answers: new Map([['2026-10-30', { going: [EVIL, '홍길동'], notGoing: ['김철수'] }]]),
+      notice: null,
       error: null,
     })
     expect(html).toContain('참석 2 · 불참 1')
@@ -365,5 +367,54 @@ describe('참석 여부', () => {
       rsvps: new Map([['2026-10-30', true]]),
     })
     expect(html).toContain('예정 · 참석')
+  })
+})
+
+describe('모임 고치기 · 지우기', () => {
+  test('목록에 수정 링크와 방금 한 일', () => {
+    const html = adminMeetingsHtml({
+      today: TODAY,
+      meetings: [meeting('2026-10-30', { checkedAt: null })],
+      customLabels: [],
+      answers: new Map(),
+      notice: '모임을 지웠습니다.',
+      error: null,
+    })
+    expect(html).toContain('href="#/admin/meeting?id=2026-10-30"')
+    expect(html).toContain('모임을 지웠습니다.')
+  })
+
+  test('고치기 화면 — 지금 값이 채워지고, 지우면 사라지는 것을 알린다', () => {
+    const custom = meeting('2026-10-25', { kind: 'custom', label: EVIL, place: EVIL })
+    const html = adminMeetingHtml({
+      meeting: custom,
+      today: TODAY,
+      customLabels: ['바다수영'],
+      attended: 7,
+      records: 3,
+      answers: 2,
+      error: null,
+    })
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('value="2026-10-25"')
+    // 최근 목록에 없는 이름도 골라져 있다.
+    expect(html).toContain('<option value="custom:&lt;img src=x onerror=alert(1)&gt;" selected>')
+    expect(html).toContain('출석 7명 · 참석 여부 답 2건이 함께 지워집니다. 회원 달성률이 바뀝니다.')
+    expect(html).toContain('기록 3건은 회원 기록에 남고')
+    expect(html).toContain('data-action="delete-meeting"')
+  })
+
+  test('정해 둔 종류는 그 값이 골라져 있다', () => {
+    const html = adminMeetingHtml({
+      meeting: meeting('2026-10-25', { kind: 'record' }),
+      today: TODAY,
+      customLabels: [],
+      attended: 0,
+      records: 0,
+      answers: 0,
+      error: null,
+    })
+    expect(html).toContain('<option value="record" selected>')
+    expect(html).toContain('출석 · 기록 · 참석 여부 답이 없습니다')
   })
 })

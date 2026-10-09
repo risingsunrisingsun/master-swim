@@ -374,3 +374,47 @@ describe('참석 여부', () => {
     expect((await backend.myRsvps()).get(today.id)).toBe(true)
   })
 })
+
+describe('모임 고치기 · 지우기', () => {
+  test('날짜를 옮기면 모임 기록 날짜도 따라간다', async () => {
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    const meeting = await backend.createMeeting({ date: TODAY, kind: 'record', label: '', place: '' })
+    await backend.saveMeetingRecords(meeting.id, { stroke: 'free', distance: 50 }, [{ memberId: 'demo-1', timeCs: 3000 }])
+    await backend.updateMeeting(meeting.id, { date: '2026-10-27', kind: 'custom', label: ' 바다수영 ', place: '을왕리' })
+    const moved = (await backend.meetings()).find((m) => m.id === meeting.id)!
+    expect([moved.date, moved.kind, moved.label, moved.place]).toEqual(['2026-10-27', 'custom', '바다수영', '을왕리'])
+    expect((await backend.meetingRecords(meeting.id))[0]?.date).toBe('2026-10-27')
+    await expect(backend.updateMeeting(meeting.id, { date: TODAY, kind: 'custom', label: '', place: '' })).rejects.toThrow('모임 이름')
+  })
+
+  test('지우면 출석 · 답은 사라지고, 기록은 남되 모임 연결이 끊긴다', async () => {
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    const meeting = await backend.createMeeting({ date: TODAY, kind: 'training', label: '', place: '' })
+    await backend.saveAttendance(meeting.id, ['demo-1'])
+    await backend.saveMeetingRecords(meeting.id, { stroke: 'free', distance: 50 }, [{ memberId: 'demo-1', timeCs: 2999 }])
+    await backend.signOut()
+    await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+    await backend.setRsvp(meeting.id, true)
+    await backend.signOut()
+
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    await backend.deleteMeeting(meeting.id)
+    expect((await backend.meetings()).some((m) => m.id === meeting.id)).toBe(false)
+    expect((await backend.presentMemberIds(meeting.id)).size).toBe(0)
+    expect(await backend.rsvpsFor([meeting.id])).toEqual([])
+    await expect(backend.deleteMeeting(meeting.id)).rejects.toThrow('찾을 수 없습니다')
+    await backend.signOut()
+
+    await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+    const kept = (await backend.myRecords()).find((r) => r.timeCs === 2999)
+    expect(kept?.meetingId).toBeNull()
+    expect((await backend.myPresentMeetingIds()).has(meeting.id)).toBe(false)
+  })
+
+  test('회원은 모임을 고치거나 지울 수 없다', async () => {
+    await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+    const any = (await backend.meetings())[0]!
+    await expect(backend.deleteMeeting(any.id)).rejects.toThrow('운영자')
+    await expect(backend.updateMeeting(any.id, { date: TODAY, kind: 'training', label: '', place: '' })).rejects.toThrow('운영자')
+  })
+})

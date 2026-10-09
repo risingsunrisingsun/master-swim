@@ -565,7 +565,91 @@ export interface AdminMeetingsView {
   customLabels: string[]
   /** 예정 모임마다 미리 답한 회원 이름. */
   answers: ReadonlyMap<string, { going: string[]; notGoing: string[] }>
+  /** 방금 고치거나 지운 결과 한 줄. */
+  notice: string | null
   error: string | null
+}
+
+/**
+ * 날짜 · 종류 · 장소 칸. 모임 추가와 모임 고치기가 같이 쓴다.
+ * 종류 값: `training` · `record` · `custom:이름`(전에 쓴 이름) · `custom`(지금 칸에 넣기).
+ */
+function meetingFieldsHtml(today: string, customLabels: readonly string[], meeting: Meeting | null): string {
+  const current = meeting ? (meeting.kind === 'custom' ? `custom:${meeting.label}` : meeting.kind) : 'training'
+  // 고치는 모임의 이름이 최근 목록에서 밀려났어도 고를 수 있게 넣는다.
+  const labels = meeting?.kind === 'custom' && !customLabels.includes(meeting.label) ? [meeting.label, ...customLabels] : customLabels
+  const option = (value: string, label: string) =>
+    `<option value="${esc(value)}"${value === current ? ' selected' : ''}>${esc(label)}</option>`
+  return `<div class="grid-2">
+      <div class="field">
+        <label for="meeting-date">날짜</label>
+        <input id="meeting-date" name="date" type="date" required value="${meeting?.date ?? today}" />
+      </div>
+      <div class="field">
+        <label for="meeting-kind">종류</label>
+        <select id="meeting-kind" name="kind">
+          ${option('training', MEETING_KIND_LABEL.training)}
+          ${option('record', MEETING_KIND_LABEL.record)}
+          ${labels.map((label) => option(`custom:${label}`, label)).join('')}
+          <option value="custom">직접 입력…</option>
+        </select>
+      </div>
+    </div>
+    <div class="field custom-label-field" hidden>
+      <label for="meeting-label">모임 이름 <span class="muted">(${MEETING_LABEL_MAX}자까지)</span></label>
+      <input id="meeting-label" name="label" maxlength="${MEETING_LABEL_MAX}" placeholder="예: 바다수영 · 송년회" />
+      <p class="hint">한 번 넣은 이름은 다음부터 종류 목록에 나옵니다.</p>
+    </div>
+    <div class="field">
+      <label for="meeting-place">장소 <span class="muted">(선택)</span></label>
+      <input id="meeting-place" name="place" maxlength="40" value="${esc(meeting?.place ?? '')}" />
+    </div>`
+}
+
+export interface AdminMeetingView {
+  meeting: Meeting
+  today: string
+  customLabels: string[]
+  /** 지우면 함께 사라지거나 끊기는 것. */
+  attended: number
+  records: number
+  answers: number
+  error: string | null
+}
+
+/** 모임 하나 고치기 · 지우기. */
+export function adminMeetingHtml(view: AdminMeetingView): string {
+  const { meeting } = view
+  const losses = [
+    view.attended ? `출석 ${view.attended}명` : '',
+    view.answers ? `참석 여부 답 ${view.answers}건` : '',
+  ].filter(Boolean)
+  const consequence =
+    losses.length || view.records
+      ? `<ul class="problem-list small">
+          ${losses.length ? `<li>${losses.join(' · ')}이 함께 지워집니다.${view.attended ? ' 회원 달성률이 바뀝니다.' : ''}</li>` : ''}
+          ${view.records ? `<li>이 모임의 기록 ${view.records}건은 회원 기록에 남고, 모임 연결만 끊깁니다.</li>` : ''}
+        </ul>`
+      : '<p class="small muted">이 모임에는 출석 · 기록 · 참석 여부 답이 없습니다.</p>'
+
+  return `${adminHeadHtml('meetings', '모임 고치기')}
+    <div class="page-body">
+      <a class="small" href="#/admin/meetings">← 정기모임</a>
+      <form id="meeting-edit-form" class="card stack" novalidate>
+        <h2>${shortDateLabel(meeting.date)} · ${esc(meetingKindLabel(meeting))}${meeting.cancelled ? ' <span class="chip chip-cancelled">취소됨</span>' : ''}</h2>
+        <input type="hidden" name="id" value="${meeting.id}" />
+        ${meetingFieldsHtml(view.today, view.customLabels, meeting)}
+        ${meeting.checkedAt ? '<p class="hint">출석을 이미 저장한 모임입니다. 날짜를 옮기면 출석 · 모임 기록도 새 날짜로 셉니다.</p>' : ''}
+        ${errorHtml(view.error)}
+        <button class="button primary" type="submit">저장</button>
+      </form>
+      <section class="card stack-s">
+        <h2>모임 지우기</h2>
+        ${consequence}
+        <p class="small muted">열리지 않은 모임을 기록에서 빼려면 지우지 말고 목록에서 <strong>취소</strong>하세요. 취소한 모임은 달성률에서 빠지고 되살릴 수 있습니다.</p>
+        <button type="button" class="button danger-quiet" data-action="delete-meeting" data-id="${meeting.id}">이 모임 지우기</button>
+      </section>
+    </div>`
 }
 
 export function adminMeetingsHtml(view: AdminMeetingsView): string {
@@ -573,9 +657,11 @@ export function adminMeetingsHtml(view: AdminMeetingsView): string {
     .map((m) => {
       const state = m.cancelled ? '취소됨' : m.checkedAt ? '집계됨' : m.date > view.today ? '예정' : '집계 전'
       const chip = m.cancelled ? 'cancelled' : m.checkedAt ? 'present' : m.date > view.today ? 'upcoming' : 'unchecked'
-      const action = m.cancelled
-        ? `<button type="button" class="button small-button" data-action="restore-meeting" data-id="${m.id}">되살리기</button>`
-        : `<button type="button" class="button small-button" data-action="cancel-meeting" data-id="${m.id}">취소</button>`
+      const action = `<a class="button small-button" href="#/admin/meeting?id=${m.id}">수정</a>${
+        m.cancelled
+          ? `<button type="button" class="button small-button" data-action="restore-meeting" data-id="${m.id}">되살리기</button>`
+          : `<button type="button" class="button small-button" data-action="cancel-meeting" data-id="${m.id}">취소</button>`
+      }`
       const answers = view.answers.get(m.id)
       const summary =
         answers && answers.going.length + answers.notGoing.length > 0
@@ -589,7 +675,7 @@ export function adminMeetingsHtml(view: AdminMeetingsView): string {
         <span class="list-date">${shortDateLabel(m.date)}</span>
         <span class="list-note">${esc(meetingKindLabel(m))}${m.place ? ` · ${esc(m.place)}` : ''}</span>
         <span class="chip chip-${chip}">${state}</span>
-        ${action}
+        <span class="row">${action}</span>
         ${summary}
       </li>`
     })
@@ -599,30 +685,8 @@ export function adminMeetingsHtml(view: AdminMeetingsView): string {
     <div class="page-body">
       <form id="meeting-form" class="card stack">
         <h2>모임 추가</h2>
-        <div class="grid-2">
-          <div class="field">
-            <label for="meeting-date">날짜</label>
-            <input id="meeting-date" name="date" type="date" required value="${view.today}" />
-          </div>
-          <div class="field">
-            <label for="meeting-kind">종류</label>
-            <select id="meeting-kind" name="kind">
-              <option value="training">${MEETING_KIND_LABEL.training}</option>
-              <option value="record">${MEETING_KIND_LABEL.record}</option>
-              ${view.customLabels.map((label) => `<option value="custom:${esc(label)}">${esc(label)}</option>`).join('')}
-              <option value="custom">직접 입력…</option>
-            </select>
-          </div>
-        </div>
-        <div class="field custom-label-field" hidden>
-          <label for="meeting-label">모임 이름 <span class="muted">(${MEETING_LABEL_MAX}자까지)</span></label>
-          <input id="meeting-label" name="label" maxlength="${MEETING_LABEL_MAX}" placeholder="예: 바다수영 · 송년회" />
-          <p class="hint">한 번 넣은 이름은 다음부터 종류 목록에 나옵니다.</p>
-        </div>
-        <div class="field">
-          <label for="meeting-place">장소 <span class="muted">(선택)</span></label>
-          <input id="meeting-place" name="place" maxlength="40" />
-        </div>
+        ${meetingFieldsHtml(view.today, view.customLabels, null)}
+        ${view.notice ? `<p class="form-ok" role="status">${esc(view.notice)}</p>` : ''}
         ${errorHtml(view.error)}
         <button class="button primary" type="submit">추가</button>
       </form>

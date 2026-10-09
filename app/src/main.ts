@@ -5,7 +5,7 @@
  * 데이터를 모아 그리고, 입력을 받아 저장소로 보낸다.
  */
 import { monthHistory, monthSummary, upcomingMeetings } from './core/attendance'
-import { addMonths, isValidIso, monthOf, todayIso } from './core/dates'
+import { addMonths, isValidIso, monthOf, shortDateLabel, todayIso } from './core/dates'
 import { isCodeShape, normalizeCode, PASSWORD_MIN, passwordProblem } from './core/invite'
 import {
   eventsByRecency,
@@ -34,7 +34,7 @@ import {
   timeProblem,
 } from './core/time'
 import { buildXlsx, XLSX_MIME } from './core/xlsx'
-import { MEETING_LABEL_MAX, type MeetingKind, type Member, SEX_LABEL, type SwimEvent } from './core/types'
+import { MEETING_LABEL_MAX, type MeetingInput, type MeetingKind, type Member, SEX_LABEL, type SwimEvent } from './core/types'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config'
 import { type Backend, type MeetingEntry, UserFacingError } from './data/backend'
 import { DEMO_ADMIN, DEMO_INVITE, DEMO_MEMBER, LocalBackend } from './data/local'
@@ -46,6 +46,7 @@ import {
   adminAttendanceHtml,
   adminMemberHtml,
   adminMeetingsHtml,
+  adminMeetingHtml,
   adminMembersHtml,
   attendanceHtml,
   type BulkDraft,
@@ -79,6 +80,8 @@ let flashError: string | null = null
 let flashSaved = false
 let issued: IssuedCode[] = []
 let bulkDraft: BulkDraft | null = null
+/** 모임을 고치거나 지운 뒤 목록에 한 번 띄우는 문구. */
+let meetingNotice: string | null = null
 
 const FREE_50: SwimEvent = { stroke: 'free', distance: 50 }
 const isSetEvent = (event: SwimEvent | null): event is SwimEvent =>
@@ -325,7 +328,33 @@ async function adminScreen(route: Route, today: string): Promise<string> {
       entry.going.sort((a, b) => a.localeCompare(b, 'ko'))
       entry.notGoing.sort((a, b) => a.localeCompare(b, 'ko'))
     }
-    return adminMeetingsHtml({ today, meetings, customLabels, answers, error: flash.error })
+    const notice = meetingNotice
+    meetingNotice = null
+    return adminMeetingsHtml({ today, meetings, customLabels, answers, notice, error: flash.error })
+  }
+
+  if (route.path === '/admin/meeting') {
+    const all = (await backend.meetings()).sort((a, b) => b.date.localeCompare(a.date))
+    const meeting = all.find((m) => m.id === route.query.get('id'))
+    if (!meeting) {
+      flashError = '모임을 찾을 수 없습니다. 이미 지워졌을 수 있습니다.'
+      location.replace('#/admin/meetings')
+      return ''
+    }
+    const [present, records, rsvps] = await Promise.all([
+      backend.presentMemberIds(meeting.id),
+      backend.meetingRecords(meeting.id),
+      backend.rsvpsFor([meeting.id]),
+    ])
+    return adminMeetingHtml({
+      meeting,
+      today,
+      customLabels: [...new Set(all.filter((m) => m.kind === 'custom' && m.label).map((m) => m.label))].slice(0, 10),
+      attended: present.size,
+      records: records.length,
+      answers: rsvps.length,
+      error: flash.error,
+    })
   }
 
   if (route.path === '/admin/records') {
@@ -616,23 +645,23 @@ const submitHandlers: Record<string, (form: HTMLFormElement) => Promise<void>> =
   },
 
   'meeting-form': async (form) => {
-    const date = field(form, 'date')
-    const chosen = field(form, 'kind')
-    // `custom:이름` 은 전에 직접 넣은 이름을 목록에서 고른 것, `custom` 은 지금 칸에 넣는 것.
-    const kind: MeetingKind = chosen === 'training' || chosen === 'record' ? chosen : 'custom'
-    const label =
-      kind !== 'custom' ? '' : chosen.startsWith('custom:') ? chosen.slice('custom:'.length) : field(form, 'label').trim()
-    const problem = !isValidIso(date)
-      ? '날짜를 확인해 주세요.'
-      : kind === 'custom' && !label
-        ? '모임 이름을 넣어 주세요.'
-        : label.length > MEETING_LABEL_MAX
-          ? `모임 이름은 ${MEETING_LABEL_MAX}자까지입니다.`
-          : null
-    if (problem) return showFormError(form, problem)
+    const input = readMeetingForm(form)
+    if (typeof input === 'string') return showFormError(form, input)
     try {
-      await backend.createMeeting({ date, kind, label, place: field(form, 'place').trim() })
+      await backend.createMeeting(input)
       void render()
+    } catch (error) {
+      showFormError(form, message(error))
+    }
+  },
+
+  'meeting-edit-form': async (form) => {
+    const input = readMeetingForm(form)
+    if (typeof input === 'string') return showFormError(form, input)
+    try {
+      await backend.updateMeeting(field(form, 'id'), input)
+      meetingNotice = `${shortDateLabel(input.date)} 모임을 고쳤습니다.`
+      go('#/admin/meetings')
     } catch (error) {
       showFormError(form, message(error))
     }
@@ -796,6 +825,20 @@ const submitHandlers: Record<string, (form: HTMLFormElement) => Promise<void>> =
   },
 }
 
+/** 모임 추가 · 고치기 폼 → 입력값. 문제가 있으면 그 문구. */
+function readMeetingForm(form: HTMLFormElement): MeetingInput | string {
+  const date = field(form, 'date')
+  const chosen = field(form, 'kind')
+  // `custom:이름` 은 전에 직접 넣은 이름을 목록에서 고른 것, `custom` 은 지금 칸에 넣는 것.
+  const kind: MeetingKind = chosen === 'training' || chosen === 'record' ? chosen : 'custom'
+  const label =
+    kind !== 'custom' ? '' : chosen.startsWith('custom:') ? chosen.slice('custom:'.length) : field(form, 'label').trim()
+  if (!isValidIso(date)) return '날짜를 확인해 주세요.'
+  if (kind === 'custom' && !label) return '모임 이름을 넣어 주세요.'
+  if (label.length > MEETING_LABEL_MAX) return `모임 이름은 ${MEETING_LABEL_MAX}자까지입니다.`
+  return { date, kind, label, place: field(form, 'place').trim() }
+}
+
 const BIRTH_YEAR_PROBLEM = `출생연도는 1985 처럼 네 자리로 넣어 주세요 (${BIRTH_YEAR_MIN}~${BIRTH_YEAR_MAX}).`
 
 /** 막힌 일괄 추가의 남은 사람을 다시 한 줄씩 적는다. */
@@ -878,6 +921,27 @@ const clickHandlers: Record<string, (button: HTMLButtonElement) => Promise<void>
       button.textContent = '복사함'
     } catch {
       button.textContent = '아래 전체 문구에서 복사하세요'
+    }
+  },
+
+  'delete-meeting': async (button) => {
+    // 확인 창 대신 두 번 누르기 — 기록 지우기와 같다.
+    if (button.dataset.armed !== 'yes') {
+      button.dataset.armed = 'yes'
+      button.textContent = '한 번 더 누르면 지웁니다'
+      return
+    }
+    const id = button.dataset.id
+    if (!id) return
+    button.disabled = true
+    try {
+      await backend.deleteMeeting(id)
+      meetingNotice = '모임을 지웠습니다.'
+      go('#/admin/meetings')
+    } catch (error) {
+      button.disabled = false
+      flashError = message(error)
+      void render()
     }
   },
 

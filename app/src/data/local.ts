@@ -318,6 +318,32 @@ export class LocalBackend implements Backend {
     return { ...meeting }
   }
 
+  async updateMeeting(meetingId: string, input: MeetingInput): Promise<void> {
+    await this.requireAdmin()
+    const state = this.load()
+    const meeting = state.meetings.find((m) => m.id === meetingId)
+    if (!meeting) throw new UserFacingError('모임을 찾을 수 없습니다.')
+    const label = input.kind === 'custom' ? input.label.trim() : ''
+    if (input.kind === 'custom' && !label) throw new UserFacingError('모임 이름을 넣어 주세요.')
+    Object.assign(meeting, { date: input.date, kind: input.kind, label, place: input.place })
+    for (const r of state.records ?? []) {
+      if (r.meetingId === meetingId && r.source === 'meeting') r.date = input.date
+    }
+    this.save(state)
+  }
+
+  async deleteMeeting(meetingId: string): Promise<void> {
+    await this.requireAdmin()
+    const state = this.load()
+    if (!state.meetings.some((m) => m.id === meetingId)) throw new UserFacingError('모임을 찾을 수 없습니다.')
+    // DB 의 on delete cascade / set null 과 같게.
+    state.meetings = state.meetings.filter((m) => m.id !== meetingId)
+    state.present = state.present.filter((key) => !key.startsWith(`${meetingId}|`))
+    state.rsvps = (state.rsvps ?? []).filter((r) => r.meetingId !== meetingId)
+    for (const r of state.records ?? []) if (r.meetingId === meetingId) r.meetingId = null
+    this.save(state)
+  }
+
   async setMeetingCancelled(meetingId: string, cancelled: boolean): Promise<void> {
     await this.requireAdmin()
     const state = this.load()
