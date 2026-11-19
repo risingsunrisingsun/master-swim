@@ -24,6 +24,8 @@
 - `0005_meeting_custom_label.sql` — 모임 종류 직접 입력(`kind = 'custom'` + `label`). 배포 전에.
 - `0006_rsvps.sql` — 회원이 미리 하는 참석 여부 답(`rsvps`, `set_rsvp`). 출석과 별개. 배포 전에.
 - `0007_naver_login.sql` — 네이버 로그인(`members.naver_id`, `join_requests`, `approve_join_request`). ADR-0012.
+- `0008_competitions.sql` — 대회 참가 신청(`competitions`, `competition_entries`, `save_entry`, `delete_entry`). ADR-0013.
+  **앱을 배포하기 전에** 실행한다. 없으면 홈이 「저장하지 못했습니다」로 막힌다.
 
 ## 3. Edge Function
 
@@ -51,7 +53,8 @@ redeem-invite 와 같게 두기 위해서이고, 토큰 없이 부르면 401 이
 ## 3-1. 네이버 로그인 (ADR-0012)
 
 1. <https://developers.naver.com> → **Application → 애플리케이션 등록**
-   - 사용 API: **네이버 로그인**. 받을 정보: **이름**(필수), 별명 · 성별 · 출생연도(선택)
+   - 사용 API: **네이버 로그인**. 받을 정보: **이름 · 출생연도**(필수), 별명 · 성별(선택).
+     자동 연결이 이름 + 출생연도를 본다(ADR-0012 보완). 회원이 출생연도 제공을 끄면 가입 신청으로 간다
    - 서비스 환경: **PC웹 · 모바일웹**, 서비스 URL `https://risingsunrisingsun.github.io`
    - **Callback URL: `https://risingsunrisingsun.github.io/master-swim/app/`** — 한 글자라도 다르면 실패한다
 2. **Client ID** 는 공개값이다. 저장소 Variables 의 `NINETEEN_NAVER_CLIENT_ID` 와 함수 Secrets 의

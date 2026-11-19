@@ -61,6 +61,8 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
       rsvps: new Map(),
       pb: null,
       goal: null,
+      weekSet: null,
+      competitions: [],
       tempPassword: true,
     })
     expect(html).not.toContain('<img src=x')
@@ -97,6 +99,8 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
       issued: [{ kind: 'invite', member: evil, code: 'TEAM2345', expiresOn: '2026-11-04' }],
       bulk: null,
       appUrl: 'https://example.org/',
+      profileDraft: null,
+      profileNotice: null,
       requests: [],
       error: null,
     })
@@ -116,6 +120,8 @@ describe('사람이 넣은 글자는 이스케이프된다', () => {
       ],
       bulk: { text: EVIL, joinedOn: TODAY, problems: [{ line: 1, name: EVIL, reason: '이미 등록된 이름입니다' }] },
       appUrl: 'https://example.org/',
+      profileDraft: null,
+      profileNotice: null,
       requests: [],
       error: null,
     })
@@ -201,6 +207,8 @@ describe('회원 정보 · 비밀번호', () => {
       issued: [],
       bulk: null,
       appUrl: 'https://x.org/',
+      profileDraft: null,
+      profileNotice: null,
       requests: [],
       error: null,
     })
@@ -266,6 +274,8 @@ describe('모임 종류 — 자수모임 · 직접 입력', () => {
       rsvps: new Map(),
       pb: null,
       goal: null,
+      weekSet: null,
+      competitions: [],
       tempPassword: false,
     })
     expect(home).not.toContain('<img src=x')
@@ -297,21 +307,24 @@ describe('참석 여부', () => {
       rsvps,
       pb: null,
       goal: null,
+      weekSet: null,
+      competitions: [],
       tempPassword: false,
     })
 
-  test('여러 개면 드롭다운, 고른 모임에 참석 · 불참 버튼', () => {
+  test('여러 개면 날짜 칩, 고른 모임에 참석 · 불참 버튼', () => {
     const html = home(upcoming[1]!, new Map([['2026-10-28', true]]))
-    expect(html).toContain('id="home-meeting" data-nav="home"')
-    expect(html).toContain('<option value="2026-10-30" selected>')
-    expect(html).toContain('10/28 수 · 정기 훈련 · 참석</option>')
-    expect(html).toContain('다가오는 모임')
+    expect(html).not.toContain('<select')
+    expect(html).toContain('<a class="date-chip is-on" href="#/home?m=2026-10-30" aria-current="true">10/30 금</a>')
+    expect(html).toContain('href="#/home?m=2026-10-28">오늘<span class="date-chip-mark">참석</span>')
+    expect(html).toContain('다음 모임')
+    expect(html).toContain('10/30 금 · 자수모임')
     expect(html).toContain('data-action="rsvp" data-id="2026-10-30" data-going="yes" aria-pressed="false"')
     expect(html).toContain('참석 여부를 알려 주세요')
     expect(html).not.toContain('<img src=x')
   })
 
-  test('답한 버튼은 눌린 상태, 하나뿐이면 드롭다운이 없다', () => {
+  test('답한 버튼은 눌린 상태, 하나뿐이면 칩이 없다', () => {
     const one = homeHtml({
       member: member(),
       today: TODAY,
@@ -321,10 +334,13 @@ describe('참석 여부', () => {
       rsvps: new Map([['2026-10-28', false]]),
       pb: null,
       goal: null,
+      weekSet: null,
+      competitions: [],
       tempPassword: false,
     })
-    expect(one).not.toContain('id="home-meeting"')
-    expect(one).toContain('10/28 수 · 오늘')
+    expect(one).not.toContain('date-chips')
+    expect(one).toContain('오늘 모임 · 10/28 수')
+    expect(one).toContain('<p class="next-title">정기 훈련</p>')
     expect(one).toContain('data-going="no" aria-pressed="true"')
     expect(one).toContain('불참으로 답했어요')
   })
@@ -453,6 +469,8 @@ describe('네이버 로그인 화면', () => {
       issued: [],
       bulk: null,
       appUrl: 'https://x.org/',
+      profileDraft: null,
+      profileNotice: null,
       requests: [{ id: 'r1', name: '김민수', nickname: EVIL, sex: 'M', birthYear: 1985, createdAt: '2026-10-09T01:00:00Z' }],
       error: null,
     })

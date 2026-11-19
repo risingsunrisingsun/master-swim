@@ -10,7 +10,21 @@ import { generateCode, INVITE_DAYS, isCodeShape, normalizeCode } from '../core/i
 import type { Bracket, SetOverride, SetPlan } from '../core/sets'
 import { sameEvent } from '../core/time'
 import { rosterMatch } from '../core/naver'
-import type { Goal, JoinRequest, Meeting, MeetingInput, Member, RecordInput, Rsvp, SwimEvent, SwimRecord } from '../core/types'
+import { competitionProblem, entryProblem } from '../core/competitions'
+import type {
+  Competition,
+  CompetitionEntry,
+  CompetitionInput,
+  Goal,
+  JoinRequest,
+  Meeting,
+  MeetingInput,
+  Member,
+  RecordInput,
+  Rsvp,
+  SwimEvent,
+  SwimRecord,
+} from '../core/types'
 import {
   type Backend,
   type IssuedInvite,
@@ -31,7 +45,8 @@ export interface KeyValue {
   removeItem(key: string): void
 }
 
-const KEY = 'nineteen-demo-v1'
+/** v2 — 대회 신청 · 영법별 기록이 들어간 데모 데이터로 다시 심는다(데모라서 버려도 된다). */
+const KEY = 'nineteen-demo-v2'
 const SESSION_KEY = 'nineteen-demo-session'
 
 interface StoredMember extends Omit<Member, 'naverLinked'> {
@@ -68,6 +83,9 @@ interface State {
   rsvps?: Rsvp[]
   /** 네이버 가입 신청. */
   joinRequests?: StoredJoinRequest[]
+  /** 대회 참가 신청. 이것도 나중에 생겼다. */
+  competitions?: Competition[]
+  entries?: CompetitionEntry[]
 }
 
 export const DEMO_ADMIN = { name: '운영자', password: 'demo1234' }
@@ -123,15 +141,20 @@ export class LocalBackend implements Backend {
     this.store.removeItem(SESSION_KEY)
   }
 
-  /** 데모: 네이버 대신 `demo:실명` 을 code 로 받는다. 판정은 Edge Function 과 같다. */
+  /**
+   * 데모: 네이버 대신 `demo:실명:출생연도` 를 code 로 받는다(출생연도는 비울 수 있다 — 제공 동의를 끈 경우).
+   * 판정은 Edge Function 과 같다.
+   */
   async naverSignIn(code: string, _state: string): Promise<NaverResult> {
-    const name = code.startsWith('demo:') ? code.slice('demo:'.length).trim() : ''
+    const [name = '', yearText = ''] = code.startsWith('demo:') ? code.slice('demo:'.length).split(':').map((s) => s.trim()) : []
     if (!name) throw new UserFacingError('네이버 로그인을 확인하지 못했습니다. 다시 시도해 주세요.')
-    const naverId = `naver-${name}`
+    const year = Number(yearText)
+    const birthYear = Number.isInteger(year) && year >= 1920 && year <= 2020 ? year : null
+    const naverId = `naver-${name}-${birthYear ?? ''}`
     const state = this.load()
     let member = state.members.find((m) => m.naverId === naverId)
     if (!member) {
-      const match = rosterMatch(state.members.map((m) => ({ ...m, naverLinked: Boolean(m.naverId) })), name)
+      const match = rosterMatch(state.members.map((m) => ({ ...m, naverLinked: Boolean(m.naverId) })), name, birthYear)
       member = match ? state.members.find((m) => m.id === match.id) : undefined
       if (member) member.naverId = naverId
     }
@@ -146,7 +169,7 @@ export class LocalBackend implements Backend {
           name,
           nickname: '',
           sex: null,
-          birthYear: null,
+          birthYear,
           createdAt: new Date().toISOString(),
           status: 'pending',
         })
@@ -156,6 +179,8 @@ export class LocalBackend implements Backend {
     }
     if (member.status === 'inactive') throw new UserFacingError('사용이 중지된 계정입니다. 운영자에게 문의하세요.')
     member.status = 'active'
+    // 운영자가 비워 둔 칸만 네이버 값으로 채운다(Edge Function 과 같다).
+    member.birthYear ??= birthYear
     this.save(state)
     this.store.setItem(SESSION_KEY, member.id)
     return { kind: 'member', member: strip(member) }
@@ -238,6 +263,86 @@ export class LocalBackend implements Backend {
   async setOverrides(): Promise<SetOverride[]> {
     await this.requireMember()
     return structuredClone(this.load().overrides ?? [])
+  }
+
+  async competitions(): Promise<Competition[]> {
+    await this.requireMember()
+    return structuredClone(this.load().competitions ?? [])
+  }
+
+  async myEntries(): Promise<CompetitionEntry[]> {
+    const me = await this.requireMember()
+    return structuredClone((this.load().entries ?? []).filter((e) => e.memberId === me.id))
+  }
+
+  /** `save_entry` 함수와 같은 규칙 — 마감 전, 대회 종목 안에서, 개수 안에서. */
+  async saveEntry(competitionId: string, events: readonly SwimEvent[], relay: boolean, note: string): Promise<void> {
+    const me = await this.requireMember()
+    const state = this.load()
+    const competition = (state.competitions ?? []).find((c) => c.id === competitionId)
+    if (!competition) throw new UserFacingError('대회를 찾을 수 없습니다.')
+    const problem = entryProblem(competition, events, relay, this.today())
+    if (problem) throw new UserFacingError(problem)
+    if (note.length > 100) throw new UserFacingError('메모는 100자까지입니다.')
+    const rest = (state.entries ?? []).filter((e) => !(e.competitionId === competitionId && e.memberId === me.id))
+    state.entries = [
+      ...rest,
+      {
+        competitionId,
+        memberId: me.id,
+        events: events.map((e) => ({ stroke: e.stroke, distance: e.distance })),
+        relay,
+        note: note.trim(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]
+    this.save(state)
+  }
+
+  async deleteEntry(competitionId: string): Promise<void> {
+    const me = await this.requireMember()
+    const state = this.load()
+    const competition = (state.competitions ?? []).find((c) => c.id === competitionId)
+    if (competition && competition.deadline < this.today()) {
+      throw new UserFacingError('신청이 마감돼 취소할 수 없습니다. 운영진에게 문의하세요.')
+    }
+    state.entries = (state.entries ?? []).filter((e) => !(e.competitionId === competitionId && e.memberId === me.id))
+    this.save(state)
+  }
+
+  async createCompetition(input: CompetitionInput): Promise<Competition> {
+    await this.requireAdmin()
+    const problem = competitionProblem(input)
+    if (problem) throw new UserFacingError(problem)
+    const state = this.load()
+    const competition: Competition = { id: crypto.randomUUID(), ...structuredClone(input), name: input.name.trim() }
+    state.competitions = [...(state.competitions ?? []), competition]
+    this.save(state)
+    return structuredClone(competition)
+  }
+
+  async updateCompetition(competitionId: string, input: CompetitionInput): Promise<void> {
+    await this.requireAdmin()
+    const problem = competitionProblem(input)
+    if (problem) throw new UserFacingError(problem)
+    const state = this.load()
+    const competition = (state.competitions ?? []).find((c) => c.id === competitionId)
+    if (!competition) throw new UserFacingError('대회를 찾을 수 없습니다.')
+    Object.assign(competition, structuredClone(input), { name: input.name.trim() })
+    this.save(state)
+  }
+
+  async deleteCompetition(competitionId: string): Promise<void> {
+    await this.requireAdmin()
+    const state = this.load()
+    state.competitions = (state.competitions ?? []).filter((c) => c.id !== competitionId)
+    state.entries = (state.entries ?? []).filter((e) => e.competitionId !== competitionId)
+    this.save(state)
+  }
+
+  async competitionEntries(competitionId: string): Promise<CompetitionEntry[]> {
+    await this.requireAdmin()
+    return structuredClone((this.load().entries ?? []).filter((e) => e.competitionId === competitionId))
   }
 
   async myRsvps(): Promise<Map<string, boolean>> {
@@ -656,7 +761,37 @@ function seed(today: string, random: () => number): State {
         .map((m, j) => ({ meetingId: meeting.id, memberId: m.id, going: j !== 1 })),
     )
 
-  return { members, meetings, present, invites, records, goals, overrides: [], rsvps }
+  // 마감 전 대회 하나. 홍길동만 빼고 몇이 신청해 둔다 — 회원은 신청을, 운영자는 취합 · 단체전을 바로 해 본다.
+  const competition: Competition = {
+    id: 'demo-competition',
+    name: '마스터즈 수영대회 (예시)',
+    date: addDays(today, 30),
+    place: '[대회 수영장]',
+    deadline: addDays(today, 14),
+    events: [
+      { stroke: 'free', distance: 50 },
+      { stroke: 'back', distance: 50 },
+      { stroke: 'breast', distance: 50 },
+      { stroke: 'fly', distance: 50 },
+      { stroke: 'free', distance: 100 },
+      { stroke: 'im', distance: 100 },
+    ],
+    relays: true,
+    maxEvents: 2,
+    note: '참가비는 카페 공지를 보세요.',
+  }
+  const entries: CompetitionEntry[] = members
+    .filter((m) => m.status === 'active' && m.role === 'member' && m.id !== 'demo-1')
+    .map((m, i) => ({
+      competitionId: competition.id,
+      memberId: m.id,
+      events: [competition.events[i % 4]!, ...(i % 2 === 0 ? [competition.events[4]!] : [])],
+      relay: i !== 3,
+      note: '',
+      updatedAt: `${today}T00:00:00.000Z`,
+    }))
+
+  return { members, meetings, present, invites, records, goals, overrides: [], rsvps, competitions: [competition], entries }
 }
 
 /**
@@ -683,6 +818,40 @@ function seedRecords(past: Meeting[], members: StoredMember[], random: () => num
       })
     })
   })
+  // 자수모임마다 자유형 말고 한 영법씩 더 — 단체전(혼계영) 명단을 짤 수 있게. 마지막 자수모임은 자유형 100m 도.
+  const extra: Record<'back' | 'breast' | 'fly', number> = { back: 500, breast: 700, fly: 250 }
+  recordMeetings.forEach((meeting, round) => {
+    swimmers.forEach((member, i) => {
+      const stroke = (['back', 'breast', 'fly'] as const)[(round + i) % 3]!
+      const base = 3350 + i * 150 - round * 30 + extra[stroke]
+      records.push({
+        id: `rec-${meeting.id}-${member.id}-${stroke}`,
+        memberId: member.id,
+        stroke,
+        distance: 50,
+        timeCs: Math.round(base + random() * 80),
+        date: meeting.date,
+        source: 'meeting',
+        meetingId: meeting.id,
+        note: '',
+      })
+      if (round === recordMeetings.length - 1) {
+        records.push({
+          id: `rec-${meeting.id}-${member.id}-free100`,
+          memberId: member.id,
+          stroke: 'free',
+          distance: 100,
+          // 50m 두 배에 후반 감속을 얹는다. 홍길동(i=0)은 감속이 커서 '후반 25m 버티기'가 뜬다.
+          timeCs: Math.round((3350 + i * 150 - round * 30) * 2 + (i === 0 ? 950 : 550) + random() * 60),
+          date: meeting.date,
+          source: 'meeting',
+          meetingId: meeting.id,
+          note: '',
+        })
+      }
+    })
+  })
+
   const hong = swimmers[0]
   if (hong) {
     past

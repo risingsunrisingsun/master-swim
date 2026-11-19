@@ -15,7 +15,7 @@ import {
   type SwimRecord,
 } from '../core/types'
 import { type ChartPoint, recordChartHtml } from './chart'
-import { adminHeadHtml, errorHtml, esc, icon } from './views'
+import { adminHeadHtml, errorHtml, esc, eventChipsHtml, icon } from './views'
 
 const PLUS = '<path d="M12 5v14M5 12h14"/>'
 
@@ -124,41 +124,38 @@ export function recordsHtml(view: RecordsView): string {
     pb: view.pbIds.has(r.id),
   }))
 
+  // 개인 입력은 줄 전체가 고치기 링크다(줄마다 "고치기" 버튼을 두면 목록이 배로 길어진다).
+  // 모임 기록은 운영자가 고치므로 링크가 아니다.
   const rows = [...view.records]
     .reverse()
     .map((r) => {
-      const edit =
-        r.source === 'self'
-          ? `<a class="button small-button" href="#/records/edit?id=${encodeURIComponent(r.id)}">고치기</a>`
-          : ''
       const note = r.note ? `<span class="small muted">${esc(r.note)}</span>` : ''
-      return `<li class="record-row">
-          <span class="list-date">${shortDateLabel(r.date)}</span>
+      const inner = `<span class="list-date">${shortDateLabel(r.date)}</span>
           <span class="record-main">
             <span class="record-time num">${formatTime(r.timeCs)}${view.pbIds.has(r.id) ? ' <span class="chip chip-pb">PB</span>' : ''}</span>
             <span class="small muted">${esc(sourceLabel(r, view.meetings))}</span>
             ${note}
-          </span>
-          ${edit}
-        </li>`
+          </span>`
+      return r.source === 'self'
+        ? `<li><a class="record-row row-link" href="#/records/edit?id=${encodeURIComponent(r.id)}" aria-label="${shortDateLabel(r.date)} ${formatTime(r.timeCs)} 고치기">${inner}<span class="chevron" aria-hidden="true">›</span></a></li>`
+        : `<li class="record-row">${inner}</li>`
     })
     .join('')
 
   const status = view.saved ? `<p class="form-ok" role="status">저장했습니다.</p>` : ''
+  const chips = eventChipsHtml(
+    view.events.map((event) => ({
+      event,
+      href: `#/records?e=${eventKey(event)}&p=${view.period}`,
+      count: view.counts.get(eventKey(event)),
+    })),
+    view.event,
+  )
 
-  return `<header class="page-head row">
-      <h1>나의 기록</h1>
-      <a class="icon-button" href="#/records/new?e=${key}" aria-label="기록 넣기">${icon(PLUS, 22)}</a>
-    </header>
+  return `<header class="page-head"><h1>나의 기록</h1></header>
     <div class="page-body">
       ${status}${errorHtml(view.error)}
-      <div class="field">
-        <label for="records-event">종목</label>
-        <select id="records-event" data-nav="records" data-period="${view.period}">${eventOptions(view.events, view.event, view.counts)}${eventOptions(
-          RECORD_EVENTS.filter((e) => !view.counts.has(eventKey(e))),
-          null,
-        )}</select>
-      </div>
+      ${chips}
       ${bestCard}
       <section class="card">
         <nav class="segmented compact" aria-label="기간">${periods}</nav>
@@ -166,9 +163,10 @@ export function recordsHtml(view: RecordsView): string {
       </section>
       <section class="card list-card">
         <ul class="list">${rows || `<li class="list-row muted">이 기간에는 기록이 없습니다.</li>`}</ul>
+        ${view.records.some((r) => r.source === 'self') ? '<p class="hint list-hint">개인 입력은 눌러서 고치거나 지웁니다.</p>' : ''}
       </section>
-      ${add(key)}
-    </div>`
+    </div>
+    <a class="fab" href="#/records/new?e=${key}">${icon(PLUS, 20)}기록 넣기</a>`
 }
 
 function sourceLabel(record: SwimRecord, meetings: ReadonlyMap<string, Meeting>): string {

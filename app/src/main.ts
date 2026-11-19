@@ -19,7 +19,20 @@ import {
   recordsOf,
 } from './core/records'
 import { exportFileName, recordSheets } from './core/export'
-import { BIRTH_YEAR_MAX, BIRTH_YEAR_MIN, NAME_MAX, parseRoster, readBirthYear, readSex, ROSTER_MAX, type RosterEntry } from './core/roster'
+import { competitionProblem, entriesFileName, entryProblem, entrySheets, upcomingCompetitions } from './core/competitions'
+import { diagnose } from './core/priority'
+import { bestRelayTeams, DEFAULT_TAKEOVER_CS, type RelayGender, type RelayKind, relayBests, type RelaySwimmer } from './core/relay'
+import {
+  BIRTH_YEAR_MAX,
+  BIRTH_YEAR_MIN,
+  NAME_MAX,
+  parseProfileUpdates,
+  parseRoster,
+  readBirthYear,
+  readSex,
+  ROSTER_MAX,
+  type RosterEntry,
+} from './core/roster'
 import { type Bracket, BRACKETS, formulaPlanAt, planProblem, prescribe } from './core/sets'
 import {
   eventKey,
@@ -34,7 +47,17 @@ import {
   timeProblem,
 } from './core/time'
 import { buildXlsx, XLSX_MIME } from './core/xlsx'
-import { MEETING_LABEL_MAX, type MeetingInput, type MeetingKind, type Member, SEX_LABEL, type SwimEvent } from './core/types'
+import {
+  type Competition,
+  type CompetitionEntry,
+  type CompetitionInput,
+  MEETING_LABEL_MAX,
+  type MeetingInput,
+  type MeetingKind,
+  type Member,
+  SEX_LABEL,
+  type SwimEvent,
+} from './core/types'
 import { NAVER_CLIENT_ID, SUPABASE_ANON_KEY, SUPABASE_URL } from './config'
 import { authorizeUrl, NAVER_STATE_KEY, newState, readCallback } from './core/naver'
 import { type Backend, type MeetingEntry, UserFacingError } from './data/backend'
@@ -42,6 +65,7 @@ import { DEMO_ADMIN, DEMO_INVITE, DEMO_MEMBER, LocalBackend } from './data/local
 import { SupabaseBackend } from './data/supabase'
 import { adminRecordsHtml, recordFormHtml, recordsHtml } from './ui/records'
 import { adminSetsHtml, readPlanForm, setsHtml } from './ui/sets'
+import { adminCompetitionHtml, adminCompetitionsHtml, adminRelayHtml, competitionHtml } from './ui/competitions'
 import {
   accountHtml,
   adminAttendanceHtml,
@@ -58,6 +82,7 @@ import {
   type LoginMode,
   loginHtml,
   naverDemoHtml,
+  type ProfileDraft,
   type Tab,
   tabbarHtml,
 } from './ui/views'
@@ -86,6 +111,32 @@ let issued: IssuedCode[] = []
 let bulkDraft: BulkDraft | null = null
 /** 모임을 고치거나 지운 뒤 목록에 한 번 띄우는 문구. */
 let meetingNotice: string | null = null
+/** 출생연도 · 성별 일괄 입력 — 막혔을 때 붙여 넣은 글, 끝났을 때 결과 한 줄. */
+let profileDraft: ProfileDraft | null = null
+let profileNotice: string | null = null
+/** 대회를 열거나 지운 뒤 목록에 한 번 띄우는 문구. */
+let competitionNotice: string | null = null
+
+/**
+ * 마지막으로 본 종목. 세트 탭에서 고른 종목이 기록 탭으로 이어지게(그 반대도) 한다.
+ * 기기 편의일 뿐이라 저장이 막힌 브라우저면 이번 세션에만 남는다.
+ */
+const LAST_EVENT_KEY = 'nineteen-last-event'
+let lastEvent: SwimEvent | null = (() => {
+  try {
+    return parseEventKey(localStorage.getItem(LAST_EVENT_KEY))
+  } catch {
+    return null
+  }
+})()
+function rememberEvent(event: SwimEvent): void {
+  lastEvent = event
+  try {
+    localStorage.setItem(LAST_EVENT_KEY, eventKey(event))
+  } catch {
+    // 저장이 막혀도 이번 세션 동안은 기억한다.
+  }
+}
 
 const FREE_50: SwimEvent = { stroke: 'free', distance: 50 }
 const isSetEvent = (event: SwimEvent | null): event is SwimEvent =>
@@ -218,7 +269,9 @@ async function screen(route: Route, member: Member): Promise<[string, Tab]> {
       const flash = takeFlash()
       const [records, goals, meetings] = await Promise.all([backend.myRecords(), backend.myGoals(), backend.meetings()])
       const events = eventsByRecency(records)
-      const event = parseEventKey(route.query.get('e')) ?? events[0] ?? null
+      const remembered = lastEvent && events.find((e) => sameEvent(e, lastEvent!))
+      const event = parseEventKey(route.query.get('e')) ?? remembered ?? events[0] ?? null
+      if (event) rememberEvent(event)
       const requestedPeriod = route.query.get('p')
       const period = isPeriod(requestedPeriod) ? requestedPeriod : 'all'
       const start = periodStart(period, today)
@@ -271,20 +324,47 @@ async function screen(route: Route, member: Member): Promise<[string, Tab]> {
       const recentGoal = [...goals].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null
       const event: SwimEvent = isSetEvent(requested)
         ? requested
-        : isSetEvent(recentGoal)
-          ? { stroke: recentGoal.stroke, distance: recentGoal.distance }
-          : (eventsByRecency(records).find(isSetEvent) ?? FREE_50)
+        : isSetEvent(lastEvent)
+          ? lastEvent
+          : isSetEvent(recentGoal)
+            ? { stroke: recentGoal.stroke, distance: recentGoal.distance }
+            : (eventsByRecency(records).find(isSetEvent) ?? FREE_50)
+      rememberEvent(event)
       const best = personalBest(records, event)
       const goalCs = goals.find((g) => sameEvent(g, event))?.targetCs ?? null
+      const counts = new Map<string, number>()
+      for (const r of records) counts.set(eventKey(r), (counts.get(eventKey(r)) ?? 0) + 1)
       return [
         setsHtml({
           event,
+          counts,
           best,
           goalCs,
           prescription: best ? prescribe(event, best.timeCs, goalCs ?? best.timeCs - 100, overrides, member.sex) : null,
+          diagnosis: records.length ? diagnose(records, event, member.sex, member.birthYear, today) : null,
           error: flash.error,
         }),
         'sets',
+      ]
+    }
+    case '/competition': {
+      const flash = takeFlash()
+      const [competitions, entries] = await Promise.all([backend.competitions(), backend.myEntries()])
+      const competition = competitions.find((c) => c.id === route.query.get('id'))
+      if (!competition) {
+        flashError = '대회를 찾을 수 없습니다. 운영진이 지웠을 수 있습니다.'
+        location.replace('#/home')
+        return ['', 'home']
+      }
+      return [
+        competitionHtml({
+          competition,
+          entry: entries.find((e) => e.competitionId === competition.id) ?? null,
+          today,
+          saved: flash.saved,
+          error: flash.error,
+        }),
+        'home',
       ]
     }
     case '/account': {
@@ -292,15 +372,27 @@ async function screen(route: Route, member: Member): Promise<[string, Tab]> {
       return [accountHtml({ member, saved: flash.saved, error: flash.error }), 'home']
     }
     default: {
-      const [meetings, present, records, goals, tempPassword, rsvps] = await Promise.all([
+      const [meetings, present, records, goals, tempPassword, rsvps, overrides, competitions, entries] = await Promise.all([
         backend.meetings(),
         backend.myPresentMeetingIds(),
         backend.myRecords(),
         backend.myGoals(),
         backend.passwordIsTemporary(),
         backend.myRsvps(),
+        backend.setOverrides(),
+        // 대회 카드는 덤이다. 못 읽어도(마이그레이션 0008 을 아직 안 돌린 운영 DB 등) 홈은 뜬다.
+        backend.competitions().catch((): Competition[] => []),
+        backend.myEntries().catch((): CompetitionEntry[] => []),
       ])
       const upcoming = upcomingMeetings(meetings, today)
+      const goal = latestGoalGap(goals, records)
+      // 이번 주 세트 — 목표 종목의 처방 1단계. 목표가 없거나 이미 닿았으면 보이지 않는다.
+      const weekSet = (() => {
+        if (!goal?.best || !isSetEvent(goal.goal) || goal.best.timeCs <= goal.goal.targetCs) return null
+        const event: SwimEvent = { stroke: goal.goal.stroke, distance: goal.goal.distance }
+        const step = prescribe(event, goal.best.timeCs, goal.goal.targetCs, overrides, member.sex)?.steps[0]
+        return step ? { event, step } : null
+      })()
       return [
         homeHtml({
           member,
@@ -310,7 +402,12 @@ async function screen(route: Route, member: Member): Promise<[string, Tab]> {
           selected: upcoming.find((m) => m.id === route.query.get('m')) ?? upcoming[0] ?? null,
           rsvps,
           pb: latestPb(records),
-          goal: latestGoalGap(goals, records),
+          goal,
+          weekSet,
+          competitions: upcomingCompetitions(competitions, today).map((competition) => ({
+            competition,
+            entry: entries.find((e) => e.competitionId === competition.id) ?? null,
+          })),
           tempPassword,
         }),
         'home',
@@ -434,6 +531,8 @@ async function adminScreen(route: Route, today: string): Promise<string> {
     const [all, requests] = await Promise.all([backend.members(), backend.joinRequests()])
     const members = all.sort(byName)
     const view = adminMembersHtml({
+      profileDraft,
+      profileNotice,
       requests,
       today,
       members,
@@ -444,7 +543,69 @@ async function adminScreen(route: Route, today: string): Promise<string> {
     })
     issued = []
     bulkDraft = null
+    profileDraft = null
+    profileNotice = null
     return view
+  }
+
+  if (route.path === '/admin/competitions') {
+    const competitions = (await backend.competitions()).sort((a, b) => b.date.localeCompare(a.date))
+    const counts = await Promise.all(competitions.map((c) => backend.competitionEntries(c.id).then((e) => e.length)))
+    const notice = competitionNotice
+    competitionNotice = null
+    return adminCompetitionsHtml({
+      today,
+      competitions: competitions.map((competition, i) => ({ competition, entries: counts[i] ?? 0 })),
+      notice,
+      error: flash.error,
+    })
+  }
+
+  if (route.path === '/admin/competition') {
+    const competition = (await backend.competitions()).find((c) => c.id === route.query.get('id'))
+    if (!competition) {
+      flashError = '대회를 찾을 수 없습니다. 이미 지워졌을 수 있습니다.'
+      location.replace('#/admin/competitions')
+      return ''
+    }
+    const [entries, members] = await Promise.all([backend.competitionEntries(competition.id), backend.members()])
+    return adminCompetitionHtml({ competition, entries, members, today, saved: flash.saved, error: flash.error })
+  }
+
+  if (route.path === '/admin/relay') {
+    const q = route.query
+    const competition = q.get('c') ? ((await backend.competitions()).find((c) => c.id === q.get('c')) ?? null) : null
+    const [members, records, entries] = await Promise.all([
+      backend.members(),
+      backend.allRecords(),
+      competition ? backend.competitionEntries(competition.id) : Promise.resolve([]),
+    ])
+    const pool = competition && q.get('pool') !== 'all' ? 'relay' : 'all'
+    const relayIds = new Set(entries.filter((e) => e.relay).map((e) => e.memberId))
+    // 최근 2년 기록만 — 몇 년 전 최고기록으로 명단을 짜면 대회 날 맞지 않는다.
+    const since = `${addMonths(monthOf(today), -24)}-01`
+    const swimmers: RelaySwimmer[] = members
+      .filter((m) => m.status !== 'inactive' && (pool === 'all' || relayIds.has(m.id)))
+      .sort(byName)
+      .map((m) => ({ memberId: m.id, name: m.displayName, sex: m.sex, birthYear: m.birthYear, bests: relayBests(records, m.id, since) }))
+    const kind: RelayKind = q.get('k') === 'free' ? 'free' : 'medley'
+    const gender: RelayGender = q.get('g') === 'F' || q.get('g') === 'X' ? (q.get('g') as RelayGender) : 'M'
+    const age = (key: string) => {
+      const n = Number(q.get(key))
+      return q.get(key) && Number.isInteger(n) && n > 0 ? n : null
+    }
+    const takeover = Number(q.get('t'))
+    const teams = Number(q.get('n'))
+    const options = {
+      kind,
+      gender,
+      ageMin: age('min'),
+      ageMax: age('max'),
+      year: Number((competition?.date ?? today).slice(0, 4)),
+      takeoverCs: q.get('t') && Number.isInteger(takeover) && takeover >= 0 && takeover <= 200 ? takeover : DEFAULT_TAKEOVER_CS,
+      teams: teams === 2 || teams === 3 ? teams : 1,
+    }
+    return adminRelayHtml({ competition, pool, options, swimmers, result: bestRelayTeams(swimmers, options), since: `${since.slice(0, 4)}년 ${Number(since.slice(5, 7))}월` })
   }
 
   // 기본: 출석 체크
@@ -515,7 +676,132 @@ async function busy(form: HTMLFormElement, work: () => Promise<void>): Promise<v
 
 const submitHandlers: Record<string, (form: HTMLFormElement) => Promise<void>> = {
   'naver-demo-form': async (form) => {
-    await finishNaver(`demo:${field(form, 'name').trim()}`, 'demo')
+    await finishNaver(`demo:${field(form, 'name').trim()}:${field(form, 'birthYear').trim()}`, 'demo')
+  },
+
+  'bulk-profile-form': async (form) => {
+    const text = field(form, 'profiles')
+    try {
+      const members = await backend.members()
+      const { updates, problems, skipped, unmatched, conflicts, unchanged } = parseProfileUpdates(text, members)
+      if (problems.length > 0) {
+        profileDraft = { text, problems }
+        return
+      }
+      if (updates.length === 0 && conflicts.length === 0 && unchanged === 0) {
+        throw new UserFacingError(
+          unmatched.length > 0
+            ? `앱 명단과 맞는 이름이 없습니다 (${unmatched.slice(0, 5).join(', ')}${unmatched.length > 5 ? ' …' : ''}).`
+            : '이름과 출생연도를 한 줄에 한 명씩 넣어 주세요.',
+        )
+      }
+      // 한 명씩 차례로. 중간에 끊기면 남은 줄을 칸에 되돌린다.
+      let done = 0
+      for (const update of updates) {
+        const member = members.find((m) => m.id === update.memberId)!
+        try {
+          await backend.updateMemberProfile(member.id, {
+            displayName: member.displayName,
+            role: member.role,
+            sex: update.sex ?? member.sex,
+            birthYear: update.birthYear ?? member.birthYear,
+          })
+          done++
+        } catch (error) {
+          const lines = text.split(/\r?\n/)
+          const rest = updates.slice(done).map((u) => lines.find((l) => l.includes(u.name)) ?? u.name)
+          profileDraft = { text: rest.join('\n'), problems: [] }
+          flashError = `${update.name} 에서 멈췄습니다 — ${message(error)}${done ? ` 앞의 ${done}명은 저장됐습니다.` : ''}`
+          return
+        }
+      }
+      if (me && updates.some((u) => u.memberId === me?.id)) me = (await backend.me()) ?? me
+      const fieldName = (f: 'sex' | 'birthYear') => (f === 'sex' ? '성별' : '출생연도')
+      const conflictNames = new Set(conflicts.map((c) => c.name))
+      // 한 줄에 한 가지. 화면이 줄마다 나눠 보여준다.
+      profileNotice = [
+        done > 0 ? `빈 칸을 채운 사람 ${done}명.` : '채울 빈 칸이 없었습니다.',
+        unchanged > 0 ? `앱 명단과 이미 같은 사람 ${unchanged}명.` : '',
+        conflicts.length > 0
+          ? `앱 명단과 다른 사람 ${conflictNames.size}명 — 바꾸지 않았습니다. 맞는 쪽을 회원 화면에서 고쳐 주세요: ${conflicts
+              .map((c) => `${c.name} ${fieldName(c.field)} 앱 ${c.current} · 파일 ${c.file}`)
+              .join(', ')}`
+          : '',
+        skipped.length > 0 ? `출생연도가 없어 뺀 사람 ${skipped.length}명.` : '',
+        unmatched.length > 0 ? `앱 명단에 없는 이름 ${unmatched.length}명: ${unmatched.join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    } catch (error) {
+      profileDraft = { text, problems: [] }
+      flashError = message(error)
+    } finally {
+      void render()
+    }
+  },
+
+  'entry-form': async (form) => {
+    const competitionId = field(form, 'competition')
+    const events = new FormData(form)
+      .getAll('event')
+      .map((v) => parseEventKey(typeof v === 'string' ? v : null))
+      .filter((e): e is SwimEvent => e !== null)
+    const relay = field(form, 'relay') === 'yes'
+    try {
+      const competition = (await backend.competitions()).find((c) => c.id === competitionId)
+      if (!competition) throw new UserFacingError('대회를 찾을 수 없습니다.')
+      const problem = entryProblem(competition, events, relay, todayIso())
+      if (problem) return showFormError(form, problem)
+      await backend.saveEntry(competitionId, events, relay, field(form, 'note'))
+      flashSaved = true
+      void render()
+    } catch (error) {
+      showFormError(form, message(error))
+    }
+  },
+
+  'competition-form': async (form) => {
+    const input = readCompetitionForm(form)
+    if (typeof input === 'string') return showFormError(form, input)
+    try {
+      const created = await backend.createCompetition(input)
+      go(`#/admin/competition?id=${encodeURIComponent(created.id)}`)
+    } catch (error) {
+      showFormError(form, message(error))
+    }
+  },
+
+  'competition-edit-form': async (form) => {
+    const input = readCompetitionForm(form)
+    if (typeof input === 'string') return showFormError(form, input)
+    try {
+      await backend.updateCompetition(field(form, 'id'), input)
+      flashSaved = true
+      void render()
+    } catch (error) {
+      showFormError(form, message(error))
+    }
+  },
+
+  'relay-form': async (form) => {
+    const takeover = Number(field(form, 'takeover').trim())
+    if (!Number.isFinite(takeover) || takeover < 0 || takeover > 2) {
+      return showFormError(form, '인계 보정은 0~2초 사이로 넣어 주세요(예: 0.50).')
+    }
+    const params = new URLSearchParams({
+      k: field(form, 'kind'),
+      g: field(form, 'gender'),
+      min: field(form, 'ageMin').trim(),
+      max: field(form, 'ageMax').trim(),
+      t: String(Math.round(takeover * 100)),
+      n: field(form, 'teams'),
+    })
+    const competition = field(form, 'competition')
+    if (competition) {
+      params.set('c', competition)
+      params.set('pool', field(form, 'pool'))
+    }
+    go(`#/admin/relay?${params.toString()}`)
   },
 
   'login-form': async (form) => {
@@ -843,6 +1129,29 @@ const submitHandlers: Record<string, (form: HTMLFormElement) => Promise<void>> =
   },
 }
 
+/** 대회 열기 · 고치기 폼 → 입력값. 문제가 있으면 그 문구. */
+function readCompetitionForm(form: HTMLFormElement): CompetitionInput | string {
+  const date = field(form, 'date')
+  const deadline = field(form, 'deadline')
+  if (!isValidIso(date)) return '대회 날을 확인해 주세요.'
+  if (!isValidIso(deadline)) return '신청 마감일을 확인해 주세요.'
+  const events = new FormData(form)
+    .getAll('events')
+    .map((v) => parseEventKey(typeof v === 'string' ? v : null))
+    .filter((e): e is SwimEvent => e !== null)
+  const input: CompetitionInput = {
+    name: field(form, 'name').trim(),
+    date,
+    deadline,
+    place: field(form, 'place').trim(),
+    events,
+    relays: field(form, 'relays') === 'yes',
+    maxEvents: Number(field(form, 'maxEvents')),
+    note: field(form, 'note').trim(),
+  }
+  return competitionProblem(input) ?? input
+}
+
 /** 모임 추가 · 고치기 폼 → 입력값. 문제가 있으면 그 문구. */
 function readMeetingForm(form: HTMLFormElement): MeetingInput | string {
   const date = field(form, 'date')
@@ -960,6 +1269,68 @@ const clickHandlers: Record<string, (button: HTMLButtonElement) => Promise<void>
       button.disabled = false
       flashError = message(error)
       void render()
+    }
+  },
+
+  'delete-entry': async (button) => {
+    if (button.dataset.armed !== 'yes') {
+      button.dataset.armed = 'yes'
+      button.textContent = '한 번 더 누르면 취소합니다'
+      return
+    }
+    const id = button.dataset.id
+    if (!id) return
+    try {
+      await backend.deleteEntry(id)
+      go('#/home')
+    } catch (error) {
+      const form = button.closest('form')
+      if (form) showFormError(form, message(error))
+    }
+  },
+
+  'delete-competition': async (button) => {
+    if (button.dataset.armed !== 'yes') {
+      button.dataset.armed = 'yes'
+      button.textContent = '한 번 더 누르면 지웁니다'
+      return
+    }
+    const id = button.dataset.id
+    if (!id) return
+    button.disabled = true
+    try {
+      await backend.deleteCompetition(id)
+      competitionNotice = '대회를 지웠습니다.'
+      go('#/admin/competitions')
+    } catch (error) {
+      button.disabled = false
+      flashError = message(error)
+      void render()
+    }
+  },
+
+  'download-entries': async (button) => {
+    const id = button.dataset.id
+    if (!id) return
+    const label = button.textContent
+    button.disabled = true
+    button.textContent = '만드는 중…'
+    try {
+      const competition = (await backend.competitions()).find((c) => c.id === id)
+      if (!competition) throw new UserFacingError('대회를 찾을 수 없습니다.')
+      const [entries, members] = await Promise.all([backend.competitionEntries(id), backend.members()])
+      if (entries.length === 0) {
+        button.textContent = '아직 신청이 없습니다'
+        return
+      }
+      saveFile(new Blob([buildXlsx(entrySheets(competition, entries, members))], { type: XLSX_MIME }), entriesFileName(competition, todayIso()))
+      button.textContent = `${entries.length}명 내려받음`
+    } catch (error) {
+      button.textContent = label
+      flashError = message(error)
+      void render()
+    } finally {
+      button.disabled = false
     }
   },
 
@@ -1262,7 +1633,7 @@ async function finishNaver(code: string, state: string): Promise<void> {
       return
     }
     me = null
-    loginNotice = `${result.name} 님, 가입 신청을 보냈습니다. 카페 명단에서 이름을 찾지 못해 운영진 확인이 필요해요. 승인되면 다시 네이버로 로그인하세요.`
+    loginNotice = `${result.name} 님, 가입 신청을 보냈습니다. 카페 명단에서 이름 · 출생연도가 맞는 회원을 찾지 못해 운영진 확인이 필요해요. 승인되면 다시 네이버로 로그인하세요.`
   } catch (error) {
     loginError = message(error)
   }

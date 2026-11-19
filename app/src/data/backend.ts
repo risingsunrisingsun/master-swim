@@ -7,6 +7,9 @@
  */
 import type { Bracket, SetOverride, SetPlan } from '../core/sets'
 import type {
+  Competition,
+  CompetitionEntry,
+  CompetitionInput,
   Goal,
   JoinRequest,
   Meeting,
@@ -110,6 +113,15 @@ export interface Backend {
   /** 코치가 덮어쓴 세트 묶음. 회원 누구나 읽는다. */
   setOverrides(): Promise<SetOverride[]>
 
+  /** 운영자가 연 대회 전부. 회원 누구나 읽는다. */
+  competitions(): Promise<Competition[]>
+  /** 내 신청. 신청하지 않은 대회는 없다. */
+  myEntries(): Promise<CompetitionEntry[]>
+  /** 신청하거나 고친다. 마감이 지났거나 대회 조건(종목 · 개수)에 맞지 않으면 거절한다. */
+  saveEntry(competitionId: string, events: readonly SwimEvent[], relay: boolean, note: string): Promise<void>
+  /** 신청 취소. 마감 전에만. */
+  deleteEntry(competitionId: string): Promise<void>
+
   // ── 운영자 전용 ─────────────────────────────────────────
   members(): Promise<Member[]>
   createMember(input: NewMemberInput): Promise<Member>
@@ -153,6 +165,13 @@ export interface Backend {
   meetingRecords(meetingId: string): Promise<SwimRecord[]>
   /** 그 모임 · 그 종목의 기록을 통째로 바꾼다. */
   saveMeetingRecords(meetingId: string, event: SwimEvent, entries: readonly MeetingEntry[]): Promise<void>
+
+  createCompetition(input: CompetitionInput): Promise<Competition>
+  updateCompetition(competitionId: string, input: CompetitionInput): Promise<void>
+  /** 대회와 그 신청을 함께 지운다. */
+  deleteCompetition(competitionId: string): Promise<void>
+  /** 그 대회의 신청 전부(운영자). */
+  competitionEntries(competitionId: string): Promise<CompetitionEntry[]>
 
   saveSetOverride(event: SwimEvent, bracket: Bracket, plan: SetPlan): Promise<void>
   /** 공식 기본값으로 되돌린다. */

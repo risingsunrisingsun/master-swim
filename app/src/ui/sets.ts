@@ -23,7 +23,8 @@ import {
 import { eventKey, eventLabel, formatTime, SET_EVENTS } from '../core/time'
 import type { SwimEvent, SwimRecord } from '../core/types'
 import { timeInputsHtml } from './records'
-import { adminHeadHtml, errorHtml, esc } from './views'
+import { adminHeadHtml, errorHtml, esc, eventChipsHtml } from './views'
+import type { Diagnosis, Finding } from '../core/priority'
 
 const seconds = (cs: number): string => (cs / 100).toFixed(2)
 
@@ -39,26 +40,86 @@ function eventSelect(id: string, selected: SwimEvent, nav: string): string {
 
 export interface SetsView {
   event: SwimEvent
+  /** 종목별 기록 수. 기록이 있는 종목이 칩 앞쪽에 온다. */
+  counts: ReadonlyMap<string, number>
   /** 이 종목 최고기록. 없으면 처방을 못 한다. */
   best: SwimRecord | null
   /** 저장된 목표. 없으면 1초 단축으로 보여준다. */
   goalCs: number | null
   /** 목표가 지금 기록보다 빠를 때만. */
   prescription: Prescription | null
+  /** 기록으로 본 최우선 훈련. */
+  diagnosis: Diagnosis | null
   error: string | null
+}
+
+/** 세트 종목 칩 — 기록이 있는 종목 먼저(많은 순), 그다음 나머지. */
+function setChips(view: SetsView): string {
+  const count = (e: SwimEvent) => view.counts.get(eventKey(e)) ?? 0
+  const ordered = [...SET_EVENTS].sort((a, b) => count(b) - count(a))
+  return eventChipsHtml(
+    ordered.map((event) => ({ event, href: `#/sets?e=${eventKey(event)}`, count: count(event) || undefined })),
+    view.event,
+  )
+}
+
+const FINDING_LABEL: Record<Finding['kind'], string> = {
+  endurance: '후반 감속',
+  speed: '스피드 천장',
+  plateau: '정체',
+  balance: '영법 균형',
+}
+
+/**
+ * 최우선 훈련 카드. 기록만으로 본 진단 넷 중 첫 focus 를 크게, 나머지는 접어 둔다.
+ * 기준값이 잠정값이라는 것을 숨기지 않는다 — 세트 공식과 같은 처지다.
+ */
+function priorityHtml(diagnosis: Diagnosis | null, current: SwimEvent): string {
+  if (!diagnosis) return ''
+  const { primary, findings } = diagnosis
+  const statusChip = (f: Finding) =>
+    f.status === 'focus'
+      ? '<span class="chip chip-unchecked">이것부터</span>'
+      : f.status === 'ok'
+        ? '<span class="chip chip-present">양호</span>'
+        : '<span class="chip chip-absent">기록 필요</span>'
+  const rows = findings
+    .map(
+      (f) => `<li class="finding">
+          <div class="row baseline"><strong class="small">${FINDING_LABEL[f.kind]}</strong>${statusChip(f)}</div>
+          <p class="small muted">${esc(f.detail)}</p>
+        </li>`,
+    )
+    .join('')
+  const link =
+    primary?.event && eventKey(primary.event) !== eventKey(current)
+      ? `<a class="small priority-link" href="#/sets?e=${eventKey(primary.event)}">${eventLabel(primary.event)} 세트 보기 ›</a>`
+      : ''
+  const head = primary
+    ? `<p class="small priority-eyebrow">지금 가장 먼저 할 것</p>
+       <p class="card-title">${esc(primary.title)}</p>
+       <p class="small">${esc(primary.detail)}</p>
+       ${link}`
+    : `<p class="small priority-eyebrow">기록으로 본 진단</p>
+       <p class="card-title">${findings.some((f) => f.status === 'ok') ? '눈에 띄는 약점이 없어요' : '진단할 기록이 더 필요해요'}</p>`
+  return `<section class="card priority">
+      ${head}
+      <details class="priority-more">
+        <summary class="small">진단 네 가지 보기 <span class="muted">· 기준은 코치와 정하는 잠정값</span></summary>
+        <ul class="list findings">${rows}</ul>
+      </details>
+    </section>`
 }
 
 export function setsHtml(view: SetsView): string {
   const key = eventKey(view.event)
   const head = `<header class="page-head"><h1>기록 단축 세트</h1></header>`
-  const picker = `<div class="field">
-      <label for="sets-event">종목</label>
-      ${eventSelect('sets-event', view.event, 'sets')}
-    </div>`
+  const chips = setChips(view)
 
   if (!view.best) {
     return `${head}<div class="page-body">
-        ${picker}
+        ${chips}
+        ${priorityHtml(view.diagnosis, view.event)}
         <section class="card soft stack-s">
           <p>${eventLabel(view.event)} 기록이 아직 없습니다.</p>
           <p class="small muted">지금 기록이 있어야 1초씩 줄이는 세트를 계산할 수 있습니다.</p>
@@ -77,38 +138,38 @@ export function setsHtml(view: SetsView): string {
     )
     .join('')
 
-  const form = `<form id="goal-form" class="card stack" novalidate>
-      <input type="hidden" name="event" value="${key}" />
-      <div class="row baseline">
-        <div>
-          <p class="small muted">지금 최고기록</p>
-          <p class="pb-number num">${formatTime(best.timeCs)}</p>
+  // 목표 바꾸기는 접어 둔다 — 수영장에서 여는 회원은 세트를 보러 온 것이다.
+  // 목표가 없거나 오류가 났으면 펼친다.
+  const formOpen = view.goalCs === null || view.error !== null || view.prescription === null
+  const form = `<details class="card goal-details"${formOpen ? ' open' : ''}>
+      <summary><h2>${view.goalCs === null ? '목표 정하기' : `목표 ${formatTime(view.goalCs)} 바꾸기`}</h2></summary>
+      <form id="goal-form" class="stack" novalidate>
+        <input type="hidden" name="event" value="${key}" />
+        <p class="small muted">지금 최고기록 <strong class="num pace">${formatTime(best.timeCs)}</strong> · ${shortDateLabel(best.date)} ${best.source === 'meeting' ? '모임 기록' : '개인 입력'}</p>
+        <div class="field">
+          <span class="label">목표기록</span>
+          ${timeInputsHtml('goal', view.event.distance, target, '목표기록')}
         </div>
-        <p class="small muted">${shortDateLabel(best.date)} · ${best.source === 'meeting' ? '모임 기록' : '개인 입력'}</p>
-      </div>
-      <div class="field">
-        <span class="label">목표기록</span>
-        ${timeInputsHtml('goal', view.event.distance, target, '목표기록')}
-      </div>
-      <div class="row wrap">${shortcuts}</div>
-      ${errorHtml(view.error)}
-      <button class="button primary" type="submit">${view.goalCs === null ? '목표로 정하고 세트 보기' : '목표 바꾸기'}</button>
-      ${view.goalCs === null ? '<p class="hint">아직 목표를 정하지 않아 1초 단축으로 보여줍니다.</p>' : ''}
-    </form>`
+        <div class="row wrap">${shortcuts}</div>
+        ${errorHtml(view.error)}
+        <button class="button primary" type="submit">${view.goalCs === null ? '목표로 정하고 세트 보기' : '목표 바꾸기'}</button>
+        ${view.goalCs === null ? '<p class="hint">아직 목표를 정하지 않아 1초 단축으로 보여줍니다.</p>' : ''}
+      </form>
+    </details>`
 
   const p = view.prescription
   if (!p) {
     return `${head}<div class="page-body">
-        ${picker}${form}
+        ${chips}${priorityHtml(view.diagnosis, view.event)}${form}
         <section class="card soft"><p>목표가 지금 최고기록보다 빠르지 않습니다. 이미 닿았다면 새 목표를 정해 보세요.</p></section>
       </div>`
   }
 
-  const summary = `<section class="card hero stack-s">
-      <p class="small">${formatTime(p.currentCs)} → ${formatTime(p.targetCs)}</p>
-      <p class="hero-number"><span class="num">${seconds(p.gapCs)}</span><span class="unit">초</span></p>
-      <p class="small">${p.percent.toFixed(1)}% 단축 · 1초씩 ${p.steps.length}단계${p.truncated ? ' (앞 5초만)' : ''}</p>
-    </section>`
+  const [first, ...rest] = p.steps
+  const summary = `<p class="sets-summary">
+      <span class="num">${formatTime(p.currentCs)} → ${formatTime(p.targetCs)}</span>
+      <span class="muted">${seconds(p.gapCs)}초 · ${p.percent.toFixed(1)}% 단축 · 1초씩 ${p.steps.length}단계${p.truncated ? ' (앞 5초만)' : ''}</span>
+    </p>`
 
   const basis = `<p class="hint">25m 목표는 다이빙 이득 0.70초를 보정한 값입니다. 훈련은 벽에서 출발하므로 대회 평균보다 25m 당 ${seconds(p.diveShareCs)}초 느리게 잡습니다.</p>`
 
@@ -117,18 +178,25 @@ export function setsHtml(view: SetsView): string {
     : ''
 
   return `${head}<div class="page-body">
-      ${picker}${form}${summary}${basis}
-      ${p.steps.map(stepHtml).join('')}
+      ${chips}
+      ${priorityHtml(view.diagnosis, view.event)}
+      ${summary}
+      ${first ? stepHtml(first, true) : ''}
+      ${rest.map((step) => stepHtml(step, false)).join('')}
+      ${basis}
       ${truncated}
+      ${form}
     </div>`
 }
 
-function stepHtml(step: Step): string {
+/** 단계 카드. 첫 단계("다음 1초")는 이번에 할 세트라 강조한다. */
+function stepHtml(step: Step, current: boolean): string {
   const source =
     step.source === 'coach'
       ? '<span class="chip chip-coach">코치 처방</span>'
       : '<span class="chip chip-formula">공식 기본값</span>'
-  return `<section class="card step-card">
+  return `<section class="card step-card${current ? ' is-current' : ''}">
+      ${current ? '<p class="small step-eyebrow">다음 1초 · 지금 할 세트</p>' : ''}
       <div class="row baseline">
         <h2>${step.index}단계 · ${formatTime(step.fromCs)} → ${formatTime(step.toCs)}</h2>
         ${source}

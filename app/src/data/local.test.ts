@@ -421,7 +421,7 @@ describe('모임 고치기 · 지우기', () => {
 
 describe('네이버 로그인 (데모 규칙 = Edge Function 규칙)', () => {
   test('명단 이름과 같으면 자동 연결, 다음부터는 이름이 바뀌어도 네이버 id 로 들어온다', async () => {
-    const result = await backend.naverSignIn(`demo:${DEMO_MEMBER.name}`, 's')
+    const result = await backend.naverSignIn(`demo:${DEMO_MEMBER.name}:1975`, 's')
     expect(result.kind).toBe('member')
     expect((await backend.me())?.id).toBe('demo-1')
     await backend.signOut()
@@ -430,7 +430,13 @@ describe('네이버 로그인 (데모 규칙 = Edge Function 규칙)', () => {
     expect((await backend.members()).find((m) => m.id === 'demo-1')?.naverLinked).toBe(true)
     await backend.signOut()
     // 다시 같은 네이버로 — 그대로 들어온다.
-    expect((await backend.naverSignIn(`demo:${DEMO_MEMBER.name}`, 's')).kind).toBe('member')
+    expect((await backend.naverSignIn(`demo:${DEMO_MEMBER.name}:1975`, 's')).kind).toBe('member')
+  })
+
+  test('명단 이름과 같아도 출생연도가 다르거나 없으면 가입 신청으로 간다', async () => {
+    expect((await backend.naverSignIn(`demo:${DEMO_MEMBER.name}:1990`, 's')).kind).toBe('pending')
+    expect((await backend.naverSignIn(`demo:${DEMO_MEMBER.name}`, 's')).kind).toBe('pending')
+    expect(await backend.me()).toBeNull()
   })
 
   test('명단에 없으면 가입 신청, 승인하면 들어온다', async () => {
@@ -463,18 +469,79 @@ describe('네이버 로그인 (데모 규칙 = Edge Function 규칙)', () => {
   })
 
   test('운영자가 연결을 끊으면 다음 네이버 로그인 때 다시 판정한다', async () => {
-    await backend.naverSignIn(`demo:${DEMO_MEMBER.name}`, 's')
+    await backend.naverSignIn(`demo:${DEMO_MEMBER.name}:1975`, 's')
     await backend.signOut()
     await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
     await backend.unlinkNaver('demo-1')
     expect((await backend.members()).find((m) => m.id === 'demo-1')?.naverLinked).toBe(false)
     await backend.signOut()
-    expect((await backend.naverSignIn(`demo:${DEMO_MEMBER.name}`, 's')).kind).toBe('member')
+    expect((await backend.naverSignIn(`demo:${DEMO_MEMBER.name}:1975`, 's')).kind).toBe('member')
   })
 
   test('운영 기능은 운영자만', async () => {
     await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
     await expect(backend.joinRequests()).rejects.toThrow('운영자')
     await expect(backend.unlinkNaver('demo-2')).rejects.toThrow('운영자')
+  })
+})
+
+describe('대회 참가 신청 (데모 규칙 = save_entry 규칙)', () => {
+  const free50 = { stroke: 'free' as const, distance: 50 as const }
+  const back50 = { stroke: 'back' as const, distance: 50 as const }
+  const fly50 = { stroke: 'fly' as const, distance: 50 as const }
+
+  test('회원은 대회 종목 안에서 개수만큼 신청하고, 고치고, 취소한다', async () => {
+    await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+    const [competition] = await backend.competitions()
+    expect(competition?.maxEvents).toBe(2)
+    expect(await backend.myEntries()).toEqual([])
+
+    await backend.saveEntry(competition!.id, [free50, back50], true, ' 접영도 가능 ')
+    expect((await backend.myEntries()).map((e) => [e.events.length, e.relay, e.note])).toEqual([[2, true, '접영도 가능']])
+
+    await expect(backend.saveEntry(competition!.id, [free50, back50, fly50], false, '')).rejects.toThrow('2개까지')
+    await expect(backend.saveEntry(competition!.id, [{ stroke: 'free', distance: 25 }], false, '')).rejects.toThrow('대회 종목이 아닙니다')
+    await expect(backend.saveEntry(competition!.id, [], false, '')).rejects.toThrow('하나 이상')
+
+    await backend.saveEntry(competition!.id, [fly50], false, '')
+    expect((await backend.myEntries())[0]?.events).toEqual([fly50])
+    await backend.deleteEntry(competition!.id)
+    expect(await backend.myEntries()).toEqual([])
+  })
+
+  test('마감이 지나면 신청도 취소도 막힌다', async () => {
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    const created = await backend.createCompetition({
+      name: '지난 대회',
+      date: '2026-10-30',
+      place: '',
+      deadline: '2026-10-27',
+      events: [free50],
+      relays: false,
+      maxEvents: 1,
+      note: '',
+    })
+    await backend.signOut()
+    await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+    await expect(backend.saveEntry(created.id, [free50], false, '')).rejects.toThrow('마감')
+    await expect(backend.deleteEntry(created.id)).rejects.toThrow('마감')
+  })
+
+  test('대회 만들기 · 신청 보기는 운영자만, 지우면 신청도 사라진다', async () => {
+    await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
+    await expect(backend.competitionEntries('demo-competition')).rejects.toThrow('운영자')
+    await expect(
+      backend.createCompetition({ name: 'x', date: TODAY, place: '', deadline: TODAY, events: [free50], relays: false, maxEvents: 1, note: '' }),
+    ).rejects.toThrow('운영자')
+    await backend.signOut()
+
+    await backend.signIn(DEMO_ADMIN.name, DEMO_ADMIN.password)
+    expect((await backend.competitionEntries('demo-competition')).length).toBeGreaterThan(0)
+    await expect(
+      backend.createCompetition({ name: ' ', date: TODAY, place: '', deadline: TODAY, events: [free50], relays: false, maxEvents: 1, note: '' }),
+    ).rejects.toThrow('대회 이름')
+    await backend.deleteCompetition('demo-competition')
+    expect(await backend.competitions()).toEqual([])
+    expect(await backend.competitionEntries('demo-competition')).toEqual([])
   })
 })

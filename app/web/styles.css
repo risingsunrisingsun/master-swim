@@ -1258,3 +1258,447 @@ fieldset.line-fields {
   color: var(--blue);
   font-weight: 700;
 }
+
+
+/* ══ A안 (2026-11) — 고르기는 칩으로, 홈은 다음 모임부터 ══════════════ */
+
+.card-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.chevron {
+  color: var(--faint);
+  font-size: 22px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.ink {
+  color: var(--ink);
+}
+
+/* 줄 전체가 링크인 목록 행. 눌리는 곳이 넓어야 폰에서 편하다. */
+.row-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.row-link:active {
+  background: var(--line-soft);
+}
+
+.card.row-link.plain {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.list-hint {
+  padding: 4px 0 12px;
+}
+
+/* ── 종목 칩 · 날짜 칩 — 옆으로 넘긴다 ── */
+
+.event-chips,
+.date-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -16px;
+  padding: 2px 16px;
+  scroll-padding: 0 16px;
+}
+
+.event-chips::-webkit-scrollbar,
+.date-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.event-chip,
+.date-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--field);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.event-chip.is-on,
+.date-chip.is-on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  font-weight: 700;
+}
+
+.event-chip-count {
+  font-family: var(--num);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--faint);
+}
+
+.event-chip.is-on .event-chip-count {
+  color: #aab6c8;
+}
+
+.date-chip-mark {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue-dark);
+  background: var(--blue-tint);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+
+.date-chip.is-on .date-chip-mark {
+  color: var(--ink);
+  background: #fff;
+}
+
+.date-chip.more {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+/* ── 홈: 다음 모임 ── */
+
+.card.next-meeting {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+.next-meeting h2 {
+  font-weight: 500;
+  color: #d6e4fb;
+}
+
+.next-title {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.next-place,
+.next-status {
+  color: #d6e4fb;
+}
+
+.next-meeting .rsvp-button {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+}
+
+.next-meeting .rsvp-button.is-going {
+  background: #fff;
+  border-color: #fff;
+  color: var(--blue);
+}
+
+.next-meeting .rsvp-button.is-not {
+  background: var(--blue-dark);
+  border-color: var(--blue-dark);
+  color: #fff;
+}
+
+.next-meeting .button:focus-visible {
+  outline-color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── 홈: 숫자 타일 셋 ── */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.tile-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.tile-number {
+  font-size: 28px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.tile-number.accent {
+  color: var(--blue);
+}
+
+.tile-unit {
+  font-size: 15px;
+  font-weight: 600;
+  margin-left: 1px;
+}
+
+.tile-sub {
+  font-size: 12px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week-set .num {
+  font-size: 17px;
+}
+
+/* ── 기록 넣기 둥근 버튼 — 탭 바 바로 위, 오른쪽 ── */
+
+.fab {
+  position: fixed;
+  right: max(16px, calc(50% - 240px + 16px));
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 11;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  text-decoration: none;
+  box-shadow: 0 6px 16px rgba(10, 91, 211, 0.35);
+}
+
+.screen.has-tabbar:has(+ .fab),
+.screen.has-tabbar:has(.fab) {
+  padding-bottom: calc(160px + env(safe-area-inset-bottom));
+}
+
+a.record-row.row-link {
+  border-radius: 10px;
+}
+
+/* ── 로그인: 다른 방법은 접어 둔다 ── */
+
+.other-login > summary {
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--blue-dark);
+  font-weight: 500;
+  flex-wrap: wrap;
+  text-align: center;
+}
+
+.other-login > summary::-webkit-details-marker {
+  display: none;
+}
+
+.other-login[open] > summary {
+  margin-bottom: 12px;
+}
+
+/* ── 세트: 최우선 훈련 · 다음 1초 ── */
+
+.card.priority {
+  background: #f5f9ff;
+  border-color: var(--blue-soft);
+  gap: 6px;
+}
+
+.priority-eyebrow,
+.step-eyebrow {
+  font-weight: 700;
+  color: var(--blue-dark);
+}
+
+.priority-link {
+  font-weight: 700;
+}
+
+.priority-more > summary {
+  cursor: pointer;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--blue-dark);
+}
+
+.findings .finding {
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sets-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 0 4px;
+  font-size: 14px;
+}
+
+.sets-summary .num {
+  font-size: 18px;
+}
+
+.step-card.is-current {
+  border: 2px solid var(--blue);
+}
+
+/* ── 대회 신청 ── */
+
+.check-list > .check-row + .check-row {
+  border-top: 1px solid var(--line-soft);
+}
+
+.check-row.boxed {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.check-row.align-end {
+  align-self: end;
+  min-height: 52px;
+}
+
+fieldset.event-checks {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.event-check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 6px;
+}
+
+.event-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.event-check input {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  flex: 0 0 20px;
+  accent-color: var(--blue);
+}
+
+.event-check:has(input:checked) {
+  border-color: var(--blue);
+  background: var(--blue-tint);
+  font-weight: 700;
+}
+
+.tally-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+}
+
+.tally-event {
+  font-weight: 700;
+}
+
+.tally-event .num {
+  color: var(--blue);
+  margin-left: 4px;
+}
+
+.entry-person {
+  width: 88px;
+  flex: 0 0 88px;
+}
+
+/* ── 단체전 명단 ── */
+
+.relay-total {
+  font-size: 30px;
+  color: var(--blue);
+}
+
+.legs .leg {
+  display: grid;
+  grid-template-columns: 20px 52px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+}
+
+.leg-no {
+  font-family: var(--num);
+  font-weight: 700;
+  color: var(--faint);
+}
+
+.leg-stroke {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--blue-dark);
+  background: var(--blue-tint);
+  border-radius: 8px;
+  text-align: center;
+  padding: 2px 0;
+}
+
+.leg-time {
+  font-size: 18px;
+}
+
+/* 운영 탭이 여섯 칸이 됐다 — 좁은 폰에서 글자가 넘치지 않게. */
+.admin-head .segment {
+  font-size: 14px;
+  min-width: 0;
+}
+
+/* 모임 목록 — 줄 전체가 고치기 링크, 답 요약은 그 아래. */
+.meeting-item .rsvp-detail {
+  margin: 0 0 8px 76px;
+}

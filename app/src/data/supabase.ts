@@ -4,7 +4,11 @@
  */
 import { createClient, FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js'
 import { type Bracket, parsePlan, type SetOverride, type SetPlan } from '../core/sets'
+import { eventKey, parseEventKey } from '../core/time'
 import type {
+  Competition,
+  CompetitionEntry,
+  CompetitionInput,
   Goal,
   JoinRequest,
   Meeting,
@@ -30,6 +34,65 @@ import {
 const MEMBER_COLUMNS = 'id, display_name, role, status, joined_on, sex, birth_year, naver_id'
 const MEETING_COLUMNS = 'id, date, kind, label, place, cancelled, checked_at'
 const RECORD_COLUMNS = 'id, member_id, stroke, distance, time_cs, date, source, meeting_id, note'
+const COMPETITION_COLUMNS = 'id, name, date, place, deadline, events, relays, max_events, note'
+const ENTRY_COLUMNS = 'competition_id, member_id, events, relay, note, updated_at'
+
+interface CompetitionRow {
+  id: string
+  name: string
+  date: string
+  place: string
+  deadline: string
+  events: string[]
+  relays: boolean
+  max_events: number
+  note: string
+}
+
+interface EntryRow {
+  competition_id: string
+  member_id: string
+  events: string[]
+  relay: boolean
+  note: string
+  updated_at: string
+}
+
+/** DB 의 종목 키 배열 → 종목. 모르는 키는 버린다. */
+const toEvents = (keys: readonly string[]): SwimEvent[] =>
+  keys.map(parseEventKey).filter((e): e is SwimEvent => e !== null)
+
+const toCompetition = (row: CompetitionRow): Competition => ({
+  id: row.id,
+  name: row.name,
+  date: row.date,
+  place: row.place,
+  deadline: row.deadline,
+  events: toEvents(row.events),
+  relays: row.relays,
+  maxEvents: row.max_events,
+  note: row.note,
+})
+
+const toEntry = (row: EntryRow): CompetitionEntry => ({
+  competitionId: row.competition_id,
+  memberId: row.member_id,
+  events: toEvents(row.events),
+  relay: row.relay,
+  note: row.note,
+  updatedAt: row.updated_at,
+})
+
+const competitionFields = (input: CompetitionInput) => ({
+  name: input.name.trim(),
+  date: input.date,
+  place: input.place.trim(),
+  deadline: input.deadline,
+  events: input.events.map(eventKey),
+  relays: input.relays,
+  max_events: input.maxEvents,
+  note: input.note.trim(),
+})
 
 interface MemberRow {
   id: string
@@ -305,6 +368,63 @@ export class SupabaseBackend implements Backend {
       }
     }
     return overrides
+  }
+
+  async competitions(): Promise<Competition[]> {
+    const { data, error } = await this.client.from('competitions').select(COMPETITION_COLUMNS).order('date')
+    if (error) throw failure(error)
+    return (data as CompetitionRow[]).map(toCompetition)
+  }
+
+  async myEntries(): Promise<CompetitionEntry[]> {
+    const me = await this.requireMe()
+    const { data, error } = await this.client.from('competition_entries').select(ENTRY_COLUMNS).eq('member_id', me.id)
+    if (error) throw failure(error)
+    return (data as EntryRow[]).map(toEntry)
+  }
+
+  async saveEntry(competitionId: string, events: readonly SwimEvent[], relay: boolean, note: string): Promise<void> {
+    const { error } = await this.client.rpc('save_entry', {
+      p_competition: competitionId,
+      p_events: events.map(eventKey),
+      p_relay: relay,
+      p_note: note,
+    })
+    if (error) throw failure(error)
+  }
+
+  async deleteEntry(competitionId: string): Promise<void> {
+    const { error } = await this.client.rpc('delete_entry', { p_competition: competitionId })
+    if (error) throw failure(error)
+  }
+
+  async createCompetition(input: CompetitionInput): Promise<Competition> {
+    const { data, error } = await this.client
+      .from('competitions')
+      .insert(competitionFields(input))
+      .select(COMPETITION_COLUMNS)
+      .single<CompetitionRow>()
+    if (error) throw failure(error)
+    return toCompetition(data)
+  }
+
+  async updateCompetition(competitionId: string, input: CompetitionInput): Promise<void> {
+    const { error } = await this.client.from('competitions').update(competitionFields(input)).eq('id', competitionId)
+    if (error) throw failure(error)
+  }
+
+  async deleteCompetition(competitionId: string): Promise<void> {
+    const { error } = await this.client.from('competitions').delete().eq('id', competitionId)
+    if (error) throw failure(error)
+  }
+
+  async competitionEntries(competitionId: string): Promise<CompetitionEntry[]> {
+    const { data, error } = await this.client
+      .from('competition_entries')
+      .select(ENTRY_COLUMNS)
+      .eq('competition_id', competitionId)
+    if (error) throw failure(error)
+    return (data as EntryRow[]).map(toEntry)
   }
 
   async myRsvps(): Promise<Map<string, boolean>> {

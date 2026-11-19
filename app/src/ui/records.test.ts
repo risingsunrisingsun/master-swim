@@ -159,7 +159,7 @@ describe('세트', () => {
   const best = rec('b', '2026-09-27', 3240)
 
   test('기록이 없으면 넣으라고 한다', () => {
-    const html = setsHtml({ event: FREE50, best: null, goalCs: null, prescription: null, error: null })
+    const html = setsHtml({ event: FREE50, counts: new Map(), best: null, goalCs: null, prescription: null, diagnosis: null, error: null })
     expect(html).toContain('href="#/records/new?e=free-50"')
   })
 
@@ -168,6 +168,8 @@ describe('세트', () => {
       event: FREE50,
       best,
       goalCs: 3100,
+      counts: new Map(),
+      diagnosis: null,
       prescription: prescribe(FREE50, 3240, 3100, []),
       error: null,
     })
@@ -182,7 +184,7 @@ describe('세트', () => {
   })
 
   test('목표가 없으면 1초 단축으로 보여준다고 밝힌다', () => {
-    const html = setsHtml({ event: FREE50, best, goalCs: null, prescription: prescribe(FREE50, 3240, 3140, []), error: null })
+    const html = setsHtml({ event: FREE50, counts: new Map(), best, goalCs: null, prescription: prescribe(FREE50, 3240, 3140, []), diagnosis: null, error: null })
     expect(html).toContain('1초 단축으로 보여줍니다')
   })
 

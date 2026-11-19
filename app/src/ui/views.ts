@@ -8,9 +8,12 @@ import { type MeetingRow, type MeetingStatus, type MonthSummary, percent } from 
 import { longDateLabel, monthLabel, shortDateLabel } from '../core/dates'
 import { formatCode, PASSWORD_MIN } from '../core/invite'
 import type { GoalGap } from '../core/records'
+import { clockLabel, EFFORT_LABEL, type Step } from '../core/sets'
 import { eventKey, eventLabel, formatTime } from '../core/time'
 import { ROSTER_MAX, type RosterProblem } from '../core/roster'
 import {
+  type Competition,
+  type CompetitionEntry,
   type JoinRequest,
   type Meeting,
   MEETING_KIND_LABEL,
@@ -18,6 +21,7 @@ import {
   meetingKindLabel,
   type Member,
   SEX_LABEL,
+  type SwimEvent,
   type SwimRecord,
 } from '../core/types'
 
@@ -72,6 +76,27 @@ export function demoBannerHtml(): string {
 
 export function errorHtml(message: string | null): string {
   return message ? `<p class="form-error" role="alert">${esc(message)}</p>` : ''
+}
+
+export interface EventChip {
+  event: SwimEvent
+  href: string
+  /** 그 종목 기록 수. 없으면 숫자를 붙이지 않는다. */
+  count?: number
+}
+
+/**
+ * 종목 고르기. 드롭다운 대신 옆으로 넘기는 칩 — 한 번 눌러 바로 바뀌고, 무엇이 있는지 보인다.
+ * 링크라서 뒤로 가기가 그대로 먹는다.
+ */
+export function eventChipsHtml(chips: readonly EventChip[], selected: SwimEvent | null, label = '종목'): string {
+  const items = chips
+    .map(({ event, href, count }) => {
+      const on = selected !== null && eventKey(selected) === eventKey(event)
+      return `<a class="event-chip${on ? ' is-on' : ''}" href="${href}"${on ? ' aria-current="true"' : ''}>${eventLabel(event)}${count ? `<span class="event-chip-count">${count}</span>` : ''}</a>`
+    })
+    .join('')
+  return `<nav class="event-chips" aria-label="${esc(label)}">${items}</nav>`
 }
 
 // ── 로그인 ───────────────────────────────────────────────────
@@ -144,6 +169,24 @@ export function loginHtml(view: LoginView): string {
       </div>`
     : ''
 
+  const other = `<div class="segmented" role="tablist">${tab('login', '로그인')}${tab('join', '초대코드로 가입')}</div>
+    ${form}
+    <p class="hint center">비밀번호를 잊었나요? 운영자에게 재설정을 부탁하세요.</p>`
+
+  // 네이버가 있으면 그것 하나만 크게 보이고, 비밀번호 · 초대코드는 접어 둔다.
+  // 그쪽으로 들어오던 중이면(오류 · 초대코드 화면 · 이름을 쳐 둠) 펼친 채로 둔다.
+  const otherOpen = view.mode === 'join' || view.error !== null || view.name !== ''
+  const body = view.naver
+    ? `<div class="stack-s">
+        ${naverButtonHtml(view.naver)}
+        <p class="hint center">카페 명단의 이름 · 출생연도와 같으면 바로 들어갑니다. 아니면 운영진이 승인한 뒤 들어갈 수 있어요.</p>
+      </div>
+      <details class="other-login"${otherOpen ? ' open' : ''}>
+        <summary>다른 방법으로 들어가기 <span class="muted">· 이름과 비밀번호 · 초대코드</span></summary>
+        <div class="stack">${other}</div>
+      </details>`
+    : other
+
   return `<section class="login">
     <div class="brand">
       <img src="./mark.png" alt="" width="88" height="88" />
@@ -151,33 +194,27 @@ export function loginHtml(view: LoginView): string {
       <p class="muted">회원 전용 · 내 기록과 출석</p>
     </div>
     ${view.notice ? `<p class="card notice small" role="status">${esc(view.notice)}</p>` : ''}
-    ${
-      view.naver
-        ? `<div class="stack-s">
-        ${naverButtonHtml(view.naver)}
-        <p class="hint center">카페 명단에 있는 이름이면 바로 들어갑니다. 아니면 운영진이 승인한 뒤 들어갈 수 있어요.</p>
-      </div>
-      <p class="divider"><span>또는 이름과 비밀번호로</span></p>`
-        : ''
-    }
-    <div class="segmented" role="tablist">${tab('login', '로그인')}${tab('join', '초대코드로 가입')}</div>
-    ${form}
+    ${body}
     ${demo}
-    <p class="hint center">나인틴 카페 회원만 가입할 수 있습니다.<br />비밀번호를 잊었나요? 운영자에게 재설정을 부탁하세요.</p>
+    <p class="hint center">나인틴 카페 회원만 들어올 수 있습니다.</p>
   </section>`
 }
 
-/** 데모 모드에서 네이버 대신 실명을 넣어 보는 화면. 판정은 실제와 같다. */
+/** 데모 모드에서 네이버 대신 실명 · 출생연도를 넣어 보는 화면. 판정은 실제와 같다. */
 export function naverDemoHtml(error: string | null): string {
   return `<section class="login">
     <div class="brand">
       <h1>네이버 로그인 (데모)</h1>
-      <p class="muted small">실제로는 네이버 화면이 뜹니다. 여기서는 네이버 실명만 넣어 흉내 냅니다.</p>
+      <p class="muted small">실제로는 네이버 화면이 뜹니다. 여기서는 네이버가 넘겨주는 실명과 출생연도만 넣어 흉내 냅니다. 데모의 홍길동은 1975년생입니다.</p>
     </div>
     <form id="naver-demo-form" class="stack" novalidate>
       <div class="field">
         <label for="naver-demo-name">네이버 실명</label>
-        <input id="naver-demo-name" name="name" required placeholder="명단에 있는 이름이면 자동 연결" />
+        <input id="naver-demo-name" name="name" required placeholder="홍길동" />
+      </div>
+      <div class="field">
+        <label for="naver-demo-birth">출생연도 <span class="muted">(비우면 제공 동의를 끈 경우)</span></label>
+        <input id="naver-demo-birth" name="birthYear" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1975" />
       </div>
       ${errorHtml(error)}
       <button class="button naver-button" type="submit"><span class="naver-mark" aria-hidden="true">N</span>동의하고 계속</button>
@@ -187,6 +224,12 @@ export function naverDemoHtml(error: string | null): string {
 }
 
 // ── 홈 ───────────────────────────────────────────────────────
+
+export interface HomeCompetition {
+  competition: Competition
+  /** 내 신청. 아직 안 했으면 null. */
+  entry: CompetitionEntry | null
+}
 
 export interface HomeView {
   member: Member
@@ -202,25 +245,18 @@ export interface HomeView {
   pb: SwimRecord | null
   /** 가장 최근에 정한 목표와 남은 초. */
   goal: GoalGap | null
+  /** 목표 종목의 다음 1초 세트(처방 1단계). 목표나 기록이 없으면 null. */
+  weekSet: { event: SwimEvent; step: Step } | null
+  /** 날이 지나지 않은 대회와 내 신청. */
+  competitions: HomeCompetition[]
   /** 운영자가 정해 준 비밀번호를 아직 쓰는 중. */
   tempPassword: boolean
 }
 
+/** 홈 날짜 칩은 이만큼만 — 다음 달 모임까지 다 늘어놓으면 칩이 열다섯 개다. */
+const HOME_CHIPS = 6
+
 export function homeHtml(view: HomeView): string {
-  const { month } = view
-  const counted = [...month.rows].reverse().filter((row) => row.status === 'present' || row.status === 'absent')
-  const dots = counted
-    .map((row) => `<span class="dot${row.status === 'present' ? ' is-on' : ''}"></span>`)
-    .join('')
-
-  const rate =
-    month.rate === null
-      ? `<p class="hero-empty">이번 달에 집계된 모임이 아직 없어요.</p>`
-      : `<p class="hero-number"><span class="num">${percent(month.rate)}</span><span class="unit">%</span></p>
-         <div class="dots" style="--n:${Math.max(counted.length, 1)}" aria-hidden="true">${dots}</div>`
-
-  const next = upcomingCardHtml(view)
-
   return `<header class="page-head row">
       <div>
         <p class="muted small">${longDateLabel(view.today)}</p>
@@ -234,15 +270,10 @@ export function homeHtml(view: HomeView): string {
           ? `<a class="card notice" href="#/account"><strong>비밀번호를 바꿔 주세요</strong><span class="small">운영자가 정해 준 비밀번호를 쓰고 있어요. 내 계정에서 나만 아는 비밀번호로 바꿀 수 있습니다.</span></a>`
           : ''
       }
-      <a class="card hero" href="#/attendance">
-        <div class="row baseline">
-          <h2>${monthLabel(month.month)} 훈련 참여</h2>
-          <span class="small">${month.counted > 0 ? `${month.counted}회 중 ${month.attended}회` : ''}</span>
-        </div>
-        ${rate}
-      </a>
-      ${next}
-      ${homeRecordsHtml(view)}
+      ${upcomingCardHtml(view)}
+      ${tilesHtml(view)}
+      ${weekSetHtml(view)}
+      ${view.competitions.map((c) => homeCompetitionHtml(c, view.today)).join('')}
       <div class="row center-row">
         <a class="button quiet" href="#/account">내 계정 · 비밀번호</a>
         <button type="button" class="button quiet" data-action="sign-out">로그아웃</button>
@@ -250,30 +281,19 @@ export function homeHtml(view: HomeView): string {
     </div>`
 }
 
-const RSVP_MARK = (going: boolean | undefined) => (going === undefined ? '' : going ? ' · 참석' : ' · 불참')
-
 /**
- * 다가오는 모임 카드. 여럿이면 드롭다운으로 고르고, 고른 모임에 참석 · 불참을 답한다.
+ * 다음 모임 카드 — 홈의 주인공. 회원이 가장 자주 하는 일이 참석 답하기라서 맨 위에 둔다.
+ * 여럿이면 아래 날짜 칩으로 고른다(드롭다운은 열어 봐야 무엇이 있는지 보인다).
  * 같은 버튼을 다시 누르면 답을 지운다.
  */
 function upcomingCardHtml(view: HomeView): string {
   const selected = view.selected
   if (!selected) {
-    return `<section class="card">
-        <h2 class="muted small">다음 정기모임</h2>
+    return `<section class="card soft">
+        <h2 class="muted small">다음 모임</h2>
         <span class="muted">예정된 모임이 없습니다.</span>
       </section>`
   }
-
-  const picker =
-    view.upcoming.length > 1
-      ? `<select id="home-meeting" data-nav="home" aria-label="모임 고르기">${view.upcoming
-          .map(
-            (m) =>
-              `<option value="${m.id}"${m.id === selected.id ? ' selected' : ''}>${shortDateLabel(m.date)} · ${esc(meetingKindLabel(m))}${RSVP_MARK(view.rsvps.get(m.id))}</option>`,
-          )
-          .join('')}</select>`
-      : ''
 
   const answer = view.rsvps.get(selected.id)
   const button = (going: boolean, label: string) => {
@@ -285,51 +305,99 @@ function upcomingCardHtml(view: HomeView): string {
       ? '참석 여부를 알려 주세요. 운영진이 인원을 가늠합니다.'
       : `${answer ? '참석' : '불참'}으로 답했어요. 같은 버튼을 다시 누르면 취소됩니다.`
 
-  return `<section class="card stack-s">
-      <div class="row baseline">
-        <h2 class="muted small">${view.upcoming.length > 1 ? '다가오는 모임' : '다음 정기모임'}</h2>
-        ${view.upcoming.length > 1 ? `<span class="small muted">${view.upcoming.length}개</span>` : ''}
-      </div>
-      ${picker}
-      <span class="big">${shortDateLabel(selected.date)}${selected.date === view.today ? ' · 오늘' : ''}</span>
-      <span class="muted small">${esc(meetingKindLabel(selected))}${selected.place ? ` · ${esc(selected.place)}` : ''}</span>
+  const isToday = selected.date === view.today
+  const chips =
+    view.upcoming.length > 1
+      ? `<nav class="date-chips" aria-label="다가오는 모임 ${view.upcoming.length}개">${view.upcoming
+          .slice(0, HOME_CHIPS)
+          .map((m) => {
+            const on = m.id === selected.id
+            const mark = view.rsvps.get(m.id)
+            return `<a class="date-chip${on ? ' is-on' : ''}" href="#/home?m=${m.id}"${on ? ' aria-current="true"' : ''}>${m.date === view.today ? '오늘' : shortDateLabel(m.date)}${mark === undefined ? '' : `<span class="date-chip-mark">${mark ? '참석' : '불참'}</span>`}</a>`
+          })
+          .join('')}${view.upcoming.length > HOME_CHIPS ? `<a class="date-chip more" href="#/attendance">전체 ${view.upcoming.length}</a>` : ''}</nav>`
+      : ''
+
+  return `<section class="card next-meeting stack-s">
+      <h2 class="small">${isToday ? `오늘 모임 · ${shortDateLabel(selected.date)}` : '다음 모임'}</h2>
+      <p class="next-title">${isToday ? '' : `${shortDateLabel(selected.date)} · `}${esc(meetingKindLabel(selected))}</p>
+      ${selected.place ? `<p class="small next-place">${esc(selected.place)}</p>` : ''}
       <div class="rsvp" role="group" aria-label="참석 여부">${button(true, '참석')}${button(false, '불참')}</div>
-      <p class="small muted" aria-live="polite">${status}</p>
-    </section>`
+      <p class="small next-status" aria-live="polite">${status}</p>
+    </section>
+    ${chips}`
 }
 
-function homeRecordsHtml(view: HomeView): string {
-  const { pb, goal } = view
-  if (!pb && !goal) {
-    return `<a class="card soft" href="#/records/new">
-        <p class="small muted">기록을 넣으면 최고기록과 목표까지 남은 초가 여기에 보입니다.</p>
-      </a>`
-  }
+/** 달성률 · 목표까지 · 최근 PB 를 한 줄 타일 셋으로. 큰 카드 세 장이던 것을 한눈에. */
+function tilesHtml(view: HomeView): string {
+  const { month, goal, pb } = view
+  const rate =
+    month.rate === null
+      ? `<span class="tile-number num">–</span><span class="tile-sub">집계된 모임 없음</span>`
+      : `<span class="tile-number num">${percent(month.rate)}<span class="tile-unit">%</span></span><span class="tile-sub">${month.counted}회 중 ${month.attended}회</span>`
 
   const remaining = goal?.remainingCs
-  const goalCard = goal
-    ? `<a class="card" href="#/sets?e=${eventKey(goal.goal)}">
-        <h2 class="muted small">목표까지 · ${eventLabel(goal.goal)}</h2>
-        ${
-          remaining === null || remaining === undefined
-            ? `<span class="muted">이 종목 기록을 넣으면 남은 초가 보입니다.</span>`
-            : remaining > 0
-              ? `<p class="goal-number"><span class="num">${(remaining / 100).toFixed(2)}</span><span class="unit">초</span></p>
-                 <span class="small muted">최고 ${formatTime(goal.best!.timeCs)} → 목표 ${formatTime(goal.goal.targetCs)}</span>`
-              : `<span class="big">목표 ${formatTime(goal.goal.targetCs)} 달성</span>`
-        }
-      </a>`
-    : ''
+  const goalTile = !goal
+    ? `<a class="tile" href="#/sets"><span class="tile-label">목표까지</span><span class="tile-number num">–</span><span class="tile-sub">목표 정하기</span></a>`
+    : `<a class="tile" href="#/sets?e=${eventKey(goal.goal)}"><span class="tile-label">목표까지</span>${
+        remaining === null || remaining === undefined
+          ? `<span class="tile-number num">–</span><span class="tile-sub">${eventLabel(goal.goal)} 기록 필요</span>`
+          : remaining > 0
+            ? `<span class="tile-number num accent">${(remaining / 100).toFixed(2)}<span class="tile-unit">초</span></span><span class="tile-sub">${eventLabel(goal.goal)}</span>`
+            : `<span class="tile-number num accent">달성</span><span class="tile-sub">${eventLabel(goal.goal)} ${formatTime(goal.goal.targetCs)}</span>`
+      }</a>`
 
-  const pbCard = pb
-    ? `<a class="card" href="#/records?e=${eventKey(pb)}">
-        <h2 class="muted small">최근 최고기록</h2>
-        <span class="big">${eventLabel(pb)} <span class="num">${formatTime(pb.timeCs)}</span></span>
-        <span class="small muted">${shortDateLabel(pb.date)} · ${pb.source === 'meeting' ? '모임 기록' : '개인 입력'}</span>
-      </a>`
-    : ''
+  const pbTile = pb
+    ? `<a class="tile" href="#/records?e=${eventKey(pb)}"><span class="tile-label">최근 PB</span><span class="tile-number num">${formatTime(pb.timeCs)}</span><span class="tile-sub">${eventLabel(pb)} · ${shortDateLabel(pb.date)}</span></a>`
+    : `<a class="tile" href="#/records/new"><span class="tile-label">최근 PB</span><span class="tile-number num">–</span><span class="tile-sub">기록 넣기</span></a>`
 
-  return goalCard + pbCard
+  return `<div class="tiles">
+      <a class="tile" href="#/attendance"><span class="tile-label">${monthLabel(month.month)} 참여</span>${rate}</a>
+      ${goalTile}
+      ${pbTile}
+    </div>`
+}
+
+/** 이번 주 세트 — 목표 종목의 다음 1초(처방 1단계) 첫 세트. 수영장에서 열어 바로 보게. */
+function weekSetHtml(view: HomeView): string {
+  const week = view.weekSet
+  const first = week?.step.lines[0]
+  if (!week || !first) return ''
+  const more = week.step.lines.length - 1
+  const detail =
+    first.targetCs !== null
+      ? `@ ${formatTime(first.targetCs)} · ${first.intervalCs === null ? '완전 회복' : `인터벌 ${clockLabel(first.intervalCs)}`}`
+      : `${EFFORT_LABEL[first.line.effort]} · ${first.line.restS === null ? '완전 회복' : `휴식 ${first.line.restS}초`}`
+  return `<a class="card week-set" href="#/sets?e=${eventKey(week.event)}">
+      <div class="row baseline">
+        <h2 class="muted small">이번 주 세트 · ${eventLabel(week.event)}</h2>
+        <span class="chevron" aria-hidden="true">›</span>
+      </div>
+      <p class="card-title">${esc(first.line.name)} <span class="num">${first.head}</span></p>
+      <p class="small muted">${detail} · 주 ${week.step.plan.perWeek}회${more > 0 ? ` · 세트 ${more}개 더` : ''}</p>
+    </a>`
+}
+
+function homeCompetitionHtml({ competition, entry }: HomeCompetition, today: string): string {
+  const open = competition.deadline >= today
+  const state = entry
+    ? `<span class="chip chip-present">신청함</span>`
+    : open
+      ? `<span class="chip chip-unchecked">${shortDateLabel(competition.deadline)} 마감</span>`
+      : `<span class="chip chip-absent">마감</span>`
+  const mine = entry
+    ? [...entry.events.map(eventLabel), entry.relay ? '단체전 가능' : ''].filter(Boolean).join(' · ')
+    : open
+      ? '아직 신청하지 않았어요. 눌러서 종목을 고르세요.'
+      : '신청하지 않았어요.'
+  return `<a class="card competition-card" href="#/competition?id=${encodeURIComponent(competition.id)}">
+      <div class="row baseline">
+        <h2 class="muted small">대회 신청 · ${shortDateLabel(competition.date)}</h2>
+        ${state}
+      </div>
+      <p class="card-title">${esc(competition.name)}</p>
+      <p class="small muted">${esc(mine)}</p>
+    </a>`
 }
 
 // ── 내 계정 ──────────────────────────────────────────────────
@@ -505,12 +573,13 @@ export function comingSoonHtml(title: string, text: string): string {
 
 // ── 운영자 ───────────────────────────────────────────────────
 
-export type AdminTab = 'attendance' | 'records' | 'meetings' | 'members' | 'sets'
+export type AdminTab = 'attendance' | 'records' | 'meetings' | 'members' | 'sets' | 'competitions'
 
 const ADMIN_TABS: [AdminTab, string][] = [
   ['attendance', '출석'],
   ['records', '기록'],
   ['meetings', '모임'],
+  ['competitions', '대회'],
   ['members', '회원'],
   ['sets', '세트'],
 ]
@@ -686,9 +755,18 @@ export function adminMeetingHtml(view: AdminMeetingView): string {
         <button class="button primary" type="submit">저장</button>
       </form>
       <section class="card stack-s">
+        <h2>${meeting.cancelled ? '취소한 모임' : '모임 취소'}</h2>
+        <p class="small muted">${
+          meeting.cancelled
+            ? '달성률에서 빠져 있습니다. 되살리면 다시 셉니다.'
+            : '열리지 않은 모임은 취소하세요. 달성률에서 빠지고, 출석 · 기록은 그대로 남아 되살릴 수 있습니다.'
+        }</p>
+        <button type="button" class="button" data-action="${meeting.cancelled ? 'restore-meeting' : 'cancel-meeting'}" data-id="${meeting.id}">${meeting.cancelled ? '모임 되살리기' : '이 모임 취소'}</button>
+      </section>
+      <section class="card stack-s">
         <h2>모임 지우기</h2>
         ${consequence}
-        <p class="small muted">열리지 않은 모임을 기록에서 빼려면 지우지 말고 목록에서 <strong>취소</strong>하세요. 취소한 모임은 달성률에서 빠지고 되살릴 수 있습니다.</p>
+        <p class="small muted">잘못 만든 모임만 지우세요. 열리지 않은 모임은 위에서 <strong>취소</strong>하는 편이 낫습니다.</p>
         <button type="button" class="button danger-quiet" data-action="delete-meeting" data-id="${meeting.id}">이 모임 지우기</button>
       </section>
     </div>`
@@ -699,11 +777,6 @@ export function adminMeetingsHtml(view: AdminMeetingsView): string {
     .map((m) => {
       const state = m.cancelled ? '취소됨' : m.checkedAt ? '집계됨' : m.date > view.today ? '예정' : '집계 전'
       const chip = m.cancelled ? 'cancelled' : m.checkedAt ? 'present' : m.date > view.today ? 'upcoming' : 'unchecked'
-      const action = `<a class="button small-button" href="#/admin/meeting?id=${m.id}">수정</a>${
-        m.cancelled
-          ? `<button type="button" class="button small-button" data-action="restore-meeting" data-id="${m.id}">되살리기</button>`
-          : `<button type="button" class="button small-button" data-action="cancel-meeting" data-id="${m.id}">취소</button>`
-      }`
       const answers = view.answers.get(m.id)
       const summary =
         answers && answers.going.length + answers.notGoing.length > 0
@@ -713,11 +786,15 @@ export function adminMeetingsHtml(view: AdminMeetingsView): string {
               ${answers.notGoing.length ? `<p class="small muted">불참: ${answers.notGoing.map(esc).join(', ')}</p>` : ''}
             </details>`
           : ''
-      return `<li class="list-row wrap">
-        <span class="list-date">${shortDateLabel(m.date)}</span>
-        <span class="list-note">${esc(meetingKindLabel(m))}${m.place ? ` · ${esc(m.place)}` : ''}</span>
-        <span class="chip chip-${chip}">${state}</span>
-        <span class="row">${action}</span>
+      // 줄 전체가 고치기 링크다 — 줄마다 수정 · 취소 버튼을 늘어놓으면 한 화면에 모임이 세 개뿐이다.
+      // 취소 · 되살리기 · 지우기는 고치기 화면에 있다.
+      return `<li class="meeting-item">
+        <a class="list-row row-link" href="#/admin/meeting?id=${m.id}">
+          <span class="list-date">${shortDateLabel(m.date)}</span>
+          <span class="list-note">${esc(meetingKindLabel(m))}${m.place ? ` · ${esc(m.place)}` : ''}</span>
+          <span class="chip chip-${chip}">${state}</span>
+          <span class="chevron" aria-hidden="true">›</span>
+        </a>
         ${summary}
       </li>`
     })
@@ -752,7 +829,16 @@ export interface BulkDraft {
   problems: RosterProblem[]
 }
 
+/** 출생연도 · 성별 일괄 입력이 막혔을 때 되살릴 것. */
+export interface ProfileDraft {
+  text: string
+  problems: RosterProblem[]
+}
+
 export interface AdminMembersView {
+  /** 출생연도 · 성별 일괄 입력. 막혔을 때 붙여 넣은 글, 끝났을 때 결과 한 줄. */
+  profileDraft: ProfileDraft | null
+  profileNotice: string | null
   today: string
   members: Member[]
   /** 방금 발급한 코드 · 정한 비밀번호. 한 명 추가면 하나, 일괄 추가면 여럿. */
@@ -807,7 +893,7 @@ function joinRequestsHtml(requests: readonly JoinRequest[], members: readonly Me
     .join('')
   return `<section class="card issued stack-s">
       <h2>네이버 가입 신청 ${requests.length}건</h2>
-      <p class="small muted">명단에 같은 이름이 없어 자동으로 들어오지 못한 사람입니다. 카페 회원이 맞으면 승인하세요. 승인하면 그 사람이 네이버로 다시 로그인할 때 들어옵니다.</p>
+      <p class="small muted">명단에서 이름 · 출생연도가 맞는 회원을 찾지 못해 자동으로 들어오지 못한 사람입니다. 카페 회원이 맞으면 승인하세요. 승인하면 그 사람이 네이버로 다시 로그인할 때 들어옵니다.</p>
       <ul class="list">${rows}</ul>
     </section>`
 }
@@ -935,6 +1021,36 @@ function bulkFormHtml(today: string, bulk: BulkDraft | null): string {
     </details>`
 }
 
+/**
+ * 이미 있는 회원의 출생연도 · 성별을 명단째 붙여 넣어 채운다. 네이버 자동 연결이 이름 + 출생연도를
+ * 보므로(ADR-0012), 처음 명단을 만들 때 비워 둔 출생연도를 운영진 파일에서 한 번에 옮긴다.
+ */
+function profileFormHtml(draft: ProfileDraft | null, notice: string | null, members: readonly Member[]): string {
+  const missing = members.filter((m) => m.status !== 'inactive' && m.birthYear === null).length
+  const problems = draft?.problems.length
+    ? `<div class="form-error" role="alert">
+        <p>아래 줄을 고친 뒤 다시 눌러 주세요. 아직 아무것도 바꾸지 않았습니다.</p>
+        <ul class="problem-list">${draft.problems
+          .map((p) => `<li>${p.line}째 줄 <strong>${esc(p.name)}</strong> — ${esc(p.reason)}</li>`)
+          .join('')}</ul>
+      </div>`
+    : ''
+  return `<details class="card"${draft || notice ? ' open' : ''}>
+      <summary><h2>출생연도 · 성별 한꺼번에 넣기${missing ? ` <span class="chip chip-unchecked">비어 있음 ${missing}명</span>` : ''}</h2></summary>
+      <form id="bulk-profile-form" class="stack">
+        ${notice ? `<div class="form-ok" role="status">${notice.split('\n').map((line) => `<p>${esc(line)}</p>`).join('')}</div>` : ''}
+        <div class="field">
+          <label for="bulk-profile">명단 <span class="muted">(한 줄에 한 명 · 이미 등록된 이름)</span></label>
+          <textarea id="bulk-profile" name="profiles" rows="8" required spellcheck="false" placeholder="홍길동, 1985&#10;김민수A, 남, 1979&#10;이영희, 여, 1990-03-14">${esc(draft?.text ?? '')}</textarea>
+          <p class="hint">스프레드시트에서 <strong>이름 · 출생연도</strong>(성별은 선택) 열을 복사해 붙이면 됩니다. 생년월일 전체가 있어도 연도만 씁니다. <strong>앱에 비어 있는 칸만 채웁니다</strong> — 이미 있는 값이 파일과 다르면 바꾸지 않고 알려 줍니다. 출생연도가 <code>#VALUE!</code> 같은 엑셀 오류인 줄은 빼고, 앱 명단에 없는 이름도 따로 알려 줍니다.</p>
+        </div>
+        ${problems}
+        <button class="button primary" type="submit">대조하고 빈 칸 채우기</button>
+        <p class="hint">네이버 로그인은 이름과 출생연도가 둘 다 맞아야 자동으로 이어집니다. 출생연도가 비어 있는 회원은 가입 신청으로 와서 운영자가 승인합니다.</p>
+      </form>
+    </details>`
+}
+
 export function adminMembersHtml(view: AdminMembersView): string {
   const issued = issuedHtml(view.issued, view.appUrl)
   const requests = joinRequestsHtml(view.requests, view.members)
@@ -993,6 +1109,7 @@ export function adminMembersHtml(view: AdminMembersView): string {
         <button class="button primary" type="submit">추가</button>
       </form>
       ${bulkFormHtml(view.today, view.bulk)}
+      ${profileFormHtml(view.profileDraft, view.profileNotice, view.members)}
       <section class="card list-card">
         <ul class="list">${rows}</ul>
       </section>
@@ -1071,7 +1188,11 @@ export function adminMemberHtml(view: AdminMemberView): string {
             ? `<p class="small">네이버 계정에 연결돼 있습니다. 이 회원은 네이버로 로그인합니다.</p>
                <p class="small muted">다른 사람의 네이버가 잘못 이어졌다면 끊으세요. 끊으면 다음 네이버 로그인 때 다시 판정합니다.</p>
                <button type="button" class="button danger-quiet" data-action="unlink-naver" data-id="${member.id}">네이버 연결 끊기</button>`
-            : '<p class="small muted">아직 연결 전입니다. 네이버 실명이 이 이름과 같으면 첫 네이버 로그인 때 자동으로 이어집니다. 이름이 다르면 가입 신청에서 이 회원과 연결하세요.</p>'
+            : `<p class="small muted">아직 연결 전입니다. ${
+                member.birthYear === null
+                  ? '출생연도가 비어 있어 자동으로 이어지지 않습니다 — 네이버로 들어오면 가입 신청으로 오니 이 회원과 연결해 주세요. 출생연도를 넣어 두면 이름과 출생연도가 둘 다 맞을 때 자동으로 이어집니다.'
+                  : `네이버 실명이 이 이름(동명이인 표시 A · B 는 빼고)과 같고 출생연도가 ${member.birthYear}년이면 첫 네이버 로그인 때 자동으로 이어집니다.`
+              } 맞지 않으면 가입 신청에서 이 회원과 연결하세요.</p>`
         }
       </section>
       ${password}

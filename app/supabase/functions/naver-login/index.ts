@@ -6,8 +6,9 @@
  *   2. 토큰 → 네이버 프로필(고유 id · 실명 · 별명 · 성별 · 출생연도)
  *   3. 명단과 잇기
  *      - 이미 이 네이버 id 에 연결된 회원 → 그 회원
- *      - 아니면 실명이 명단 이름과 똑같고 아직 네이버 미연결인 회원 → 자동 연결
- *        (display_name 은 유일하므로 맞으면 한 명이다. 명단은 운영자가 확인한 사람들이다)
+ *      - 아니면 `rosterMatch` — 실명 + 출생연도가 명단과 맞고 아직 네이버 미연결인 회원 → 자동 연결.
+ *        출생연도는 명단과 네이버 양쪽에 다 있고 같아야 한다(명단이 비어 있으면 운영자 승인).
+ *        동명이인 표시(김민수A)가 붙은 회원은 그런 회원이 한 명일 때만. 규칙은 app/src/core/naver.ts 의 rosterMatch 와 똑같다.
  *      - 그 밖에는 가입 신청으로 남기고 `{ status: 'pending' }`
  *   4. 회원이면 Auth 사용자를 (없으면 만들어) 잇고, 일회용 로그인 토큰을 돌려준다.
  *      앱이 그 토큰으로 verifyOtp 를 불러 세션을 받는다 — 메일은 보내지 않는다.
@@ -73,14 +74,17 @@ Deno.serve(async (request) => {
   const columns = 'id, display_name, status, user_id, naver_id, sex, birth_year'
   let { data: member } = await admin.from('members').select(columns).eq('naver_id', profile.id).maybeSingle()
 
-  if (!member) {
-    const { data: byName } = await admin
+  if (!member && profile.name.trim()) {
+    // 이름이 같거나 이름으로 시작하는(동명이인 표시) 미연결 회원을 받아 앱과 같은 규칙으로 고른다.
+    const name = profile.name.trim()
+    const { data: candidates } = await admin
       .from('members')
       .select(columns)
-      .eq('display_name', profile.name.trim())
+      // LIKE 의 % · _ · \ 는 글자 그대로 찾게 막는다.
+      .like('display_name', `${name.replace(/[\\%_]/g, '\\$&')}%`)
       .is('naver_id', null)
       .neq('status', 'inactive')
-      .maybeSingle()
+    const byName = rosterMatch((candidates ?? []) as MemberRow[], name, profile.birthYear)
     if (byName) {
       const { error } = await admin
         .from('members')
@@ -162,6 +166,33 @@ Deno.serve(async (request) => {
   }
   return reply(200, { status: 'member', tokenHash, displayName: member.display_name })
 })
+
+interface MemberRow {
+  id: string
+  display_name: string
+  status: string
+  user_id: string | null
+  naver_id: string | null
+  sex: 'M' | 'F' | null
+  birth_year: number | null
+}
+
+/** 동명이인 표시 — 이름 뒤에 붙는 `A` · ` 2` · `(83)`. 한글은 받지 않는다. */
+const SAME_NAME_MARK = /^\s?\(?[A-Za-z0-9]{1,4}\)?$/
+
+/**
+ * app/src/core/naver.ts 의 rosterMatch 와 **같은 규칙**(그쪽에 테스트가 있다). 고치면 둘 다 고친다.
+ * 후보는 이미 "중지 아님 · 네이버 미연결"로 걸러져 들어온다.
+ */
+function rosterMatch(candidates: readonly MemberRow[], name: string, birthYear: number | null): MemberRow | null {
+  if (birthYear === null) return null
+  const exact = candidates.find((m) => m.display_name === name)
+  if (exact) return exact.birth_year === birthYear ? exact : null
+  const marked = candidates.filter(
+    (m) => m.birth_year === birthYear && m.display_name.startsWith(name) && SAME_NAME_MARK.test(m.display_name.slice(name.length)),
+  )
+  return marked.length === 1 ? marked[0]! : null
+}
 
 async function naverProfile(code: string, state: string): Promise<NaverProfile | null> {
   const tokenUrl = new URL('https://nid.naver.com/oauth2.0/token')

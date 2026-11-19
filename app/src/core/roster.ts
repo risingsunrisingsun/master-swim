@@ -49,6 +49,7 @@ export interface Roster {
 }
 
 const BULLET = /^(\d+\s*[.)]|[-*•·])\s*/
+const SEX_WORD: Record<Sex, string> = { M: '남', F: '여' }
 const SEX: Record<string, Sex> = { 남: 'M', 남자: 'M', m: 'M', 여: 'F', 여자: 'F', f: 'F' }
 const YEAR = /^(\d{4})(년생?)?$/
 
@@ -64,6 +65,141 @@ export function readBirthYear(text: string): number | null {
   const match = YEAR.exec(trimmed)
   const year = match ? Number(match[1]) : Number.NaN
   return year >= BIRTH_YEAR_MIN && year <= BIRTH_YEAR_MAX ? year : Number.NaN
+}
+
+// ── 이미 있는 회원의 성별 · 출생연도 한꺼번에 넣기 ───────────────
+//
+// 네이버 자동 연결이 이름 + 출생연도를 본다(ADR-0012). 운영진이 가진 파일을 그대로 붙여 넣어
+// 앱 명단과 **대조**한다. 형식은 회원 추가 명단과 같다 — `홍길동, 1985` · `김철수\t남\t1979`.
+// 비밀번호 칸은 받지 않는다(여기는 정보만 고친다).
+//
+// **빈 칸만 채운다.** 앱에 이미 값이 있고 파일과 다르면 바꾸지 않고 `conflicts` 로 알린다 —
+// 어느 쪽이 맞는지는 운영자가 회원 한 명 화면에서 정한다. 파일 한 줄의 오타가 네이버 자동 연결을
+// 조용히 깨뜨리지 않게 하려는 것이다.
+
+export interface ProfileUpdate {
+  memberId: string
+  name: string
+  /** null 이면 그 칸은 그대로 둔다. */
+  sex: Sex | null
+  birthYear: number | null
+}
+
+/** 앱 명단과 파일이 다른 칸. 바꾸지 않았다. */
+export interface ProfileConflict {
+  name: string
+  field: 'sex' | 'birthYear'
+  current: string
+  file: string
+}
+
+export interface ProfileUpdates {
+  updates: ProfileUpdate[]
+  /** 고쳐야 저장할 수 있는 줄(읽을 수 없는 칸 · 겹치는 줄). */
+  problems: RosterProblem[]
+  /** 출생연도 칸이 엑셀 오류값(`#VALUE!` 등)이라 건너뛴 이름. */
+  skipped: string[]
+  /** 앱 명단에 없는 이름. 막지 않고 알려만 준다 — 운영진 파일에는 탈퇴 · 미등록 회원이 섞여 있다. */
+  unmatched: string[]
+  /** 앱 명단과 값이 다른 칸. */
+  conflicts: ProfileConflict[]
+  /** 앱 명단과 이미 똑같아 바꿀 것이 없던 사람 수. */
+  unchanged: number
+}
+
+/** 엑셀이 계산하지 못한 칸 — `#VALUE!` `#N/A` `#REF!` `#NAME?` `#DIV/0!` … */
+const EXCEL_ERROR = /^#[A-Z0-9/]+[!?]?$/i
+const FULL_DATE = /^(\d{4})[-./]?\d{1,2}[-./]?\d{1,2}\.?$/
+
+/**
+ * 한 줄을 이름과 나머지 칸으로 나눈다. 쉼표 · 탭이 있으면 그것으로, 없으면(채팅 · 메모장에서
+ * 옮기며 탭이 공백이 된 경우) 공백으로 나누고 **끝에서부터** 성별 · 연도로 읽히는 칸을 떼어 낸다.
+ * 그래서 `김민수 2 남 1985` 의 이름은 `김민수 2` 로 남는다.
+ */
+function splitProfileLine(raw: string): [string, string[]] {
+  if (/[,\t]/.test(raw)) {
+    const [first = '', ...rest] = raw.split(/[,\t]/)
+    return [first, rest]
+  }
+  const words = raw.trim().split(/\s+/)
+  const rest: string[] = []
+  while (words.length > 1) {
+    const last = words[words.length - 1]!
+    if (!(readSex(last) || YEAR.test(last) || FULL_DATE.test(last) || EXCEL_ERROR.test(last))) break
+    rest.unshift(words.pop()!)
+  }
+  return [words.join(' '), rest]
+}
+
+export function parseProfileUpdates(
+  text: string,
+  members: readonly { id: string; displayName: string; sex?: Sex | null; birthYear?: number | null }[],
+): ProfileUpdates {
+  const byName = new Map(members.map((m) => [m.displayName, m]))
+  const seen = new Map<string, number>()
+  const result: ProfileUpdates = { updates: [], problems: [], skipped: [], unmatched: [], conflicts: [], unchanged: 0 }
+
+  text.split(/\r?\n/).forEach((raw, index) => {
+    const line = index + 1
+    const [first, rest] = splitProfileLine(raw)
+    const name = first.trim().replace(BULLET, '').replace(/\s+/g, ' ').trim()
+    if (!name) return
+    // 스프레드시트 머리글 줄(이름 · 출생연도)은 조용히 넘긴다.
+    if (line === 1 && /^(이름|성명|name)$/i.test(name)) return
+
+    const problem = (reason: string) => result.problems.push({ line, name, reason })
+    let sex: Sex | null = null
+    let birthYear: number | null = null
+    let broken = false
+    let ok = true
+    for (const piece of rest) {
+      const field = piece.trim()
+      if (!field) continue
+      if (EXCEL_ERROR.test(field)) {
+        broken = true
+        continue
+      }
+      const readAsSex = readSex(field)
+      if (readAsSex && sex === null) {
+        sex = readAsSex
+        continue
+      }
+      // 생년월일 전체(1985-03-14 · 1985.03.14 · 19850314)가 와도 연도만 쓴다.
+      const year = readBirthYear(YEAR.test(field) ? field : (FULL_DATE.exec(field)?.[1] ?? field))
+      if (birthYear === null && year !== null && !Number.isNaN(year)) {
+        birthYear = year
+        continue
+      }
+      problem(`읽을 수 없는 칸 '${field.slice(0, 12)}' — 성별(남 · 여)과 출생연도(1985)만 적습니다`)
+      ok = false
+    }
+
+    const member = byName.get(name)
+    if (!ok) return
+    // 출생연도가 엑셀 오류인 줄은 통째로 뺀다 — 성별만 바꾸는 일도 하지 않는다.
+    if (broken && birthYear === null) result.skipped.push(name)
+    else if (!member) result.unmatched.push(name)
+    else if (seen.has(name)) problem(`${seen.get(name)}째 줄과 겹칩니다`)
+    else if (sex === null && birthYear === null) problem('성별이나 출생연도가 없습니다')
+    else {
+      seen.set(name, line)
+      // 빈 칸만 채운다. 이미 있고 다르면 알리기만 한다.
+      const currentSex = member.sex ?? null
+      const currentYear = member.birthYear ?? null
+      let fillSex: Sex | null = null
+      let fillYear: number | null = null
+      if (sex !== null && currentSex === null) fillSex = sex
+      else if (sex !== null && currentSex !== sex)
+        result.conflicts.push({ name, field: 'sex', current: SEX_WORD[currentSex!], file: SEX_WORD[sex] })
+      if (birthYear !== null && currentYear === null) fillYear = birthYear
+      else if (birthYear !== null && currentYear !== birthYear)
+        result.conflicts.push({ name, field: 'birthYear', current: String(currentYear), file: String(birthYear) })
+      if (fillSex !== null || fillYear !== null) result.updates.push({ memberId: member.id, name, sex: fillSex, birthYear: fillYear })
+      else if (!result.conflicts.some((c) => c.name === name)) result.unchanged++
+    }
+  })
+
+  return result
 }
 
 export function parseRoster(text: string, existing: readonly string[]): Roster {

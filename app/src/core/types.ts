@@ -156,3 +156,42 @@ export interface Goal extends SwimEvent {
   targetCs: number
   updatedAt: string
 }
+
+// ── 대회 참가 신청 ──────────────────────────────────────────
+
+/**
+ * 운영자가 연 대회. 회원이 개인 종목을 고르고 단체전 참가 의사를 남긴다.
+ * 대회 일정 · 결과는 마이랭킹과 카페가 한다 — 여기는 **신청 취합**만 한다.
+ */
+export interface Competition {
+  id: string
+  name: string
+  date: string
+  place: string
+  /** 이 날까지(포함) 회원이 신청 · 수정 · 취소할 수 있다. */
+  deadline: string
+  /** 회원이 고를 수 있는 개인 종목. */
+  events: SwimEvent[]
+  /** 단체전(계영 · 혼계영) 참가 의사를 받는다. */
+  relays: boolean
+  /** 한 사람이 고를 수 있는 개인 종목 수. */
+  maxEvents: number
+  note: string
+}
+
+export type CompetitionInput = Omit<Competition, 'id'>
+
+export interface CompetitionEntry {
+  competitionId: string
+  memberId: string
+  events: SwimEvent[]
+  /** 단체전에 나갈 수 있다. */
+  relay: boolean
+  note: string
+  updatedAt: string
+}
+
+/** `competitions.name` 의 check 와 같다. */
+export const COMPETITION_NAME_MAX = 40
+/** `competitions.max_events` 의 check 와 같다. */
+export const MAX_EVENTS_LIMIT = 5

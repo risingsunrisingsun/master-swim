@@ -1,5 +1,5 @@
-import { expect, test } from 'bun:test'
-import { parseRoster, readBirthYear, readSex } from './roster'
+import { describe, expect, test } from 'bun:test'
+import { parseProfileUpdates, parseRoster, readBirthYear, readSex } from './roster'
 
 const names = (text: string) => parseRoster(text, []).entries.map((e) => e.name)
 
@@ -74,4 +74,57 @@ test('칸 읽기', () => {
   expect(readBirthYear('1985년')).toBe(1985)
   expect(readBirthYear('85')).toBeNaN()
   expect(readBirthYear('2030')).toBeNaN()
+})
+
+describe('이미 있는 회원의 성별 · 출생연도', () => {
+  const members = [
+    { id: 'a', displayName: '홍길동' },
+    { id: 'b', displayName: '김민수A' },
+    { id: 'c', displayName: '이영희' },
+  ]
+
+  test('스프레드시트 붙여넣기 — 머리글은 넘기고, 생년월일은 연도만', () => {
+    const { updates, problems } = parseProfileUpdates('이름\t출생연도\n홍길동\t1985\n김민수A, 남, 1979-03-14\n이영희\t19900102\t여', members)
+    expect(problems).toEqual([])
+    expect(updates).toEqual([
+      { memberId: 'a', name: '홍길동', sex: null, birthYear: 1985 },
+      { memberId: 'b', name: '김민수A', sex: 'M', birthYear: 1979 },
+      { memberId: 'c', name: '이영희', sex: 'F', birthYear: 1990 },
+    ])
+  })
+
+  test('겹친 줄 · 빈 정보 · 읽을 수 없는 칸은 문제로, 명단에 없는 이름은 따로 알린다', () => {
+    const { updates, problems, unmatched } = parseProfileUpdates('김민수, 1980\n홍길동, 1985\n홍길동, 1986\n이영희\n이영희, swim1234', members)
+    expect(updates.map((u) => u.name)).toEqual(['홍길동'])
+    expect(problems.map((p) => p.line)).toEqual([3, 4, 5])
+    expect(unmatched).toEqual(['김민수'])
+  })
+
+  test('탭이 공백이 된 붙여넣기 · 엑셀 오류값(#VALUE!) 줄은 통째로 뺀다', () => {
+    const text = '홍길동    남    1982\n김민수A 여 #VALUE!\n이영희 여 1993\n박없음    남    1980\n김민수 2 남 1985'
+    const { updates, problems, skipped, unmatched } = parseProfileUpdates(text, [...members, { id: 'd', displayName: '김민수 2' }])
+    expect(problems).toEqual([])
+    expect(updates).toEqual([
+      { memberId: 'a', name: '홍길동', sex: 'M', birthYear: 1982 },
+      { memberId: 'c', name: '이영희', sex: 'F', birthYear: 1993 },
+      { memberId: 'd', name: '김민수 2', sex: 'M', birthYear: 1985 },
+    ])
+    expect(skipped).toEqual(['김민수A'])
+    expect(unmatched).toEqual(['박없음'])
+  })
+
+  test('앱에 이미 있는 값은 덮어쓰지 않는다 — 빈 칸만 채우고 다른 값은 알린다', () => {
+    const filled = [
+      { id: 'a', displayName: '홍길동', sex: 'M' as const, birthYear: 1982 },
+      { id: 'b', displayName: '김민수A', sex: 'M' as const, birthYear: 1979 },
+      { id: 'c', displayName: '이영희', sex: null, birthYear: 1990 },
+    ]
+    const r = parseProfileUpdates('홍길동 남 1982\n김민수A 여 1980\n이영희 여 1990', filled)
+    expect(r.unchanged).toBe(1)
+    expect(r.updates).toEqual([{ memberId: 'c', name: '이영희', sex: 'F', birthYear: null }])
+    expect(r.conflicts).toEqual([
+      { name: '김민수A', field: 'sex', current: '남', file: '여' },
+      { name: '김민수A', field: 'birthYear', current: '1979', file: '1980' },
+    ])
+  })
 })
