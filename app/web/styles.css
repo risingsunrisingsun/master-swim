@@ -1702,3 +1702,67 @@ fieldset.event-checks {
 .meeting-item .rsvp-detail {
   margin: 0 0 8px 76px;
 }
+
+
+/* ── 2026-11-20 — 폰에서 날짜 칸이 옆 칸을 밀어 겹치던 것 ──
+   iOS Safari · 안드로이드 크롬의 날짜 칸은 자기 너비를 고집한다(min-width: auto). 그리드 칸 안에서
+   줄어들게 하고, 그래도 좁으면 한 줄에 하나씩 떨어지게 한다. */
+.grid-2 > * {
+  min-width: 0;
+}
+
+input[type='date'] {
+  min-width: 0;
+  max-width: 100%;
+  display: block;
+  -webkit-appearance: none;
+  appearance: none;
+  line-height: 50px;
+  text-align: left;
+}
+
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+
+.grid-2.fit {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+/* ── 대회: 종목 추가 ── */
+
+.event-check.is-fins {
+  border-style: dashed;
+}
+
+.event-add {
+  margin-top: 8px;
+  border: 1px dashed var(--field);
+  border-radius: 14px;
+}
+
+.event-add > summary {
+  cursor: pointer;
+  list-style: none;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 14px;
+  font-weight: 700;
+  color: var(--blue-dark);
+}
+
+.event-add > summary::-webkit-details-marker {
+  display: none;
+}
+
+.event-add-body {
+  padding: 0 14px 14px;
+}
+
+.error-text {
+  color: var(--danger, #c62828);
+}

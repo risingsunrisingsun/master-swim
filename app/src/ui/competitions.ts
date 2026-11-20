@@ -4,7 +4,15 @@
  * 사람이 넣은 글자(대회 이름 · 장소 · 안내 · 메모 · 회원 이름)는 전부 `esc` 를 거친다.
  * 단체전 명단은 다른 회원의 이름과 기록이 함께 나오므로 운영자 화면에만 있다(PRD-0001 §2).
  */
-import { isOpen, sortEvents, tallyEntries } from '../core/competitions'
+import {
+  competitionEventKey,
+  competitionEventLabel,
+  isOpen,
+  sameCompetitionEvent,
+  STANDARD_COMPETITION_EVENTS,
+  sortEvents,
+  tallyEntries,
+} from '../core/competitions'
 import { shortDateLabel } from '../core/dates'
 import {
   MEDLEY_ORDER,
@@ -17,16 +25,18 @@ import {
   type RelaySwimmer,
   type RelayTeam,
 } from '../core/relay'
-import { eventKey, eventLabel, formatTime, sameEvent } from '../core/time'
+import { formatTime } from '../core/time'
 import {
+  COMPETITION_DISTANCE_MAX,
+  COMPETITION_DISTANCE_MIN,
   type Competition,
-  COMPETITION_NAME_MAX,
   type CompetitionEntry,
+  type CompetitionEvent,
+  COMPETITION_NAME_MAX,
   MAX_EVENTS_LIMIT,
   type Member,
-  RECORD_EVENTS,
+  type Stroke,
   STROKE_LABEL,
-  type SwimEvent,
 } from '../core/types'
 import { adminHeadHtml, errorHtml, esc } from './views'
 
@@ -61,7 +71,7 @@ export function competitionHtml(view: CompetitionView): string {
 
   if (!open) {
     const mine = entry
-      ? [...sortEvents(entry.events).map(eventLabel), entry.relay ? '단체전 가능' : ''].filter(Boolean).join(' · ')
+      ? [...sortEvents(entry.events).map(competitionEventLabel), entry.relay ? '단체전 가능' : ''].filter(Boolean).join(' · ')
       : '신청하지 않았습니다.'
     return `${head}<div class="page-body">${info}
         <section class="card stack-s">
@@ -73,12 +83,12 @@ export function competitionHtml(view: CompetitionView): string {
       </div>`
   }
 
-  const chosen = (e: SwimEvent) => entry?.events.some((x) => sameEvent(x, e)) ?? false
+  const chosen = (e: CompetitionEvent) => entry?.events.some((x) => sameCompetitionEvent(x, e)) ?? false
   const boxes = sortEvents(c.events)
     .map(
       (e) => `<label class="check-row">
-          <input type="checkbox" name="event" value="${eventKey(e)}"${chosen(e) ? ' checked' : ''} />
-          <span>${eventLabel(e)}</span>
+          <input type="checkbox" name="event" value="${competitionEventKey(e)}"${chosen(e) ? ' checked' : ''} />
+          <span>${competitionEventLabel(e)}</span>
         </label>`,
     )
     .join('')
@@ -124,24 +134,50 @@ export interface AdminCompetitionsView {
   error: string | null
 }
 
+/** 받을 개인 종목 한 칸. "종목 추가" 버튼이 화면에서 바로 붙일 때도 쓴다. */
+export function eventCheckHtml(event: CompetitionEvent, checked: boolean): string {
+  return `<label class="event-check${event.fins ? ' is-fins' : ''}"><input type="checkbox" name="events" value="${competitionEventKey(event)}"${checked ? ' checked' : ''} />${competitionEventLabel(event)}</label>`
+}
+
+const ADD_STROKES: readonly Stroke[] = ['free', 'back', 'breast', 'fly', 'im']
+
 /** 대회 칸. 열기와 고치기가 같이 쓴다. */
 function competitionFieldsHtml(c: Competition | null, today: string): string {
-  const defaults: SwimEvent[] = [
-    { stroke: 'free', distance: 50 },
-    { stroke: 'back', distance: 50 },
-    { stroke: 'breast', distance: 50 },
-    { stroke: 'fly', distance: 50 },
-  ]
+  const defaults: CompetitionEvent[] = (['free', 'back', 'breast', 'fly'] as const).map((stroke) => ({ stroke, distance: 50, fins: false }))
   const events = c?.events ?? defaults
-  const boxes = RECORD_EVENTS.map((e) => {
-    const on = events.some((x) => sameEvent(x, e))
-    return `<label class="event-check"><input type="checkbox" name="events" value="${eventKey(e)}"${on ? ' checked' : ''} />${eventLabel(e)}</label>`
-  }).join('')
+  // 늘 보이는 기본 종목 + 이 대회에만 있는 종목(200m · 핀 …).
+  const extra = events.filter((e) => !STANDARD_COMPETITION_EVENTS.some((s) => sameCompetitionEvent(s, e)))
+  const boxes = [
+    ...STANDARD_COMPETITION_EVENTS.map((e) => eventCheckHtml(e, events.some((x) => sameCompetitionEvent(x, e)))),
+    ...sortEvents(extra).map((e) => eventCheckHtml(e, true)),
+  ].join('')
+  const strokeOptions = ADD_STROKES.map((s) => `<option value="${s}">${STROKE_LABEL[s]}</option>`).join('')
+  const addPanel = `<details class="event-add">
+      <summary>＋ 종목 추가 <span class="muted">· 200m · 400m · 핀 종목</span></summary>
+      <div class="event-add-body stack-s">
+        <div class="grid-2 fit">
+          <div class="field">
+            <label for="add-stroke-${c?.id ?? 'new'}">영법</label>
+            <select id="add-stroke-${c?.id ?? 'new'}" data-add="stroke">${strokeOptions}</select>
+          </div>
+          <div class="field">
+            <label for="add-distance-${c?.id ?? 'new'}">거리 (m)</label>
+            <input id="add-distance-${c?.id ?? 'new'}" data-add="distance" inputmode="numeric" autocomplete="off" placeholder="예: 200" />
+          </div>
+        </div>
+        <label class="check-row boxed">
+          <input type="checkbox" data-add="fins" />
+          <span>핀(오리발) 종목</span>
+        </label>
+        <p class="hint" data-add="message" role="status">거리는 ${COMPETITION_DISTANCE_MIN}~${COMPETITION_DISTANCE_MAX}m. 넣은 종목은 위 목록에 체크된 채로 붙고, 대회를 저장할 때 반영됩니다.</p>
+        <button type="button" class="button" data-action="add-comp-event">목록에 넣기</button>
+      </div>
+    </details>`
   return `<div class="field">
       <label for="comp-name">대회 이름 <span class="muted">(${COMPETITION_NAME_MAX}자까지)</span></label>
       <input id="comp-name" name="name" required maxlength="${COMPETITION_NAME_MAX}" value="${esc(c?.name ?? '')}" placeholder="예: 서울시장배 마스터즈" />
     </div>
-    <div class="grid-2">
+    <div class="grid-2 fit">
       <div class="field">
         <label for="comp-date">대회 날</label>
         <input id="comp-date" name="date" type="date" required value="${c?.date ?? today}" />
@@ -158,6 +194,7 @@ function competitionFieldsHtml(c: Competition | null, today: string): string {
     <fieldset class="field event-checks">
       <legend class="label">받을 개인 종목</legend>
       <div class="event-check-grid">${boxes}</div>
+      ${addPanel}
     </fieldset>
     <div class="grid-2">
       <div class="field">
@@ -232,7 +269,7 @@ export function adminCompetitionHtml(view: AdminCompetitionView): string {
   const byEvent = tally.events
     .map(
       (t) => `<li class="tally-row">
-          <span class="tally-event">${eventLabel(t.event)} <span class="num">${t.names.length}</span></span>
+          <span class="tally-event">${competitionEventLabel(t.event)} <span class="num">${t.names.length}</span></span>
           <span class="small muted">${t.names.length ? t.names.map(esc).join(', ') : '없음'}</span>
         </li>`,
     )
@@ -249,7 +286,7 @@ export function adminCompetitionHtml(view: AdminCompetitionView): string {
     .map(
       (e) => `<li class="list-row wrap">
           <strong class="entry-person">${esc(name(e.memberId))}</strong>
-          <span class="list-note">${[...sortEvents(e.events).map(eventLabel), e.relay ? '단체전' : ''].filter(Boolean).join(' · ')}${e.note ? ` — ${esc(e.note)}` : ''}</span>
+          <span class="list-note">${[...sortEvents(e.events).map(competitionEventLabel), e.relay ? '단체전' : ''].filter(Boolean).join(' · ')}${e.note ? ` — ${esc(e.note)}` : ''}</span>
         </li>`,
     )
     .join('')

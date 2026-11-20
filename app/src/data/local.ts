@@ -14,6 +14,7 @@ import { competitionProblem, entryProblem } from '../core/competitions'
 import type {
   Competition,
   CompetitionEntry,
+  CompetitionEvent,
   CompetitionInput,
   Goal,
   JoinRequest,
@@ -276,7 +277,7 @@ export class LocalBackend implements Backend {
   }
 
   /** `save_entry` 함수와 같은 규칙 — 마감 전, 대회 종목 안에서, 개수 안에서. */
-  async saveEntry(competitionId: string, events: readonly SwimEvent[], relay: boolean, note: string): Promise<void> {
+  async saveEntry(competitionId: string, events: readonly CompetitionEvent[], relay: boolean, note: string): Promise<void> {
     const me = await this.requireMember()
     const state = this.load()
     const competition = (state.competitions ?? []).find((c) => c.id === competitionId)
@@ -290,7 +291,7 @@ export class LocalBackend implements Backend {
       {
         competitionId,
         memberId: me.id,
-        events: events.map((e) => ({ stroke: e.stroke, distance: e.distance })),
+        events: events.map((e) => ({ stroke: e.stroke, distance: e.distance, fins: e.fins })),
         relay,
         note: note.trim(),
         updatedAt: new Date().toISOString(),
@@ -769,12 +770,13 @@ function seed(today: string, random: () => number): State {
     place: '[대회 수영장]',
     deadline: addDays(today, 14),
     events: [
-      { stroke: 'free', distance: 50 },
-      { stroke: 'back', distance: 50 },
-      { stroke: 'breast', distance: 50 },
-      { stroke: 'fly', distance: 50 },
-      { stroke: 'free', distance: 100 },
-      { stroke: 'im', distance: 100 },
+      { stroke: 'free', distance: 50, fins: false },
+      { stroke: 'back', distance: 50, fins: false },
+      { stroke: 'breast', distance: 50, fins: false },
+      { stroke: 'fly', distance: 50, fins: false },
+      { stroke: 'free', distance: 100, fins: false },
+      { stroke: 'im', distance: 100, fins: false },
+      { stroke: 'free', distance: 50, fins: true },
     ],
     relays: true,
     maxEvents: 2,

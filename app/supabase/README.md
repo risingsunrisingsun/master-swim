@@ -26,6 +26,8 @@
 - `0007_naver_login.sql` — 네이버 로그인(`members.naver_id`, `join_requests`, `approve_join_request`). ADR-0012.
 - `0008_competitions.sql` — 대회 참가 신청(`competitions`, `competition_entries`, `save_entry`, `delete_entry`). ADR-0013.
   **앱을 배포하기 전에** 실행한다. 없으면 홈이 「저장하지 못했습니다」로 막힌다.
+- `0009_competition_custom_events.sql` — 대회 종목을 운영자가 적게 한다(200 · 400m, 핀 종목). 0008 의 종목 13개
+  check 를 "모양" check(`free-200` · `free-50-fin`)로 바꾼다. 없으면 기본 13종목 밖의 종목을 넣은 대회가 저장되지 않는다.
 
 ## 3. Edge Function
 

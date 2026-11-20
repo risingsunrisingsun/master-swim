@@ -486,9 +486,9 @@ describe('네이버 로그인 (데모 규칙 = Edge Function 규칙)', () => {
 })
 
 describe('대회 참가 신청 (데모 규칙 = save_entry 규칙)', () => {
-  const free50 = { stroke: 'free' as const, distance: 50 as const }
-  const back50 = { stroke: 'back' as const, distance: 50 as const }
-  const fly50 = { stroke: 'fly' as const, distance: 50 as const }
+  const free50 = { stroke: 'free' as const, distance: 50, fins: false }
+  const back50 = { stroke: 'back' as const, distance: 50, fins: false }
+  const fly50 = { stroke: 'fly' as const, distance: 50, fins: false }
 
   test('회원은 대회 종목 안에서 개수만큼 신청하고, 고치고, 취소한다', async () => {
     await backend.signIn(DEMO_MEMBER.name, DEMO_MEMBER.password)
@@ -500,7 +500,7 @@ describe('대회 참가 신청 (데모 규칙 = save_entry 규칙)', () => {
     expect((await backend.myEntries()).map((e) => [e.events.length, e.relay, e.note])).toEqual([[2, true, '접영도 가능']])
 
     await expect(backend.saveEntry(competition!.id, [free50, back50, fly50], false, '')).rejects.toThrow('2개까지')
-    await expect(backend.saveEntry(competition!.id, [{ stroke: 'free', distance: 25 }], false, '')).rejects.toThrow('대회 종목이 아닙니다')
+    await expect(backend.saveEntry(competition!.id, [{ stroke: 'free', distance: 25, fins: false }], false, '')).rejects.toThrow('대회 종목이 아닙니다')
     await expect(backend.saveEntry(competition!.id, [], false, '')).rejects.toThrow('하나 이상')
 
     await backend.saveEntry(competition!.id, [fly50], false, '')

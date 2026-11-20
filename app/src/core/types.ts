@@ -171,7 +171,7 @@ export interface Competition {
   /** 이 날까지(포함) 회원이 신청 · 수정 · 취소할 수 있다. */
   deadline: string
   /** 회원이 고를 수 있는 개인 종목. */
-  events: SwimEvent[]
+  events: CompetitionEvent[]
   /** 단체전(계영 · 혼계영) 참가 의사를 받는다. */
   relays: boolean
   /** 한 사람이 고를 수 있는 개인 종목 수. */
@@ -181,10 +181,23 @@ export interface Competition {
 
 export type CompetitionInput = Omit<Competition, 'id'>
 
+/**
+ * 대회 개인 종목. 기록 종목(SwimEvent)보다 넓다 — 거리는 대회 요강대로 운영자가 적고(200 · 400m …),
+ * 핀(오리발) 종목이 있다. DB 키는 `free-50` · `free-50-fin`(마이그레이션 0009 의 check 와 같다).
+ */
+export interface CompetitionEvent {
+  stroke: Stroke
+  distance: number
+  fins: boolean
+}
+
+export const COMPETITION_DISTANCE_MIN = 10
+export const COMPETITION_DISTANCE_MAX = 3000
+
 export interface CompetitionEntry {
   competitionId: string
   memberId: string
-  events: SwimEvent[]
+  events: CompetitionEvent[]
   /** 단체전에 나갈 수 있다. */
   relay: boolean
   note: string

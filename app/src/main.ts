@@ -19,7 +19,16 @@ import {
   recordsOf,
 } from './core/records'
 import { exportFileName, recordSheets } from './core/export'
-import { competitionProblem, entriesFileName, entryProblem, entrySheets, upcomingCompetitions } from './core/competitions'
+import {
+  competitionEventKey,
+  competitionProblem,
+  distanceProblem,
+  entriesFileName,
+  entryProblem,
+  entrySheets,
+  parseCompetitionEventKey,
+  upcomingCompetitions,
+} from './core/competitions'
 import { diagnose } from './core/priority'
 import { bestRelayTeams, DEFAULT_TAKEOVER_CS, type RelayGender, type RelayKind, relayBests, type RelaySwimmer } from './core/relay'
 import {
@@ -38,6 +47,7 @@ import {
   eventKey,
   formatTime,
   hasMinuteField,
+  isStroke,
   parseEventKey,
   readTime,
   refoldTime,
@@ -50,6 +60,7 @@ import { buildXlsx, XLSX_MIME } from './core/xlsx'
 import {
   type Competition,
   type CompetitionEntry,
+  type CompetitionEvent,
   type CompetitionInput,
   MEETING_LABEL_MAX,
   type MeetingInput,
@@ -65,7 +76,7 @@ import { DEMO_ADMIN, DEMO_INVITE, DEMO_MEMBER, LocalBackend } from './data/local
 import { SupabaseBackend } from './data/supabase'
 import { adminRecordsHtml, recordFormHtml, recordsHtml } from './ui/records'
 import { adminSetsHtml, readPlanForm, setsHtml } from './ui/sets'
-import { adminCompetitionHtml, adminCompetitionsHtml, adminRelayHtml, competitionHtml } from './ui/competitions'
+import { adminCompetitionHtml, adminCompetitionsHtml, adminRelayHtml, competitionHtml, eventCheckHtml } from './ui/competitions'
 import {
   accountHtml,
   adminAttendanceHtml,
@@ -744,8 +755,8 @@ const submitHandlers: Record<string, (form: HTMLFormElement) => Promise<void>> =
     const competitionId = field(form, 'competition')
     const events = new FormData(form)
       .getAll('event')
-      .map((v) => parseEventKey(typeof v === 'string' ? v : null))
-      .filter((e): e is SwimEvent => e !== null)
+      .map((v) => parseCompetitionEventKey(typeof v === 'string' ? v : null))
+      .filter((e): e is CompetitionEvent => e !== null)
     const relay = field(form, 'relay') === 'yes'
     try {
       const competition = (await backend.competitions()).find((c) => c.id === competitionId)
@@ -1137,8 +1148,8 @@ function readCompetitionForm(form: HTMLFormElement): CompetitionInput | string {
   if (!isValidIso(deadline)) return '신청 마감일을 확인해 주세요.'
   const events = new FormData(form)
     .getAll('events')
-    .map((v) => parseEventKey(typeof v === 'string' ? v : null))
-    .filter((e): e is SwimEvent => e !== null)
+    .map((v) => parseCompetitionEventKey(typeof v === 'string' ? v : null))
+    .filter((e): e is CompetitionEvent => e !== null)
   const input: CompetitionInput = {
     name: field(form, 'name').trim(),
     date,
@@ -1307,6 +1318,34 @@ const clickHandlers: Record<string, (button: HTMLButtonElement) => Promise<void>
       flashError = message(error)
       void render()
     }
+  },
+
+  // 대회 열기 · 고치기 — "종목 추가"에서 고른 종목을 목록에 체크된 칸으로 붙인다. 저장은 폼을 낼 때.
+  'add-comp-event': async (button) => {
+    const form = button.closest('form')
+    const grid = form?.querySelector<HTMLElement>('.event-check-grid')
+    const stroke = form?.querySelector<HTMLSelectElement>('[data-add="stroke"]')?.value ?? ''
+    const distanceInput = form?.querySelector<HTMLInputElement>('[data-add="distance"]')
+    const fins = form?.querySelector<HTMLInputElement>('[data-add="fins"]')?.checked ?? false
+    const note = form?.querySelector<HTMLElement>('[data-add="message"]')
+    if (!form || !grid || !distanceInput || !note || !isStroke(stroke)) return
+    const raw = distanceInput.value.trim().replace(/m$/i, '')
+    const distance = Number(raw)
+    const problem = raw === '' ? '거리를 m 단위로 적어 주세요.' : distanceProblem(distance)
+    if (problem) {
+      note.textContent = problem
+      note.classList.add('error-text')
+      distanceInput.focus()
+      return
+    }
+    const event: CompetitionEvent = { stroke, distance, fins }
+    const key = competitionEventKey(event)
+    const existing = [...grid.querySelectorAll<HTMLInputElement>('input[name="events"]')].find((i) => i.value === key)
+    if (existing) existing.checked = true
+    else grid.insertAdjacentHTML('beforeend', eventCheckHtml(event, true))
+    note.classList.remove('error-text')
+    note.textContent = existing ? '이미 있는 종목이라 체크해 두었습니다.' : '목록에 넣었습니다. 대회를 저장해야 반영됩니다.'
+    distanceInput.value = ''
   },
 
   'download-entries': async (button) => {

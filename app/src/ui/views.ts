@@ -10,7 +10,8 @@ import { formatCode, PASSWORD_MIN } from '../core/invite'
 import type { GoalGap } from '../core/records'
 import { clockLabel, EFFORT_LABEL, type Step } from '../core/sets'
 import { eventKey, eventLabel, formatTime } from '../core/time'
-import { ROSTER_MAX, type RosterProblem } from '../core/roster'
+import { competitionEventLabel } from '../core/competitions'
+import { BIRTH_YEAR_MAX, BIRTH_YEAR_MIN, ROSTER_MAX, type RosterProblem } from '../core/roster'
 import {
   type Competition,
   type CompetitionEntry,
@@ -386,7 +387,7 @@ function homeCompetitionHtml({ competition, entry }: HomeCompetition, today: str
       ? `<span class="chip chip-unchecked">${shortDateLabel(competition.deadline)} 마감</span>`
       : `<span class="chip chip-absent">마감</span>`
   const mine = entry
-    ? [...entry.events.map(eventLabel), entry.relay ? '단체전 가능' : ''].filter(Boolean).join(' · ')
+    ? [...entry.events.map(competitionEventLabel), entry.relay ? '단체전 가능' : ''].filter(Boolean).join(' · ')
     : open
       ? '아직 신청하지 않았어요. 눌러서 종목을 고르세요.'
       : '신청하지 않았어요.'
@@ -974,6 +975,15 @@ function sexOptions(selected: Member['sex']): string {
     <option value="F"${selected === 'F' ? ' selected' : ''}>여</option>`
 }
 
+/** 출생연도 드롭다운 — 최근 해가 위. 비워 둘 수 있다. */
+function birthYearOptions(selected: number | null): string {
+  const years: string[] = []
+  for (let year = BIRTH_YEAR_MAX; year >= BIRTH_YEAR_MIN; year--) {
+    years.push(`<option value="${year}"${year === selected ? ' selected' : ''}>${year}년</option>`)
+  }
+  return `<option value=""${selected === null ? ' selected' : ''}>모름 · 비워 두기</option>${years.join('')}`
+}
+
 /** 성별 · 출생연도 두 칸. 회원 추가와 회원 정보가 같이 쓴다. */
 function profileFieldsHtml(prefix: string, member: Pick<Member, 'sex' | 'birthYear'> | null): string {
   return `<div class="grid-2">
@@ -983,7 +993,7 @@ function profileFieldsHtml(prefix: string, member: Pick<Member, 'sex' | 'birthYe
       </div>
       <div class="field">
         <label for="${prefix}-birth">출생연도 <span class="muted">(선택)</span></label>
-        <input id="${prefix}-birth" name="birthYear" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1985" value="${member?.birthYear ?? ''}" />
+        <select id="${prefix}-birth" name="birthYear">${birthYearOptions(member?.birthYear ?? null)}</select>
       </div>
     </div>`
 }
@@ -1086,7 +1096,7 @@ export function adminMembersHtml(view: AdminMembersView): string {
           <label for="member-name">이름 <span class="muted">(로그인 이름 · 동명이인은 김민수A 처럼)</span></label>
           <input id="member-name" name="name" required maxlength="30" />
         </div>
-        <div class="grid-2">
+        <div class="grid-2 fit">
           <div class="field">
             <label for="member-joined">가입일</label>
             <input id="member-joined" name="joined" type="date" required value="${view.today}" />

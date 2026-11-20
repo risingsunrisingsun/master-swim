@@ -9,6 +9,7 @@ import type { Bracket, SetOverride, SetPlan } from '../core/sets'
 import type {
   Competition,
   CompetitionEntry,
+  CompetitionEvent,
   CompetitionInput,
   Goal,
   JoinRequest,
@@ -118,7 +119,7 @@ export interface Backend {
   /** 내 신청. 신청하지 않은 대회는 없다. */
   myEntries(): Promise<CompetitionEntry[]>
   /** 신청하거나 고친다. 마감이 지났거나 대회 조건(종목 · 개수)에 맞지 않으면 거절한다. */
-  saveEntry(competitionId: string, events: readonly SwimEvent[], relay: boolean, note: string): Promise<void>
+  saveEntry(competitionId: string, events: readonly CompetitionEvent[], relay: boolean, note: string): Promise<void>
   /** 신청 취소. 마감 전에만. */
   deleteEntry(competitionId: string): Promise<void>
 

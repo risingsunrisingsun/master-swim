@@ -1,12 +1,23 @@
 import { describe, expect, test } from 'bun:test'
-import { adminCompetitionHtml, competitionHtml } from '../ui/competitions'
-import { competitionProblem, entriesFileName, entryProblem, entrySheets, tallyEntries, upcomingCompetitions } from './competitions'
-import type { Competition, CompetitionEntry, Member, SwimEvent } from './types'
+import { adminCompetitionHtml, adminCompetitionsHtml, competitionHtml, eventCheckHtml } from '../ui/competitions'
+import {
+  competitionEventKey,
+  competitionEventLabel,
+  competitionProblem,
+  entriesFileName,
+  entryProblem,
+  entrySheets,
+  parseCompetitionEventKey,
+  sortEvents,
+  tallyEntries,
+  upcomingCompetitions,
+} from './competitions'
+import type { Competition, CompetitionEntry, CompetitionEvent, Member } from './types'
 
 const EVIL = '<img src=x onerror=alert(1)>'
-const free50 = { stroke: 'free' as const, distance: 50 as const }
-const back50 = { stroke: 'back' as const, distance: 50 as const }
-const free100 = { stroke: 'free' as const, distance: 100 as const }
+const free50 = { stroke: 'free' as const, distance: 50, fins: false }
+const back50 = { stroke: 'back' as const, distance: 50, fins: false }
+const free100 = { stroke: 'free' as const, distance: 100, fins: false }
 
 const competition = (over: Partial<Competition> = {}): Competition => ({
   id: 'c1',
@@ -33,7 +44,7 @@ const member = (id: string, displayName: string, over: Partial<Member> = {}): Me
   ...over,
 })
 
-const entry = (memberId: string, events: SwimEvent[] = [free50], relay = false, note = ''): CompetitionEntry => ({
+const entry = (memberId: string, events: CompetitionEvent[] = [free50], relay = false, note = ''): CompetitionEntry => ({
   competitionId: 'c1',
   memberId,
   events,
@@ -53,7 +64,7 @@ describe('회원 신청 검사', () => {
     expect(entryProblem(competition(), [], true, '2026-11-19')).toBeNull() // 단체전만 나가도 된다
     expect(entryProblem(competition({ relays: false }), [], true, '2026-11-19')).toContain('단체전')
     expect(entryProblem(competition(), [free50, back50, free100], false, '2026-11-19')).toContain('2개까지')
-    expect(entryProblem(competition(), [{ stroke: 'fly', distance: 50 }], false, '2026-11-19')).toContain('대회 종목이 아닙니다')
+    expect(entryProblem(competition(), [{ stroke: 'fly', distance: 50, fins: false }], false, '2026-11-19')).toContain('대회 종목이 아닙니다')
     expect(entryProblem(competition(), [free50, free50], false, '2026-11-19')).toContain('두 번')
   })
 })
@@ -111,4 +122,55 @@ test('화면 — 사람이 넣은 글자는 이스케이프', () => {
   expect(admin).not.toContain('<img src=x')
   expect(admin).toContain('신청 1명 · 단체전 가능 1명')
   expect(admin).toContain('href="#/admin/relay?c=c1"')
+})
+
+describe('대회 종목 — 운영자가 적는 거리 · 핀', () => {
+  const fin50 = { stroke: 'free' as const, distance: 50, fins: true }
+  const back200 = { stroke: 'back' as const, distance: 200, fins: false }
+
+  test('키 · 이름 — 예전 키(free-50)와 그대로 맞는다', () => {
+    expect(competitionEventKey(free50)).toBe('free-50')
+    expect(competitionEventKey(fin50)).toBe('free-50-fin')
+    expect(parseCompetitionEventKey('free-50')).toEqual(free50)
+    expect(parseCompetitionEventKey('back-200')).toEqual(back200)
+    expect(parseCompetitionEventKey('free-50-fin')).toEqual(fin50)
+    expect(competitionEventLabel(fin50)).toBe('핀 자유형 50m')
+    expect(competitionEventLabel(back200)).toBe('배영 200m')
+    for (const bad of ['free-5', 'free-05', 'swim-50', 'free-50-fins', 'free-9999', '']) expect(parseCompetitionEventKey(bad)).toBeNull()
+  })
+
+  test('순서 — 영법, 핀 아닌 것 먼저, 짧은 거리', () => {
+    expect(sortEvents([fin50, back200, free100, back50, free50]).map(competitionEventKey)).toEqual([
+      'free-50',
+      'free-100',
+      'free-50-fin',
+      'back-50',
+      'back-200',
+    ])
+  })
+
+  test('운영자 입력 — 거리 범위 · 겹침', () => {
+    const input = { ...competition(), id: undefined }
+    expect(competitionProblem({ ...input, events: [back200, fin50] })).toBeNull()
+    expect(competitionProblem({ ...input, events: [{ ...back200, distance: 5 }] })).toContain('거리')
+    expect(competitionProblem({ ...input, events: [free50, { ...free50 }] })).toContain('두 번')
+  })
+
+  test('회원은 핀 종목도 고른다 · 핀 아닌 같은 거리와는 다른 종목', () => {
+    const c = competition({ events: [free50, fin50] })
+    expect(entryProblem(c, [fin50], false, '2026-11-19')).toBeNull()
+    expect(entryProblem(competition(), [fin50], false, '2026-11-19')).toContain('핀 자유형 50m은 이 대회 종목이 아닙니다')
+  })
+
+  test('대회 화면 — 기본 13종목 + 이 대회에만 있는 종목, 추가 칸', () => {
+    const html = adminCompetitionsHtml({ today: '2026-11-19', competitions: [], notice: null, error: null })
+    expect(html).toContain('data-action="add-comp-event"')
+    expect(html).toContain('data-add="fins"')
+    expect(html).toContain('<option value="im">개인혼영</option>')
+    expect(eventCheckHtml(fin50, true)).toContain('value="free-50-fin" checked')
+    const edit = adminCompetitionHtml({ competition: competition({ events: [free50, back200] }), entries: [], members: [], today: '2026-11-19', saved: false, error: null })
+    expect(edit).toContain('value="back-200" checked')
+    expect(edit).toContain('value="free-50" checked')
+    expect(edit).toContain('value="free-25" />')
+  })
 })

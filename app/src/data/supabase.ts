@@ -4,10 +4,11 @@
  */
 import { createClient, FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js'
 import { type Bracket, parsePlan, type SetOverride, type SetPlan } from '../core/sets'
-import { eventKey, parseEventKey } from '../core/time'
+import { competitionEventKey, parseCompetitionEventKey } from '../core/competitions'
 import type {
   Competition,
   CompetitionEntry,
+  CompetitionEvent,
   CompetitionInput,
   Goal,
   JoinRequest,
@@ -58,9 +59,9 @@ interface EntryRow {
   updated_at: string
 }
 
-/** DB 의 종목 키 배열 → 종목. 모르는 키는 버린다. */
-const toEvents = (keys: readonly string[]): SwimEvent[] =>
-  keys.map(parseEventKey).filter((e): e is SwimEvent => e !== null)
+/** DB 의 종목 키 배열 → 대회 종목. 모르는 키는 버린다. */
+const toEvents = (keys: readonly string[]): CompetitionEvent[] =>
+  keys.map(parseCompetitionEventKey).filter((e): e is CompetitionEvent => e !== null)
 
 const toCompetition = (row: CompetitionRow): Competition => ({
   id: row.id,
@@ -88,7 +89,7 @@ const competitionFields = (input: CompetitionInput) => ({
   date: input.date,
   place: input.place.trim(),
   deadline: input.deadline,
-  events: input.events.map(eventKey),
+  events: input.events.map(competitionEventKey),
   relays: input.relays,
   max_events: input.maxEvents,
   note: input.note.trim(),
@@ -383,10 +384,10 @@ export class SupabaseBackend implements Backend {
     return (data as EntryRow[]).map(toEntry)
   }
 
-  async saveEntry(competitionId: string, events: readonly SwimEvent[], relay: boolean, note: string): Promise<void> {
+  async saveEntry(competitionId: string, events: readonly CompetitionEvent[], relay: boolean, note: string): Promise<void> {
     const { error } = await this.client.rpc('save_entry', {
       p_competition: competitionId,
-      p_events: events.map(eventKey),
+      p_events: events.map(competitionEventKey),
       p_relay: relay,
       p_note: note,
     })
